@@ -20,6 +20,8 @@ npm start
 
 ## 구현된 화면
 
+2026-09-15 프론트엔드 최종안: 화이트·블루 UI, 팀 소개 카드, 짧은 화면 이동·터치 피드백, 모션 감소 지원을 적용했습니다. 디자인 결정과 검증·연동 인수인계는 [`docs/FRONTEND_FINAL.md`](docs/FRONTEND_FINAL.md)에 정리했습니다.
+
 - 입사: 홈 → 6개 팀과 상세 소개 → 이름 입력 → AI A/B 선택과 설명 → 촬영 → 처리 → 프로필 확인 → NFC 등록 → 출력 → 스마트미러 안내
 - 퇴근: 카드 확인 → 체험 기록 확인 → 리포트 미리보기 → 출력 → 완료
 - 공통: 오류·재시도, 중복 터치 차단, 45초 유휴 경고/60초 초기화, 완료 후 15초 초기화
@@ -73,7 +75,7 @@ npm test
 .venv/bin/python -m pytest tests -q
 ```
 
-프론트엔드 핵심 동작 테스트 13개, 기존 백엔드 테스트 14개를 포함합니다. 브라우저 화면 점검 결과와 실제 하드웨어에서 남은 검증은 `docs/IMPLEMENTATION_STATUS.md`에 기록합니다.
+프론트엔드 핵심 동작 테스트 17개, 기존 백엔드 테스트 14개를 포함합니다. 최신 프론트엔드 검증은 `docs/FRONTEND_FINAL.md`, 실제 하드웨어에서 남은 검증은 `docs/IMPLEMENTATION_STATUS.md`에 기록합니다.
 
 ## 구조
 
@@ -81,6 +83,7 @@ npm test
 frontend/kiosk.html         시작 페이지
 frontend/styles/            디자인 토큰·컴포넌트·화면 스타일
 frontend/js/app.js          화면 흐름·비동기 작업·유휴 초기화
+frontend/js/motion.js       취소 가능한 화면 전환·모달 종료·모션 감소
 frontend/js/state.js        현재 관람객 상태·요청 무효화
 frontend/js/views.js        화면 마크업
 frontend/js/content.js      확정 팀/AI 문구·화면 ID

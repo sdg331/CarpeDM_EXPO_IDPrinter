@@ -9,10 +9,10 @@
 :root {
   --canvas: #ffffff;
   --surface: #ffffff;
-  --elevated: #eff4fb;
-  --ink: #192638;
-  --muted: #5f7086;
-  --line: #dde5ef;
+  --elevated: #f5f6f8;
+  --ink: #191f28;
+  --muted: #5c6675;
+  --line: #e5e8eb;
   --brand: #2864ed;
   --brand-soft: #edf3ff;
   --inverse: #ffffff;
@@ -26,5 +26,7 @@
   --type-label: 24px;
   --type-title: 52px;
   --type-action: 32px;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --motion-press: 120ms;
+  --motion-release: 220ms;
 }

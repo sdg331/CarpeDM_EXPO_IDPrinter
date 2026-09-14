@@ -9,6 +9,7 @@ import {
 import { Camera } from "./camera.js";
 import { renderScreen, escape } from "./views.js";
 import { logo, icon } from "./icons.js";
+import { createMotion } from "./motion.js";
 
 const query = new URLSearchParams(location.search);
 const demo = query.get("demo") === "1";
@@ -32,6 +33,8 @@ let completionAt = 0;
 let modal = null;
 let health = "unknown";
 let returnFocus = null;
+let renderedScreen = null;
+const motion = createMotion();
 
 function resize() {
   const kiosk = document.querySelector("#kiosk");
@@ -47,21 +50,25 @@ function resize() {
 addEventListener("resize", resize);
 resize();
 
-function render() {
+function render(direction = "forward") {
   const s = state.data;
   header.innerHTML = `<div class="header-row"><div class="brand">${logo()}<span class="brand-word">MIRRORTING<br>WORKS</span></div><div class="edition"><strong>2026 EXPO</strong></div></div>${demo ? '<div class="demo-line"><span>화면 체험 · 실제 장치 작동 없음</span><button class="demo-settings" data-action="settings">체험 설정 ↗</button></div>' : `<div class="live-notice">${health === "unavailable" ? "서비스 연결 대기 중 · 현장 스태프에게 문의해주세요." : "나의 가능성을 발견하는 하루"}</div>`}`;
   screen.dataset.screen = screenIds[s.screen];
   screen.innerHTML = renderScreen(s, demo);
   footer.innerHTML = `<span class="footer-brand">CarpeDM <span style="font-weight:400">× 동양미래대학교</span></span><span class="footer-index">MIRRORTING WORKS / ${screenIds[s.screen].replace("SCR-", "")}</span>`;
   header.querySelector(".demo-settings")?.toggleAttribute("disabled", s.busy);
+  if (renderedScreen !== s.screen) {
+    motion.navigate(screen, direction);
+    renderedScreen = s.screen;
+  }
 }
-function go(next, patch = {}) {
+function go(next, patch = {}, direction = "forward") {
   if (state.data.screen === "camera") camera.stop();
   state.invalidate();
   state.patch({ screen: next, error: null, ...patch });
   lastActivity = Date.now();
   completionAt = next.endsWith("Complete") ? Date.now() + 15000 : 0;
-  render();
+  render(direction);
   screen.focus({ preventScroll: true });
   if (next === "name") {
     composing = false;
@@ -84,7 +91,7 @@ function reset() {
   completionAt = 0;
   closeModal();
   lastActivity = Date.now();
-  render();
+  render("reset");
   screen.focus({ preventScroll: true });
 }
 
@@ -182,9 +189,15 @@ function updateCamera(status, code) {
   panel.className = `camera-panel ${status}`;
   screen.querySelector("#camera-instruction").textContent =
     code && errorCopy[code] ? errorCopy[code][0] : cameraCopy[status];
-  screen.querySelector('[data-action="capture"]').disabled = status !== "ready";
+  const captureButton = screen.querySelector('[data-action="capture"]');
+  captureButton.disabled = status !== "ready";
+  captureButton.hidden = status === "error";
   const retry = screen.querySelector('[data-action="camera-retry"]');
   retry.hidden = status !== "error";
+  screen.querySelector(".camera-state-note").textContent = status === "error"
+    ? (errorCopy[code]?.[1] || errorCopy.CAMERA_UNAVAILABLE[1])
+    : demo ? "샘플 화면이에요. 실제 카메라는 사용하지 않아요."
+    : "촬영한 원본 이미지는 분석 후 저장하지 않아요.";
   if (status === "error") camera.stop();
 }
 function initializeCamera() {
@@ -340,12 +353,16 @@ function updateName() {
   const validation = validateName(input.value);
   screen.querySelector("#name-count").textContent = `${validation.length} / 10`;
   const error = screen.querySelector("#name-error");
+  const invalid = input.value.length > 0 && !validation.valid;
   error.textContent =
     validation.length > 10
       ? "이름은 10자 이내로 입력해주세요."
+      : invalid ? validation.length === 0
+        ? "공백을 제외한 이름을 입력해주세요."
+        : "이름에 사용할 수 없는 문자가 있어요."
       : "앞뒤 공백을 제외한 1~10자";
-  error.classList.toggle("invalid", validation.length > 10);
-  input.setAttribute("aria-invalid", String(validation.length > 10));
+  error.classList.toggle("invalid", invalid);
+  input.setAttribute("aria-invalid", String(invalid));
   screen.querySelector('[data-action="name-next"]').disabled =
     !validation.valid || composing;
 }
@@ -371,7 +388,7 @@ function back() {
     report: "checkoutResult",
   }[s.screen];
   if (previous === "home") return reset();
-  if (previous) go(previous);
+  if (previous) go(previous, {}, "back");
 }
 
 function openModal(kind) {
@@ -388,7 +405,7 @@ function openModal(kind) {
   overlay.querySelector("select,button").focus();
 }
 function closeModal() {
-  overlay.innerHTML = "";
+  motion.dismiss(overlay.querySelector(".overlay-backdrop"));
   modal = null;
   header.inert = screen.inert = footer.inert = false;
   if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
@@ -494,10 +511,10 @@ document.addEventListener("keydown", (event) => {
     submitName();
   }
 });
-function activity(event) {
+function activity() {
+  // The warning remains stable until its explicit Continue/Home action is chosen.
+  if (modal === "idle") return;
   lastActivity = Date.now();
-  if (modal === "idle" && !event.target.closest('[data-action="home"]'))
-    closeModal();
 }
 document.addEventListener("pointerdown", activity);
 document.addEventListener("keydown", activity);
@@ -531,8 +548,9 @@ setInterval(() => {
 addEventListener("pagehide", () => {
   currentController?.abort();
   camera.stop();
+  motion.destroy();
 });
-render();
+render("reset");
 if (!demo)
   api
     .getHealth()

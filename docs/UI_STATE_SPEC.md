@@ -158,6 +158,8 @@ expired
 
 Default target: 60s policy with warning before reset; tune during onsite testing.
 
+Implemented: warning at 45s, reset at 60s. The warning requires an explicit Continue or Home action. Background activity and Tab do not dismiss it. Continue restores the current screen/input and restarts the inactivity timer. Work in progress and unknown hardware outcomes are excluded; completion returns home after 15s.
+
 ## Ownership
 
 Frontend owns:
