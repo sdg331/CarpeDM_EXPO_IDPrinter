@@ -49,7 +49,7 @@ resize();
 
 function render() {
   const s = state.data;
-  header.innerHTML = `<div class="header-row"><div class="brand">${logo()}<span class="brand-word">MIRRORTING<br>WORKS</span></div><div class="edition"><strong>2026 EXPO</strong><br>YOUR NEXT POSSIBILITY</div></div>${demo ? '<div class="demo-line"><span>화면 체험 · 실제 촬영·카드 등록·출력 없음</span><button class="demo-settings" data-action="settings">체험 설정 ↗</button></div>' : `<div class="live-notice">${health === "unavailable" ? "서비스 연결 대기 중 · 현장 스태프에게 문의해주세요." : "나의 가능성을 발견하는 하루"}</div>`}`;
+  header.innerHTML = `<div class="header-row"><div class="brand">${logo()}<span class="brand-word">MIRRORTING<br>WORKS</span></div><div class="edition"><strong>2026 EXPO</strong></div></div>${demo ? '<div class="demo-line"><span>화면 체험 · 실제 장치 작동 없음</span><button class="demo-settings" data-action="settings">체험 설정 ↗</button></div>' : `<div class="live-notice">${health === "unavailable" ? "서비스 연결 대기 중 · 현장 스태프에게 문의해주세요." : "나의 가능성을 발견하는 하루"}</div>`}`;
   screen.dataset.screen = screenIds[s.screen];
   screen.innerHTML = renderScreen(s, demo);
   footer.innerHTML = `<span class="footer-brand">CarpeDM <span style="font-weight:400">× 동양미래대학교</span></span><span class="footer-index">MIRRORTING WORKS / ${screenIds[s.screen].replace("SCR-", "")}</span>`;

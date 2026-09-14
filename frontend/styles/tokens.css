@@ -3,7 +3,7 @@
   --surface: #fcfcf8;
   --elevated: #e6e7df;
   --ink: #252820;
-  --muted: #686c60;
+  --muted: #4f5449;
   --line: #d3d5c9;
   --brand: #252820;
   --inverse: #f9f9f3;
@@ -13,5 +13,9 @@
     sans-serif;
   --mono: "Consolas", "SFMono-Regular", monospace;
   --radius: 20px;
+  --type-body: 28px;
+  --type-label: 24px;
+  --type-title: 52px;
+  --type-action: 32px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
