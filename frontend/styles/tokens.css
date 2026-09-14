@@ -1,0 +1,32 @@
+@font-face {
+  font-family: "Pretendard Variable";
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url("/static/assets/fonts/PretendardVariable.woff2") format("woff2");
+}
+
+:root {
+  --canvas: #ffffff;
+  --surface: #ffffff;
+  --elevated: #f5f6f8;
+  --ink: #191f28;
+  --muted: #5c6675;
+  --line: #e5e8eb;
+  --brand: #2864ed;
+  --brand-soft: #edf3ff;
+  --inverse: #ffffff;
+  --error: #b33737;
+  --font:
+    "Pretendard Variable", "Pretendard", "Noto Sans KR", "Malgun Gothic",
+    "Apple SD Gothic Neo", sans-serif;
+  --mono: "Consolas", "SFMono-Regular", monospace;
+  --radius: 20px;
+  --type-body: 28px;
+  --type-label: 24px;
+  --type-title: 52px;
+  --type-action: 32px;
+  --ease: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --motion-press: 120ms;
+  --motion-release: 220ms;
+}

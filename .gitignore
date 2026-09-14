@@ -1,0 +1,31 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.pytest_cache/
+node_modules/
+.env
+.env.*
+!.env.example
+.preview/
+
+# Claude Code 로컬 설정·작업본 (개인 · 커밋 금지)
+.claude/settings.local.json
+.claude/worktrees/
+
+# 모델 캐시 — scripts/fetch_models.sh 로 언제든 다시 받는다 (SFace가 37MB)
+models/
+
+# 분포 테스트용 실제 얼굴 표본. 개인정보라 저장소에 올리지 않는다.
+data/test_faces/
+
+# 표본에서 계산되는 값이라 재현 가능하다
+assets/domain_mean.npz
+
+# 후보 풀은 시트에서 언제든 다시 자른다 — characters/ + style_set/ 과 내용이 겹친다.
+#   python scripts/import_style_sheet.py assets/sheets/style_sheet_40.png --start 1 --cols 8 --expect 40 --out pool
+assets/pool/
+assets/characters/_previous/
+
+# screen 출력 백엔드의 마지막 배지 — 이름(PII)이 들어가므로 커밋 금지
+data/last_badge.png
