@@ -17,7 +17,8 @@ const heading = (eyebrow, title, subtitle = "") =>
   `<div class="title-group"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1>${subtitle ? `<p class="subtitle">${subtitle}</p>` : ""}</div>`;
 const step = (index, text, back = true) =>
   `<div class="step-row">${back ? `<button class="back" data-action="back" aria-label="이전 단계">${icon("back")}</button>` : ""}<span class="step-context"><b>${String(index).padStart(2, "0")}</b> / ${text}</span><span class="progress-rail" aria-label="전체 5단계 중 ${index}단계">${Array.from({ length: 5 }, (_, i) => `<i class="${i < index ? "done" : ""}"></i>`).join("")}</span></div>`;
-const teamIcon = (team) => `<span class="team-icon">${icon(team.icon)}</span>`;
+const teamIcon = (team) =>
+  `<span class="team-icon team-${team.id}">${icon(team.icon)}</span>`;
 const helper = (text, symbol = "shield") =>
   `<p class="helper">${icon(symbol)}${text}</p>`;
 const modeArt = (mode) =>
@@ -25,7 +26,7 @@ const modeArt = (mode) =>
 const identity = (s) =>
   `<div class="identity-strip">${s.result?.image ? `<img src="${escape(s.result.image)}" alt="현재 프로필">` : icon("badge")}<div><strong>${escape(s.name)}</strong><p>${escape(s.team?.title)} · ${s.aiMode ? escape(modes[s.aiMode].title) : "MIRRORTING WORKS"}</p></div><span class="pill">${escape(s.sessionId || "입사 등록 중")}</span></div>`;
 const statusVisual = (symbol, working = false, nfc = false) =>
-  `<div class="status-visual ${working ? "working" : ""}">${nfc ? `<div class="nfc-art">${logo()}<span>EMPLOYEE ID</span></div>${icon("nfc", "tap-waves")}` : icon(symbol)}</div>`;
+  `<div class="status-visual ${working ? "working" : ""}">${nfc ? `<div class="nfc-art">${logo()}<span>사원증</span></div>${icon("nfc", "tap-waves")}` : icon(symbol)}</div>`;
 const errorPanel = (error) => {
   if (!error) return "";
   const [title, copy] = errorCopy[error.code] || errorCopy.BACKEND_UNAVAILABLE;
@@ -37,15 +38,19 @@ const errorActions = (s, retry) =>
     : `${s.error?.retryable ? btn(retry, "다시 시도하기", "", "arrow") : ""}${btn("home", "처음으로", "secondary", "")}`;
 
 function home() {
-  return `<div class="home-head"><div class="eyebrow">A NEW DAY. A NEW POSSIBILITY.</div><h1>오늘, 어떤 하루를<br>시작할까요?</h1><p class="subtitle">나만의 사원증을 만들고,<br>스마트미러에서 새로운 나를 만나보세요.</p></div>
-    <div class="home-visual" aria-label="MIRRORTING WORKS 사원증 예시"><div class="visual-axis"></div><div class="orbit"></div><span class="tiny-cross">+</span><div class="identity-card card-back"><div class="card-mini-brand">MIRRORTING<br>WORKS</div>${logo("card-monogram")}<div class="card-mini-brand">YOUR NEXT SELF. <span>2026</span></div></div><div class="identity-card"><div class="card-slot"></div><div class="card-mini-brand">MIRRORTING WORKS ${logo()}</div><div class="card-photo"><img src="/assets/characters/char_01.png" alt="예시 캐릭터 프로필"></div><div class="card-bottom"><div><div class="card-name">새로운 나</div><div class="card-role">YOUR NEXT POSSIBILITY</div></div><div class="barcode" aria-hidden="true"></div></div></div><span class="visual-note">ONE DAY AT WORK.<br>A DIFFERENT SIDE OF YOU.</span><span class="visual-note right">ID / 2026<br>EST. CARPEDM</span></div>
-    <div class="home-path"><span><b>01</b> 입사 & 프로필</span>${icon("arrow")}<span><b>02</b> 스마트미러 체험</span>${icon("arrow")}<span><b>03</b> 나의 퇴근 리포트</span></div>
-    <div class="entry-grid"><button class="entry-card primary" data-action="checkin"><span class="entry-top">${icon("badge")}</span><h2>입사하기</h2><p>AI 프로필과 사원증 만들기</p>${icon("arrow", "entry-arrow")}</button><button class="entry-card" data-action="checkout"><span class="entry-top">${icon("logout")}</span><h2>퇴근하기</h2><p>오늘의 체험 리포트 받기</p>${icon("arrow", "entry-arrow")}</button></div><div class="home-bottom">${icon("clock")} 원하는 버튼을 눌러주세요 · 입사 약 1분</div>`;
+  return `<div class="home-head"><h1>새로운 나로,<br><span>출근해볼까요?</span></h1><p class="subtitle">AI 프로필로 만드는 나만의 사원증</p></div>
+    <div class="home-visual" role="img" aria-label="AI 프로필이 담긴 사원증 예시">
+      <div class="card-halo" aria-hidden="true"></div>
+      <div class="sample-card sample-card-back" aria-hidden="true">${logo()}<span>MIRRORTING<br>WORKS</span></div>
+      <div class="sample-card sample-card-front" aria-hidden="true"><div class="sample-card-header">MIRRORTING WORKS ${logo()}</div><div class="sample-photo"><img src="/assets/characters/char_01.png" alt=""></div><div class="sample-card-footer"><div><strong>새로운 나</strong><span>AI 프로필 예시</span></div>${icon("nfc")}</div></div>
+      <div class="sample-caption" aria-hidden="true">${icon("spark")}또 다른 나를 만나는 순간</div>
+    </div>
+    <div class="entry-grid"><button class="entry-card primary" data-action="checkin"><span class="entry-icon">${icon("badge")}</span><span class="entry-copy"><strong>입사하기</strong><span>나만의 사원증 만들기</span></span>${icon("arrow", "entry-arrow")}</button><button class="entry-card secondary" data-action="checkout"><span class="entry-icon">${icon("logout")}</span><span class="entry-copy"><strong>퇴근하기</strong><span>오늘의 체험 리포트 받기</span></span>${icon("arrow", "entry-arrow")}</button></div><div class="home-bottom">${icon("clock")}사원증 만들기, 약 1분이면 충분해요</div>`;
 }
 
 function teamSelection() {
   return `${step(1, "나의 팀 선택")}${heading("FIND YOUR TEAM", "어느 팀에 입사하시겠어요?", "마음이 가는 팀을 선택해 자세히 알아보세요.")}
-  <div class="team-grid">${teams.map((team, i) => `<button class="team-card" data-action="team-select" data-id="${team.id}">${teamIcon(team)}<span class="team-number">TEAM / 0${i + 1}</span><div><h2>${team.title}</h2><p>${team.english}</p></div>${icon("arrow", "arrow")}</button>`).join("")}</div>${actions(helper("어떤 팀이든, 새로운 가능성이 기다려요.", "people"))}`;
+  <div class="team-grid">${teams.map((team, i) => `<button class="team-card" data-action="team-select" data-id="${team.id}">${teamIcon(team)}<span class="team-number">TEAM / 0${i + 1}</span><div><h2>${team.title}</h2><p>${team.keywords.slice(0, 2).join(" · ")}</p></div>${icon("arrow", "arrow")}</button>`).join("")}</div>${actions(helper("어떤 팀이든, 새로운 가능성이 기다려요.", "people"))}`;
 }
 function teamDetail(s) {
   const team = s.draftTeam;
