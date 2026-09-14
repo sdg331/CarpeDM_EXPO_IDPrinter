@@ -49,13 +49,16 @@ function home() {
 }
 
 function teamSelection() {
-  return `${step(1, "나의 팀 선택")}${heading("FIND YOUR TEAM", "어느 팀에 입사하시겠어요?", "마음이 가는 팀을 선택해 자세히 알아보세요.")}
-  <div class="team-grid">${teams.map((team, i) => `<button class="team-card" data-action="team-select" data-id="${team.id}">${teamIcon(team)}<span class="team-number">TEAM / 0${i + 1}</span><div><h2>${team.title}</h2><p>${team.keywords.slice(0, 2).join(" · ")}</p></div>${icon("arrow", "arrow")}</button>`).join("")}</div>${actions(helper("어떤 팀이든, 새로운 가능성이 기다려요.", "people"))}`;
+  return `${step(1, "나의 팀 선택")}${heading("FIND YOUR TEAM", "어느 팀에 입사하시겠어요?", "카드를 눌러 팀 소개와 주요 업무를 확인하세요.")}
+    <div class="team-grid">${teams.map((team) => `<button class="team-card" data-action="team-select" data-id="${team.id}" aria-labelledby="team-${team.id}-name team-${team.id}-action" aria-describedby="team-${team.id}-summary"><span class="team-card-heading"><strong id="team-${team.id}-name">${team.title}</strong>${teamIcon(team)}</span><span class="team-card-summary" id="team-${team.id}-summary">${team.summary}</span><span class="team-card-link"><span id="team-${team.id}-action">소개 보기</span>${icon("arrow")}</span></button>`).join("")}</div>${actions(helper("선택한 팀이 사원증에 함께 표시돼요.", "badge"))}`;
 }
 function teamDetail(s) {
   const team = s.draftTeam;
-  return `${step(1, "나의 팀 선택")}${heading(team.english.toUpperCase(), team.title, "이 팀에서 새로운 하루를 시작해보세요.")}<div class="team-detail">${teamIcon(team)}<p class="team-description">${team.description}</p><div class="responsibilities"><div class="section-label">주요 업무</div><ul>${team.tasks.map((t) => `<li>${icon("check")}${t}</li>`).join("")}</ul></div><div class="keywords">${team.keywords.map((k) => `<span>#${k}</span>`).join("")}</div></div>${actions(btn("team-confirm", "이 팀으로 입사하기") + btn("back", "다른 팀 보기", "text", ""))}`;
+  return `${step(1, "팀 소개")}
+    <div class="team-detail-cards"><article class="team-profile" aria-labelledby="team-profile-title"><div class="team-profile-heading"><div><p class="section-label">팀 소개</p><h1 id="team-profile-title">${team.title}</h1></div>${teamIcon(team)}</div><p class="team-description">${team.description}</p><div class="keywords" aria-label="팀 키워드">${team.keywords.map((k) => `<span>#${k}</span>`).join("")}</div></article>
+    <section class="team-work-card" aria-labelledby="team-work-title"><h2 id="team-work-title">주요 업무</h2><ul>${team.tasks.map((task) => `<li>${task}</li>`).join("")}</ul></section></div>${actions(btn("team-confirm", "이 팀으로 입사하기") + btn("back", "다른 팀 보기", "text", ""))}`;
 }
+
 function nameInput(s) {
   return `${step(2, "사원 정보 입력")}${heading("NICE TO MEET YOU", "어떤 이름으로<br>불러드릴까요?", "사원증에 들어갈 이름을 알려주세요.")}<div class="selection-summary">${teamIcon(s.team)}<div><small>함께할 팀</small><strong>${s.team.title}</strong></div></div><form id="name-form"><label class="name-label" for="visitor-name">이름</label><input class="name-input" id="visitor-name" name="name" type="text" value="${escape(s.name)}" placeholder="이름을 입력해주세요" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="name-error name-count"><div class="input-meta"><span id="name-error">앞뒤 공백을 제외한 1~10자</span><span id="name-count">${Array.from(s.name).length} / 10</span></div><button type="submit" hidden>이름 확인</button></form><div class="keyboard-note">${icon("keyboard")}<span>화면 아래의 키보드를 사용해주세요.<br>입력 후 다음 버튼을 눌러주세요.</span></div>${actions(btn("name-next", "다음", "", "arrow", !s.name.trim()) + helper("입력한 이름은 사원증과 체험 리포트에 사용돼요."))}`;
 }
