@@ -1,0 +1,21 @@
+# 4-Fit MirrorTing 사원증 키오스크 — 백엔드 의존성
+# Python 3.12 기준 (3.14는 휠 부재 이슈가 있어 쓰지 않는다)
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9      # 촬영 프레임 업로드(multipart)
+pydantic>=2.6
+
+# 얼굴 검출(YuNet)·임베딩(SFace). 둘 다 cv2.objdetect에 내장돼 있다.
+# headless: 브라우저가 UI를 담당하므로 GUI 백엔드가 필요 없고, 파이에서 GUI 의존성을 줄인다.
+# 4.x 고정: FaceDetectorYN/FaceRecognizerSF API가 4.x에서 안정적이다.
+opencv-python-headless>=4.9,<5
+
+numpy>=1.26
+pillow>=10.0                 # 배지 렌더 · 인쇄용 흑백 1비트 변환
+
+# 감열 출력(5단계에서 사용). 파이/리눅스 USB 백엔드가 안정적이다.
+# escpos는 4단계 이후에 설치해도 되므로 여기서는 주석 처리해 둔다.
+# python-escpos>=3.1
+
+pytest>=8.0

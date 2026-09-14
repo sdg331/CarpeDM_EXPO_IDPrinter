@@ -1,0 +1,17 @@
+:root {
+  --canvas: #f2f2ed;
+  --surface: #fcfcf8;
+  --elevated: #e6e7df;
+  --ink: #252820;
+  --muted: #686c60;
+  --line: #d3d5c9;
+  --brand: #252820;
+  --inverse: #f9f9f3;
+  --error: #973c34;
+  --font:
+    "Pretendard", "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo",
+    sans-serif;
+  --mono: "Consolas", "SFMono-Regular", monospace;
+  --radius: 20px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
