@@ -32,8 +32,13 @@ Target: delete or expire after session/report retention purpose unless approved 
 
 ## NFC
 
-Card should hold minimal identity/session data.
-Do not put full photos or unnecessary private profile data on card.
+CURRENT feature backend (2026-09-30):
+- ACR1252U reads the card's immutable UID.
+- visitor/session details are stored in local SQLite, not written into NFC card memory.
+- reissuing the same physical card deactivates its previous active session binding.
+- full photos and face embeddings are never stored in the card mapping.
+
+Card-memory write remains TBD and must not be described as implemented.
 
 ## Logs
 
@@ -48,4 +53,6 @@ Prefer diagnostic IDs/error codes.
 ## Reset
 
 Frontend reset must clear visitor state from memory/UI.
-Backend retention and cleanup must be implemented separately and documented when final.
+Backend state is now persisted in `data/kiosk.sqlite3` so browser reset/restart does not break idempotency.
+The DB may contain visitor name + card UID + session metadata and is excluded from Git.
+A final retention/automatic purge period is still **TBD**; do not retain the exhibition DB indefinitely.
