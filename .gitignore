@@ -19,11 +19,15 @@ models/
 # 분포 테스트용 실제 얼굴 표본. 개인정보라 저장소에 올리지 않는다.
 data/test_faces/
 
+# 로컬 키오스크 세션 DB. 이름·카드 UID가 들어갈 수 있으므로 커밋 금지
+data/*.sqlite3
+data/*.sqlite3-wal
+data/*.sqlite3-shm
+
 # 표본에서 계산되는 값이라 재현 가능하다
 assets/domain_mean.npz
 
 # 후보 풀은 시트에서 언제든 다시 자른다 — characters/ + style_set/ 과 내용이 겹친다.
-#   python scripts/import_style_sheet.py assets/sheets/style_sheet_40.png --start 1 --cols 8 --expect 40 --out pool
 assets/pool/
 assets/characters/_previous/
 
