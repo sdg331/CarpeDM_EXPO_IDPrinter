@@ -4,6 +4,16 @@ CarpeDM의 2026 EXPO 사원증 발급·퇴근 리포트 키오스크입니다. *
 
 하드웨어·함체·프린터 배선·용지 교체·현재 USB 고장까지 포함한 최신 제작 기준은 [`docs/HARDWARE_ENCLOSURE_2026-09-30.md`](docs/HARDWARE_ENCLOSURE_2026-09-30.md)에 통합했습니다. 기존 문서와 충돌할 경우 이 문서와 [`docs/DECISIONS.md`](docs/DECISIONS.md)의 최신 항목을 우선합니다.
 
+
+## 2026-10-01 Frontend Redesign
+
+기존 사용자 흐름과 backend 계약은 유지하면서 UI/UX, 3D icon, motion, AI Mode B 연결 방식을 정리한 최신 문서입니다.
+
+- [리디자인 마스터](docs/REDESIGN_MASTER_2026-10-01.md)
+- [디자인 시스템](docs/DESIGN_SYSTEM_2026-10-01.md)
+- [아이콘/3D 에셋 시스템](docs/ICON_ASSET_SYSTEM_2026-10-01.md)
+- [AI Mode B 연동 설계](docs/AI_MODE_B_INTEGRATION_2026-10-01.md)
+
 ## 프론트엔드 실행
 
 Node.js 20 이상에서 별도 패키지 설치 없이 실행합니다.
