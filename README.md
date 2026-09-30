@@ -42,7 +42,7 @@ npm start
 
 기존 FastAPI + YuNet/SFace + 감열 출력 코드를 유지했습니다. 신규 `/api/nfc/register`, `/api/nfc/resolve`, `/api/badge/print`는 로컬 SQLite 세션과 `operationId` 기반 중복 방지를 사용합니다. 기존 `/api/issue`는 호환용으로만 남겨두며 새 UI는 호출하지 않습니다. `screen` 출력 백엔드는 개발용 파일 출력일 뿐 실물 프린터 검증을 대체하지 않습니다.
 
-실제 장치를 연결할 위치는 [`frontend/js/live-integrations.js`](frontend/js/live-integrations.js)입니다. 아직 확정되지 않은 REST 경로를 호출하지 않으며, 구현되지 않은 기능은 연결 준비 안내를 표시합니다. 자세한 인터페이스와 검증 범위는 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)를 참고하세요.
+실제 장치 연결 어댑터는 [`frontend/js/live-integrations.js`](frontend/js/live-integrations.js)입니다. 현재는 구현이 끝난 NFC 등록·카드 조회·사원증 출력 API만 연결했고, Mode B·MirrorTing 리포트·리포트 출력은 계약이 확정되지 않아 연결 준비 안내를 유지합니다. 자세한 인터페이스와 검증 범위는 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)를 참고하세요.
 
 ## 기존 FastAPI 실행
 
