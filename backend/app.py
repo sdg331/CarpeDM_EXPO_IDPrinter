@@ -1,11 +1,13 @@
-"""FastAPI 매칭 서버 (포트 8002).
+"""FastAPI backend for the 4-Fit MirrorTing employee-badge kiosk.
 
-8000은 carpedm-kiosk, 8001은 EXPO poc 백엔드가 쓰므로 8002를 쓴다.
+Port 8002 is used because 8000/8001 are reserved by other EXPO services.
 
-개인정보 — 촬영 프레임은 **메모리에서만** 다루고 디스크에 쓰지 않는다.
-화면의 "저장되지 않으며 즉시 폐기됩니다" 문구가 실제로 참이어야 한다.
+Privacy:
+- captured frames are processed in memory only;
+- raw face images and embeddings are never written to the local session DB;
+- card UID/session mappings stay on the kiosk.
 
-실행
+Run:
     ./.venv/bin/uvicorn backend.app:app --host 127.0.0.1 --port 8002 --reload
 """
 
@@ -15,12 +17,13 @@ import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -32,7 +35,15 @@ from backend.face import (
     Prototypes,
     display_scores,
 )
+from backend.nfc import NfcError, nfc_status, read_card_uid
 from backend.printing import PrintError, print_badge, printer_status
+from backend.store import (
+    TEAM_LABELS,
+    KioskStore,
+    OperationConflict,
+    SessionNotFound,
+    StoreError,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets"
@@ -40,24 +51,21 @@ FRONTEND = ROOT / "frontend"
 PROTO_PATH = ASSETS / "prototypes.npz"
 DOMAIN_PATH = ASSETS / "domain_mean.npz"
 
-# 표시 점수의 부드러움. 작을수록 1위가 도드라진다.
-# 1단계 분포 테스트 표본이 모이면 재보정할 값이다 — 지금은 잠정치.
 TEMPERATURE = float(os.getenv("KIOSK_TEMPERATURE", "0.08"))
-
-# 업로드 상한. 800×1280 캔버스에서 뽑은 JPEG는 여유롭게 이 안에 들어온다.
 MAX_UPLOAD = 8 * 1024 * 1024
+NFC_TIMEOUT_SECONDS = float(os.getenv("KIOSK_NFC_TIMEOUT", "10"))
 
 STATE: dict = {}
+STORE = KioskStore()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """모델 로드는 무거우니 기동 시 한 번만 한다."""
+    """Load heavyweight face models once and initialize durable local state."""
+    STORE.init()
     STATE["engine"] = FaceEngine()
     STATE["proto"] = Prototypes.load(PROTO_PATH)
 
-    # μ_real 은 실제 얼굴 표본에서 나온다(scripts/distribution_test.py --save).
-    # 없어도 순위는 나오지만 특정 캐릭터로 쏠릴 수 있다.
     if DOMAIN_PATH.exists():
         z = np.load(DOMAIN_PATH)
         STATE["mu_real"] = z["mu_real"].astype(np.float32)
@@ -71,18 +79,40 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="4-Fit MirrorTing 사원증 키오스크", lifespan=lifespan)
 
-# 프론트를 file:// 로 열어보는 경우까지 허용한다. 전시에서는 동일 출처로 서빙된다.
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
 
 
+def _error(
+    code: str,
+    *,
+    retryable: bool,
+    status_code: int,
+    detail: str | None = None,
+) -> JSONResponse:
+    payload: dict = {
+        "ok": False,
+        "error": {
+            "code": code,
+            "retryable": retryable,
+        },
+    }
+    if detail:
+        payload["error"]["detail"] = detail
+    return JSONResponse(status_code=status_code, content=payload)
+
+
 def char_meta() -> list[dict]:
     p: Prototypes = STATE["proto"]
     return [
-        {"id": cid, "no": cid.replace("char_", ""), "group": g,
-         "image": f"/assets/characters/{cid}.png"}
-        for cid, g in zip(p.ids, p.groups)
+        {
+            "id": cid,
+            "no": cid.replace("char_", ""),
+            "group": group,
+            "image": f"/assets/characters/{cid}.png",
+        }
+        for cid, group in zip(p.ids, p.groups)
     ]
 
 
@@ -98,7 +128,8 @@ def health() -> dict:
         "calibrated": STATE["mu_real"] is not None,
         "temperature": TEMPERATURE,
         "printer": printer_status(),
-        # 운영자 진단용 — 이 값이 크면 8종이 서로 붙어 있다는 뜻이다.
+        "nfc": nfc_status(),
+        "database": STORE.health(),
         "max_pair": float(_max_pair()),
     }
 
@@ -116,7 +147,7 @@ def characters() -> dict:
 
 @app.post("/api/detect")
 async def detect(frame: UploadFile = File(...)) -> dict:
-    """프리뷰 전용 — 얼굴 유무만 본다. SFace 임베딩(파이에서 가장 비싼 단계)을 건너뛴다."""
+    """Preview-only face count. SFace embedding is deliberately skipped."""
     raw = await frame.read()
     if not raw or len(raw) > MAX_UPLOAD:
         raise HTTPException(400, "이미지가 올바르지 않다")
@@ -136,7 +167,7 @@ async def detect(frame: UploadFile = File(...)) -> dict:
 
 @app.post("/api/match")
 async def match(frame: UploadFile = File(...)) -> dict:
-    """촬영 프레임 한 장 → 8종 점수. 이미지는 저장하지 않는다."""
+    """One captured frame -> 8-character relative scores. Image is not saved."""
     raw = await frame.read()
     if not raw:
         raise HTTPException(400, "빈 이미지다")
@@ -155,13 +186,19 @@ async def match(frame: UploadFile = File(...)) -> dict:
     try:
         emb, det = engine.embed_single(img, strict=True)
     except NoFaceError:
-        return {"ok": False, "error": "no_face",
-                "message": "얼굴이 보이지 않아요. 화면 안으로 들어와 주세요."}
+        return {
+            "ok": False,
+            "error": "no_face",
+            "message": "얼굴이 보이지 않아요. 화면 안으로 들어와 주세요.",
+        }
     except MultipleFacesError as exc:
-        return {"ok": False, "error": "multiple_faces", "count": exc.count,
-                "message": "여러 명이 보여요. 한 분만 서 주세요."}
+        return {
+            "ok": False,
+            "error": "multiple_faces",
+            "count": exc.count,
+            "message": "여러 명이 보여요. 한 분만 서 주세요.",
+        }
     finally:
-        # 원본 프레임을 최대한 빨리 놓는다.
         del img
 
     scores = proto.match_scores(emb, STATE["mu_real"])
@@ -174,10 +211,8 @@ async def match(frame: UploadFile = File(...)) -> dict:
         "ok": True,
         "top": top,
         "characters": char_meta(),
-        # 화면에 쓰는 값 — "8종 중 상대적으로 어디에 가까운가"
         "display": [round(float(v) * 100, 1) for v in display],
         "order": [int(i) for i in order],
-        # 운영자 진단용 원시 코사인. 화면에는 노출하지 않는다.
         "raw": [round(float(v), 4) for v in scores],
         "margin": round(float(scores[order[0]] - scores[order[1]]), 4),
         "confidence": round(float(det.confidence), 3),
@@ -186,10 +221,287 @@ async def match(frame: UploadFile = File(...)) -> dict:
     }
 
 
-class IssueRequest(BaseModel):
-    """배지 발급 요청. 얼굴 이미지는 받지 않는다 — 매칭은 이미 끝났고,
-    여기 오는 건 화면에서 확인한 텍스트와 캐릭터 선택뿐이다."""
+class MatchResultPayload(BaseModel):
+    kind: Literal["A", "B"]
+    characterId: str | None = None
+    profileId: str | None = None
 
+
+class NfcRegisterRequest(BaseModel):
+    operationId: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=1, max_length=10)
+    teamId: str = Field(min_length=1, max_length=32)
+    aiMode: Literal["A", "B"]
+    result: MatchResultPayload
+
+
+class OperationRequest(BaseModel):
+    operationId: str = Field(min_length=8, max_length=128)
+
+
+class BadgePrintRequest(BaseModel):
+    operationId: str = Field(min_length=8, max_length=128)
+    sessionId: str = Field(min_length=1, max_length=32)
+
+
+def _validate_registration(req: NfcRegisterRequest) -> tuple[str | None, str | None] | JSONResponse:
+    if req.teamId not in TEAM_LABELS:
+        return _error("INVALID_TEAM", retryable=False, status_code=400)
+
+    if req.aiMode == "A":
+        if req.result.kind != "A" or not req.result.characterId:
+            return _error("INVALID_AI_RESULT", retryable=False, status_code=400)
+        proto: Prototypes = STATE["proto"]
+        if req.result.characterId not in proto.ids:
+            return _error("INVALID_AI_RESULT", retryable=False, status_code=400)
+        return req.result.characterId, None
+
+    return _error("MODE_B_NOT_READY", retryable=False, status_code=501)
+
+
+@app.post("/api/nfc/register")
+def register_nfc(req: NfcRegisterRequest):
+    """Bind a physical NFC card UID to one locally persisted kiosk session."""
+    try:
+        op = STORE.get_operation(req.operationId, "nfc_register")
+    except OperationConflict as exc:
+        return _error(
+            "OPERATION_CONFLICT", retryable=False, status_code=409, detail=str(exc)
+        )
+
+    if op:
+        if op["status"] == "success" and op["result"]:
+            return {"ok": True, **op["result"]}
+
+        binding = STORE.binding_for_operation(req.operationId)
+        if binding:
+            result = {"status": "verified", "sessionId": binding["session_id"]}
+            STORE.finish_operation(
+                req.operationId,
+                kind="nfc_register",
+                status="success",
+                result=result,
+            )
+            return {"ok": True, **result}
+
+        if op["status"] == "retryable_error":
+            STORE.restart_operation(req.operationId, kind="nfc_register")
+            session_id = op["session_id"]
+        else:
+            return _error(
+                "UNKNOWN_OUTCOME",
+                retryable=False,
+                status_code=409,
+                detail=f"operation status={op['status']}",
+            )
+    else:
+        validated = _validate_registration(req)
+        if isinstance(validated, JSONResponse):
+            return validated
+        char_id, profile_id = validated
+        try:
+            session = STORE.create_session(
+                name=req.name,
+                team_id=req.teamId,
+                ai_mode=req.aiMode,
+                char_id=char_id,
+                profile_id=profile_id,
+            )
+        except (ValueError, StoreError) as exc:
+            return _error(
+                "SESSION_CREATE_FAILED",
+                retryable=False,
+                status_code=500,
+                detail=str(exc),
+            )
+        session_id = session["session_id"]
+        STORE.begin_operation(
+            req.operationId,
+            kind="nfc_register",
+            session_id=session_id,
+        )
+
+    try:
+        uid = read_card_uid(NFC_TIMEOUT_SECONDS)
+    except NfcError as exc:
+        STORE.finish_operation(
+            req.operationId,
+            kind="nfc_register",
+            status="retryable_error" if exc.retryable else "error",
+            error_code=exc.code,
+            retryable=exc.retryable,
+        )
+        status = 408 if exc.code == "NFC_TIMEOUT" else 503
+        return _error(
+            exc.code,
+            retryable=exc.retryable,
+            status_code=status,
+            detail=str(exc),
+        )
+
+    try:
+        STORE.bind_card(
+            session_id=session_id,
+            card_uid=uid,
+            operation_id=req.operationId,
+        )
+    except Exception as exc:
+        STORE.finish_operation(
+            req.operationId,
+            kind="nfc_register",
+            status="unknown",
+            error_code="UNKNOWN_OUTCOME",
+            retryable=False,
+        )
+        return _error(
+            "UNKNOWN_OUTCOME",
+            retryable=False,
+            status_code=500,
+            detail=str(exc),
+        )
+
+    result = {"status": "verified", "sessionId": session_id}
+    STORE.finish_operation(
+        req.operationId,
+        kind="nfc_register",
+        status="success",
+        result=result,
+    )
+    return {"ok": True, **result}
+
+
+@app.post("/api/nfc/resolve")
+def resolve_checkout(req: OperationRequest):
+    """Read a card and resolve its currently active visitor session."""
+    try:
+        uid = read_card_uid(NFC_TIMEOUT_SECONDS)
+    except NfcError as exc:
+        status = 408 if exc.code == "NFC_TIMEOUT" else 503
+        return _error(
+            exc.code,
+            retryable=exc.retryable,
+            status_code=status,
+            detail=str(exc),
+        )
+
+    session = STORE.resolve_card(uid)
+    if not session:
+        return _error("UNKNOWN_CARD", retryable=True, status_code=404)
+
+    return {
+        "ok": True,
+        "sessionId": session["session_id"],
+        "name": session["name"],
+        "teamId": session["team_id"],
+    }
+
+
+@app.post("/api/badge/print")
+def print_session_badge(req: BadgePrintRequest):
+    """Render and print one badge with persistent duplicate protection."""
+    try:
+        op = STORE.get_operation(req.operationId, "badge_print")
+    except OperationConflict as exc:
+        return _error(
+            "OPERATION_CONFLICT", retryable=False, status_code=409, detail=str(exc)
+        )
+
+    if op:
+        if op["status"] == "success" and op["result"]:
+            return {"ok": True, **op["result"]}
+        return _error(
+            "UNKNOWN_OUTCOME",
+            retryable=False,
+            status_code=409,
+            detail=f"operation status={op['status']}",
+        )
+
+    try:
+        session = STORE.get_session(req.sessionId)
+    except SessionNotFound:
+        return _error("SESSION_NOT_FOUND", retryable=False, status_code=404)
+
+    if session["ai_mode"] != "A" or not session["char_id"]:
+        return _error("BADGE_DATA_INCOMPLETE", retryable=False, status_code=409)
+
+    STORE.begin_operation(
+        req.operationId,
+        kind="badge_print",
+        session_id=req.sessionId,
+    )
+
+    try:
+        image = render_badge(
+            session["name"],
+            TEAM_LABELS[session["team_id"]],
+            session["char_id"],
+            session["session_id"],
+        )
+    except BadgeError as exc:
+        STORE.finish_operation(
+            req.operationId,
+            kind="badge_print",
+            status="error",
+            error_code="BADGE_RENDER_FAILED",
+            retryable=False,
+        )
+        return _error(
+            "BADGE_RENDER_FAILED",
+            retryable=False,
+            status_code=500,
+            detail=str(exc),
+        )
+
+    try:
+        printed = print_badge(image)
+    except PrintError as exc:
+        STORE.finish_operation(
+            req.operationId,
+            kind="badge_print",
+            status="unknown",
+            error_code="UNKNOWN_OUTCOME",
+            retryable=False,
+        )
+        return _error(
+            "UNKNOWN_OUTCOME",
+            retryable=False,
+            status_code=503,
+            detail=str(exc),
+        )
+
+    result = {
+        "status": "success",
+        "printJobId": req.operationId,
+        **printed,
+    }
+    STORE.finish_operation(
+        req.operationId,
+        kind="badge_print",
+        status="success",
+        result=result,
+    )
+    return {"ok": True, **result}
+
+
+@app.get("/api/operations/{operation_id}")
+def operation_status(operation_id: str):
+    """Operator/reconciliation endpoint for an idempotent side effect."""
+    op = STORE.get_operation(operation_id)
+    if not op:
+        return _error("OPERATION_NOT_FOUND", retryable=False, status_code=404)
+    return {
+        "ok": True,
+        "operationId": operation_id,
+        "kind": op["kind"],
+        "sessionId": op["session_id"],
+        "status": op["status"],
+        "errorCode": op["error_code"],
+        "retryable": op["retryable"],
+        "result": op["result"],
+    }
+
+
+class IssueRequest(BaseModel):
     name: str = Field(min_length=1, max_length=10)
     dept: str = Field(min_length=1, max_length=20)
     char_id: str
@@ -198,8 +510,7 @@ class IssueRequest(BaseModel):
 
 @app.post("/api/issue")
 def issue(req: IssueRequest) -> dict:
-    """배지 렌더 → 출력. 이름은 인쇄에만 쓰고 저장하지 않는다
-    (screen 백엔드는 개발용으로 마지막 한 장만 덮어쓴다 — printing.py 참고)."""
+    """Legacy non-idempotent badge endpoint kept for existing tests/tools."""
     proto: Prototypes = STATE["proto"]
     if req.char_id not in proto.ids:
         raise HTTPException(400, f"모르는 캐릭터: {req.char_id}")
@@ -207,22 +518,17 @@ def issue(req: IssueRequest) -> dict:
     try:
         img = render_badge(req.name.strip(), req.dept, req.char_id, req.emp_no)
     except BadgeError as exc:
-        # 자산·폰트 문제 — 운영자가 고쳐야 하는 종류라 메시지를 그대로 올린다.
         return {"ok": False, "error": "render_failed", "message": str(exc)}
 
     try:
         result = print_badge(img)
     except PrintError as exc:
-        # 용지 없음·단선 등. 프론트는 이걸 받아 화면 폴백으로 넘긴다.
         return {"ok": False, "error": "print_failed", "message": str(exc)}
 
     return {"ok": True, **result}
 
 
-# ---------- 정적 파일 ----------
-
 app.mount("/assets", StaticFiles(directory=ASSETS), name="assets")
-
 if FRONTEND.is_dir():
     app.mount("/static", StaticFiles(directory=FRONTEND), name="static")
 
@@ -231,6 +537,8 @@ if FRONTEND.is_dir():
 def index():
     page = FRONTEND / "kiosk.html"
     if not page.exists():
-        return {"message": "프론트엔드가 아직 없다. 3단계에서 만든다.",
-                "api": ["/api/health", "/api/characters", "/api/match"]}
+        return {
+            "message": "프론트엔드가 아직 없다.",
+            "api": ["/api/health", "/api/characters", "/api/match"],
+        }
     return FileResponse(page)

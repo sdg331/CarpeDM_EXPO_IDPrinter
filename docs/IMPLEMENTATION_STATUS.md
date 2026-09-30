@@ -109,3 +109,35 @@ SCR-01~20과 SCR-90 유휴 경고에 대응하는 화면을 제공합니다. A/B
 - 장시간 반복 운영 테스트와 Pi 폰트 설치.
 
 프론트엔드 샘플 체험 완료가 실제 하드웨어 전시 운영 승인을 뜻하지 않습니다.
+
+
+## 백엔드 세션/NFC/출력 안전성 구현 · 2026-09-30
+
+Feature branch `feat/backend-session-nfc-print-safety-20260930`에서 다음을 구현했다.
+
+- SQLite 로컬 DB: `sessions`, `card_bindings`, `operations`, 일별 ID counter.
+- 백엔드 소유 사원/세션 ID: `MWYYMMDDNNNN` 12자 형식.
+- 원본 얼굴 사진/임베딩은 DB에 저장하지 않는다.
+- ACR1252U PC/SC adapter: 카드 UID 읽기, timeout/offline/read 오류 구분.
+- 기본 NFC 모드는 `disabled`로 fail-closed. 명시적 `mock`만 개발용 성공을 제공한다.
+- 현재 NFC MVP는 카드 메모리 write를 가장하지 않고 UID ↔ session을 로컬 DB에 매핑한다.
+- 동일 카드를 새 세션에 재발급하면 기존 active binding을 해제한다.
+- NFC 등록 `operationId`를 SQLite에 저장해 timeout retry에서 같은 세션을 재사용한다.
+- card binding commit 후 응답 유실 시 binding을 조회해 성공 상태를 복구한다.
+- 사원증 출력은 `operationId` 기반 중복 방지를 적용한다.
+- 물리 출력 결과가 불명확한 PrintError는 자동 재시도하지 않고 `UNKNOWN_OUTCOME`으로 고정한다.
+- 현재 UI의 live integration에 NFC 등록, badge 출력, checkout card resolve만 연결했다.
+- Mode B / MirrorTing report / report print는 계약이 없어 계속 연결하지 않는다.
+
+추가 단위 테스트:
+- 세션 ID 증가
+- 카드 재발급 시 이전 세션 연결 해제
+- operation 성공 결과의 영속적 idempotency
+- retryable NFC operation의 동일 session 재사용
+- NFC disabled fail-closed
+- deterministic NFC mock
+- 동일 NFC operation 재요청 시 같은 session 반환
+- 동일 badge print operation 재요청 시 실제 print 1회만 수행
+- 불명확한 print 실패 후 동일 operation 자동 재출력 차단
+
+실물 검증은 아직 별도다. ACR1252U PC/SC와 ZTP-80USL2 출력/커터는 Raspberry Pi에서 반드시 확인해야 한다.

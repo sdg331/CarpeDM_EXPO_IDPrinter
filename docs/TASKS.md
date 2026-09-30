@@ -44,15 +44,15 @@
 
 ## NEXT — Backend Contract
 
-- [ ] Session/employee ID ownership
+- [x] Session/employee ID ownership
 - [ ] Mode B endpoint/service
-- [ ] NFC write/read/verify
-- [ ] local DB schema
+- [ ] NFC write/read/verify — UID read + local session mapping 코드는 구현, 실물 PC/SC 검증 및 card-memory write 여부는 TBD
+- [x] local DB schema
 - [ ] MirrorTing result contract
 - [ ] report print renderer
-- [ ] duplicate side-effect protection
-- [ ] printer 작업 ID + 완료 확인 계약
-- [ ] 출력 재시도 시 중복 출력 방지
+- [x] duplicate side-effect protection — NFC registration + badge print
+- [x] printer 작업 ID + 완료/불명 상태 계약
+- [x] 출력 재시도 시 중복 출력 방지 — ambiguous outcome은 자동 재출력 금지
 
 ## NEXT — UI/UX
 

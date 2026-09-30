@@ -124,9 +124,9 @@ Return only fields frontend needs, for example:
 
 Do not place base64 image blobs in global state if avoidable.
 
-## NFC Registration — PROPOSED
+## NFC Registration — CURRENT MVP
 
-Backend owns ACR1252U read/write/verify.
+Backend owns ACR1252U access. CURRENT MVP reads the card UID and verifies the UID ↔ session binding in local SQLite. Card-memory write is not implemented yet.
 
 Frontend contract concept:
 
@@ -148,7 +148,7 @@ Possible domain errors:
 
 Product direction: card stores minimal identity/session information; details live in DB.
 
-Final physical payload format is **TBD with backend/NFC implementation**. Do not hard-code in frontend.
+CURRENT MVP has no visitor payload in card memory; the card UID is the identifier and detailed data stays in SQLite. A future card-memory payload, if needed, remains TBD and must not be hard-coded in frontend.
 
 ## Checkout Resolve — PROPOSED
 
@@ -230,3 +230,127 @@ Suggested scenarios:
 ## Secrets
 
 No API keys/secrets in browser code or client-exposed env variables.
+
+
+## Backend Extensions — CURRENT (2026-09-30)
+
+The following routes are implemented on the feature backend and use durable SQLite state.
+
+### POST `/api/nfc/register`
+
+Creates/reuses a backend-owned session, reads the physical card UID through the NFC adapter, and binds that UID to the session.
+
+Request:
+
+```json
+{
+  "operationId": "browser-generated-idempotency-key",
+  "name": "김지연",
+  "teamId": "ai",
+  "aiMode": "A",
+  "result": {
+    "kind": "A",
+    "characterId": "char_01"
+  }
+}
+```
+
+Success:
+
+```json
+{
+  "ok": true,
+  "status": "verified",
+  "sessionId": "MW2609300001"
+}
+```
+
+Important:
+- `operationId` is persistent idempotency state, not the employee number.
+- a retryable NFC timeout reuses the same operation/session.
+- crash recovery checks whether the UID binding was already committed.
+- the current MVP reads the immutable UID and keeps the session mapping in SQLite.
+- it does **not** claim that visitor data was written into NFC card memory.
+
+### POST `/api/nfc/resolve`
+
+Read-only checkout card resolution.
+
+Request:
+
+```json
+{"operationId": "checkout-operation-id"}
+```
+
+Success:
+
+```json
+{
+  "ok": true,
+  "sessionId": "MW2609300001",
+  "name": "김지연",
+  "teamId": "ai"
+}
+```
+
+Unknown cards return stable error code `UNKNOWN_CARD`.
+
+### POST `/api/badge/print`
+
+Idempotent badge print contract.
+
+Request:
+
+```json
+{
+  "operationId": "badge-print-operation-id",
+  "sessionId": "MW2609300001"
+}
+```
+
+Success:
+
+```json
+{
+  "ok": true,
+  "status": "success",
+  "printJobId": "badge-print-operation-id",
+  "backend": "screen"
+}
+```
+
+If the printer raises after bytes may already have reached the device, the server records `UNKNOWN_OUTCOME` and does not automatically print again under the same operation ID.
+
+### GET `/api/operations/{operationId}`
+
+Operator/reconciliation endpoint for persistent side-effect state.
+
+Possible stored statuses:
+- `running`
+- `success`
+- `retryable_error`
+- `unknown`
+- `error`
+
+### NFC backend configuration
+
+Default is fail-closed:
+
+```bash
+KIOSK_NFC=disabled
+```
+
+Frontend/device development:
+
+```bash
+KIOSK_NFC=mock
+KIOSK_NFC_MOCK_UID=04AABBCC
+```
+
+ACR1252U through PC/SC:
+
+```bash
+KIOSK_NFC=pcsc
+```
+
+Mode B generation, MirrorTing report retrieval, and report printing remain unimplemented until their contracts are verified.
