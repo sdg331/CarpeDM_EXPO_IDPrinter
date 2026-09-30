@@ -263,6 +263,8 @@ export function createLiveApi(
     } catch (error) {
       if (error instanceof KioskError || error.name === "AbortError")
         throw error;
+      if (typeof error?.code === "string")
+        throw new KioskError(error.code, error.retryable ?? false);
       throw new KioskError("UNKNOWN_OUTCOME", false);
     }
   };
