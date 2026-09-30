@@ -35,11 +35,12 @@ npm start
 | 카메라 프리뷰 | 브라우저 `getUserMedia` 구현. 장치 권한 필요 |
 | 얼굴 감지·캐릭터 매칭 | 기존 `/api/detect`, `/api/match` 계약 연결 |
 | AI 프로필 생성 B | 화면·샘플 구현. 실제 로컬 합성 서비스는 연결 예정 |
-| NFC 등록·조회 | 화면·샘플·서비스 인터페이스 구현. ACR1252U 연동 예정 |
-| 사원증·리포트 출력 | 화면·샘플 구현. 실제 작업 ID/완료 확인 계약 연결 예정 |
+| NFC 등록·조회 | **백엔드 구현**: ACR1252U PC/SC UID 읽기 + SQLite 세션 매핑. 실물 Pi 검증 필요 |
+| 사원증 출력 | **백엔드 구현**: session 기반 렌더 + operationId 중복 방지. ZTP-80USL2 실물 출력 검증 필요 |
+| 퇴근 리포트 출력 | 화면·샘플 구현. MirrorTing report 계약/렌더러 연결 예정 |
 | MirrorTing 기록 | 화면·샘플 구현. 실제 데이터 조회 서비스 연결 예정 |
 
-기존 FastAPI + YuNet/SFace + 감열 출력 코드를 유지했습니다. 기존 `/api/issue`는 물리 출력 완료와 중복 방지를 보장하는 작업 API가 아니므로 새 UI에서 바로 호출하지 않습니다. 특히 `screen` 출력 백엔드의 파일 저장을 실물 출력 완료로 표시하지 않습니다.
+기존 FastAPI + YuNet/SFace + 감열 출력 코드를 유지했습니다. 신규 `/api/nfc/register`, `/api/nfc/resolve`, `/api/badge/print`는 로컬 SQLite 세션과 `operationId` 기반 중복 방지를 사용합니다. 기존 `/api/issue`는 호환용으로만 남겨두며 새 UI는 호출하지 않습니다. `screen` 출력 백엔드는 개발용 파일 출력일 뿐 실물 프린터 검증을 대체하지 않습니다.
 
 실제 장치를 연결할 위치는 [`frontend/js/live-integrations.js`](frontend/js/live-integrations.js)입니다. 아직 확정되지 않은 REST 경로를 호출하지 않으며, 구현되지 않은 기능은 연결 준비 안내를 표시합니다. 자세한 인터페이스와 검증 범위는 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)를 참고하세요.
 
@@ -57,6 +58,23 @@ bash scripts/fetch_models.sh
 ```
 
 모델 파일은 `models/face_detection_yunet_2023mar.onnx`, `models/face_recognition_sface_2021dec.onnx`입니다. Windows에서는 Git Bash로 모델 다운로드 스크립트를 실행할 수 있습니다.
+
+Raspberry Pi에서 ACR1252U를 실제로 사용할 때:
+
+```sh
+sudo apt install -y pcscd libpcsclite-dev swig
+sudo systemctl enable --now pcscd
+export KIOSK_NFC=pcsc
+```
+
+NFC 하드웨어 없이 백엔드/UI 연결만 검증할 때는 **명시적으로** mock을 켭니다.
+
+```sh
+export KIOSK_NFC=mock
+export KIOSK_NFC_MOCK_UID=04AABBCC
+```
+
+기본값은 `KIOSK_NFC=disabled`이므로 리더가 없는 상태를 성공으로 가장하지 않습니다. 현재 NFC 구현은 카드 메모리에 개인정보를 쓰지 않고 카드 UID와 로컬 세션을 SQLite에서 연결합니다.
 
 ```sh
 # Windows
@@ -91,8 +109,12 @@ frontend/js/views.js        화면 마크업
 frontend/js/content.js      확정 팀/AI 문구·화면 ID
 frontend/js/api-client.js   실제 API와 명시적 샘플 API
 frontend/js/camera.js       프리뷰·촬영·스트림 해제
-frontend/js/live-integrations.js  추후 장치 연동 지점
-backend/                   기존 매칭·배지·출력 구현
+frontend/js/live-integrations.js  구현된 NFC/사원증 backend 연결
+backend/app.py             FastAPI routes·idempotency contract
+backend/store.py           SQLite session/card/operation state
+backend/nfc.py             ACR1252U PC/SC UID reader
+backend/badge.py           감열 사원증 렌더
+backend/printing.py        screen/ESC-POS/CUPS 출력 계층
 assets/                    기존 캐릭터·출력 자산·프로토타입
 docs/                      인수인계 명세·구현 상태
 tests/frontend/            프론트엔드 회귀 테스트
