@@ -95,7 +95,7 @@ npm test
 .venv/bin/python -m pytest tests -q
 ```
 
-프론트엔드 핵심 동작 테스트 17개, 기존 백엔드 테스트 14개를 포함합니다. 최신 프론트엔드 검증은 `docs/FRONTEND_FINAL.md`, 실제 하드웨어에서 남은 검증은 `docs/IMPLEMENTATION_STATUS.md`에 기록합니다.
+프론트엔드 핵심 동작 테스트 17개가 있으며, Python 쪽에는 기존 14개에 세션/NFC 단위 테스트 6개를 추가했습니다. 실제 Raspberry Pi 하드웨어 검증은 별도입니다. 최신 프론트엔드 검증은 `docs/FRONTEND_FINAL.md`, 실제 하드웨어에서 남은 검증은 `docs/IMPLEMENTATION_STATUS.md`에 기록합니다.
 
 ## 구조
 
