@@ -124,9 +124,9 @@ Return only fields frontend needs, for example:
 
 Do not place base64 image blobs in global state if avoidable.
 
-## NFC Registration — PROPOSED
+## NFC Registration — CURRENT MVP
 
-Backend owns ACR1252U read/write/verify.
+Backend owns ACR1252U access. CURRENT MVP reads the card UID and verifies the UID ↔ session binding in local SQLite. Card-memory write is not implemented yet.
 
 Frontend contract concept:
 
@@ -148,7 +148,7 @@ Possible domain errors:
 
 Product direction: card stores minimal identity/session information; details live in DB.
 
-Final physical payload format is **TBD with backend/NFC implementation**. Do not hard-code in frontend.
+CURRENT MVP has no visitor payload in card memory; the card UID is the identifier and detailed data stays in SQLite. A future card-memory payload, if needed, remains TBD and must not be hard-coded in frontend.
 
 ## Checkout Resolve — PROPOSED
 
