@@ -2,10 +2,13 @@
 
 ## Product
 
-- 작품명: **MirrorTing**
+- 작품 전체: **4-Fit MirrorTing**
 - 가상 회사: **MIRRORTING WORKS**
+- 스마트미러 시스템명: **MirrorTing**
 - 장치: 사원증 발급/퇴근 리포트 키오스크
-- 전시: 한국전자전/동양미래 EXPO
+- 전시: 동양미래 EXPO
+
+키오스크 하드웨어·함체의 최신 기준은 [HARDWARE_ENCLOSURE_2026-09-30.md](HARDWARE_ENCLOSURE_2026-09-30.md)를 우선한다.
 
 ## Worldbuilding
 
@@ -14,14 +17,14 @@ MirrorTing은 회사 안에서 사용하는 AI 스마트미러 시스템이다.
 
 키오스크는 **입사/퇴근 게이트** 역할을 한다.
 
-```text
 입사 등록
 → AI 사원 프로필
 → NFC 사원증
 → MirrorTing 스마트미러 출근/체험
 → NFC 퇴근
 → 개인 리포트 출력
-```
+
+NFC 카드는 관람객에게 증정하지 않고 전시 운영용으로 회수·재사용한다.
 
 ## Visitor Context
 
@@ -39,25 +42,46 @@ MirrorTing은 회사 안에서 사용하는 AI 스마트미러 시스템이다.
 
 CONFIRMED:
 - Raspberry Pi 5 8GB
-- 10.1" capacitive touch display
+- 공식 Pi 5 27W USB-C 전원
+- Yahboom MPJ1008 계열 10.1" capacitive touch display
 - Raspberry Pi Camera Module 3
 - ACR1252U NFC reader
-- ZTP-80USL2 80mm thermal kiosk printer
-- USB 5V COB LED strip, 8mm, 6W/m
+- ZALCOM ZTP-80USL2 80mm thermal kiosk printer
+- printer dedicated 12V 5A power
+- 5V COB LED strip + ON/OFF controller
 - black 3D printed enclosure
-- compact 2.4GHz wireless keyboard for name input (final model TBD)
 - no speaker
+- no front-mounted keyboard tray
 
-## Front UI Physical Arrangement
+IMPORTANT:
+- Printer power is never supplied directly from the Raspberry Pi.
+- USB is the primary printer data path; RS232 is a fallback.
+- Powered USB hub is optional, not mandatory.
+- The current printer USB connector/harness is damaged and requires repair/replacement.
 
+## Current Physical Direction
+
+Approximate enclosure:
+- 300(W) × 150(D) × 520(H) mm
+- portrait orientation
+- matte black
+- segmented for Bambu Lab A1 256 × 256 × 256 mm build volume
+
+Front/side:
 - top center: Camera Module 3
 - center: portrait touch display
-- display perimeter: 4-sided COB lighting + diffuser
-- lower left: thermal printer
-- lower right: NFC zone
-- bottom: keyboard tray
+- COB lighting around the upper/display area with diffuser
+- thermal printer body hidden; output slot only visible
+- NFC: right-side placement preferred; may be visibly exposed or slightly protruding
+- no front keyboard tray
 
-Fine dimensions are deferred until physical measurement/CAD.
+Service:
+- printer uses a removable basket/cradle direction for paper replacement
+- hidden hinge + push latch is not used
+- cable routing must preserve display HDMI/USB/CSI bend clearance
+- power and data paths should remain serviceable and visually hidden
+
+Fine dimensions remain dependent on real-part measurement and test prints.
 
 ## Experience Targets
 
@@ -65,23 +89,16 @@ Fine dimensions are deferred until physical measurement/CAD.
 - Check-out target: about 10–15 sec
 - Session should recover from retryable hardware failures without losing user progress.
 - Previous visitor data must never leak into a new session.
+- NFC cards must be safely reset/reissued for reuse.
 
 ## Privacy Direction
 
 - Captured face frames should not be persistently stored by the kiosk flow unless explicitly approved.
-- CURRENT `/api/match` processes frame in memory and does not save it to disk.
+- CURRENT /api/match processes frame in memory and does not save it to disk.
 - Mode A should retain result/embedding-derived data only as required.
 - Mode B generated profile image retention policy is PROPOSED: use for badge/session then delete at session/retention boundary.
 - NFC should store minimal data; detailed session data belongs in local DB/service.
-
-## Data Principles
-
-Minimize:
-- names
-- images
-- raw biometric-like feature data
-
-Do not log raw photos.
+- Do not log raw photos.
 
 ## Product Success
 
@@ -92,3 +109,14 @@ The product succeeds when the visitor understands:
 4. 사원증이 언제 출력되는지
 5. 스마트미러와 어떻게 이어지는지
 6. 퇴근할 때 무엇을 하면 되는지
+
+## Current Build Priority
+
+1. display bezel/frame first test print
+2. Pi + display + touch
+3. Camera Module 3 and 300 mm cable
+4. LED diffuser and right-side NFC
+5. printer USB repair / harness replacement
+6. printer basket/cradle
+7. power/cable management
+8. full hardware integration and soak test
