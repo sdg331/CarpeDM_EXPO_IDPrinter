@@ -2,6 +2,8 @@
 
 CarpeDM의 2026 EXPO 사원증 발급·퇴근 리포트 키오스크입니다. **800×1280 세로 터치 화면**을 기준으로, 프레임워크와 빌드 과정 없이 HTML/CSS/JavaScript로 구현했습니다.
 
+하드웨어·함체·프린터 배선·용지 교체·현재 USB 고장까지 포함한 최신 제작 기준은 [`docs/HARDWARE_ENCLOSURE_2026-09-30.md`](docs/HARDWARE_ENCLOSURE_2026-09-30.md)에 통합했습니다. 기존 문서와 충돌할 경우 이 문서와 [`docs/DECISIONS.md`](docs/DECISIONS.md)의 최신 항목을 우선합니다.
+
 ## 프론트엔드 실행
 
 Node.js 20 이상에서 별도 패키지 설치 없이 실행합니다.
