@@ -136,5 +136,8 @@ Feature branch `feat/backend-session-nfc-print-safety-20260930`에서 다음을 
 - retryable NFC operation의 동일 session 재사용
 - NFC disabled fail-closed
 - deterministic NFC mock
+- 동일 NFC operation 재요청 시 같은 session 반환
+- 동일 badge print operation 재요청 시 실제 print 1회만 수행
+- 불명확한 print 실패 후 동일 operation 자동 재출력 차단
 
 실물 검증은 아직 별도다. ACR1252U PC/SC와 ZTP-80USL2 출력/커터는 Raspberry Pi에서 반드시 확인해야 한다.
