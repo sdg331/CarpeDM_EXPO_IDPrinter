@@ -84,3 +84,83 @@ def test_retryable_operation_reuses_same_session(tmp_path):
     restarted = store.restart_operation("op-nfc-12345678", kind="nfc_register")
     assert restarted["status"] == "running"
     assert restarted["session_id"] == session["session_id"]
+
+
+def test_registration_claim_and_session_creation_are_one_transaction(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    store = make_store(tmp_path)
+    def create():
+        return store.create_session(name='방문객', team_id='ai', ai_mode='A', char_id='char_01', operation_id='same-registration')
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(lambda _: create(), range(6)))
+    assert len({result['session_id'] for result in results}) == 1
+    assert sum(result['claimed'] for result in results) == 1
+
+
+def test_bridge_requires_current_card_and_rejects_cross_visitor_report(tmp_path):
+    import pytest
+    from backend.store import OperationConflict
+
+    store = make_store(tmp_path)
+    first = store.create_session(name='이전', team_id='ai', ai_mode='A', char_id='char_01')['session_id']
+    second = store.create_session(name='다음', team_id='ai', ai_mode='A', char_id='char_01')['session_id']
+    store.bind_card(session_id=first, card_uid='AABBCCDD', operation_id='card-first')
+    expected = store.link_mirrorting(session_id=first, card_uid='AABBCCDD', mirror_session_id=10, access_token='private-token')
+    assert store.link_mirrorting(session_id=first, card_uid='AABBCCDD', mirror_session_id=10, access_token='private-token') == expected
+    assert 'access_token' not in expected
+    store.bind_card(session_id=second, card_uid='AABBCCDD', operation_id='card-second')
+    with pytest.raises(OperationConflict):
+        store.link_mirrorting(session_id=first, card_uid='AABBCCDD', mirror_session_id=10, access_token='private-token')
+    with pytest.raises(OperationConflict):
+        store.link_mirrorting(session_id=second, card_uid='AABBCCDD', mirror_session_id=10, access_token='private-token')
+    store.link_mirrorting(session_id=second, card_uid='AABBCCDD', mirror_session_id=11, access_token='next-token')
+    assert store.get_mirrorting_link(second)['mirror_session_id'] == 11
+
+
+def test_retention_removes_personal_data_but_keeps_unknown_print_guard(tmp_path):
+    import sqlite3
+    import pytest
+    from backend.store import OperationConflict, SessionNotFound
+
+    store = make_store(tmp_path)
+    session = store.create_session(name='삭제예정', team_id='ai', ai_mode='A', char_id='char_01')['session_id']
+    store.bind_card(session_id=session, card_uid='AABBCCDD', operation_id='private-card')
+    store.link_mirrorting(session_id=session, card_uid='AABBCCDD', mirror_session_id=10, access_token='erase-token')
+    store.claim_operation('old-print', kind='badge_print', session_id=session, unique_session=True)
+    store.finish_operation('old-print', kind='badge_print', status='unknown', error_code='UNKNOWN_OUTCOME')
+    with sqlite3.connect(store.path) as con:
+        con.execute("UPDATE sessions SET created_at='2000-01-01T00:00:00+00:00'")
+    purged = store.purge_expired()
+    assert purged == {'sessions': 1, 'bindings': 1, 'links': 1}
+    assert store.resolve_card('AABBCCDD') is None
+    with pytest.raises(SessionNotFound):
+        store.get_session(session)
+    guarded = store.claim_operation('different-print', kind='badge_print', session_id=session, unique_session=True)
+    assert guarded['claimed'] is False and guarded['status'] == 'unknown'
+    with pytest.raises(OperationConflict):
+        store.resolve_unknown_operation('old-print', outcome='not_printed')
+    with sqlite3.connect(store.path) as con:
+        assert con.execute('SELECT name,profile_id FROM sessions').fetchone() == ('', None)
+        assert con.execute('SELECT COUNT(*) FROM mirrorting_links').fetchone()[0] == 0
+
+
+def test_operator_confirmation_is_explicit_and_not_repeatable(tmp_path):
+    import pytest
+    from backend.store import OperationConflict
+
+    store = make_store(tmp_path)
+    session = store.create_session(name='방문객', team_id='ai', ai_mode='A', char_id='char_01')['session_id']
+    store.bind_card(session_id=session, card_uid='AABBCCDD', operation_id='current-card')
+    store.claim_operation('unknown-print', kind='badge_print', session_id=session, unique_session=True)
+    store.recover_interrupted_operations()
+    safe_retry = store.resolve_unknown_operation('unknown-print', outcome='not_printed')
+    assert safe_retry['status'] == 'retryable_error'
+    assert store.claim_operation('unknown-print', kind='badge_print', session_id=session, unique_session=True)['claimed']
+    store.finish_operation('unknown-print', kind='badge_print', status='unknown')
+    confirmed = store.resolve_unknown_operation('unknown-print', outcome='printed')
+    assert confirmed['status'] == 'success'
+    assert confirmed['result']['status'] == 'confirmed'
+    assert confirmed['result']['completionConfirmed'] is True
+    with pytest.raises(OperationConflict):
+        store.resolve_unknown_operation('unknown-print', outcome='not_printed')

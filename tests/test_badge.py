@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from backend.badge import BadgeError, render_badge
-from backend.printing import SCREEN_OUT, backend_name, print_badge, printer_status
+from backend.printing import PREVIEWS, backend_name, print_badge, printer_status
 
 ROOT = Path(__file__).resolve().parent.parent
 NEEDS_ASSETS = not (ROOT / "assets" / "characters" / "print" / "char_01_print.png").exists()
@@ -38,12 +38,15 @@ def test_스크린_백엔드_왕복(tmp_path, monkeypatch):
     img = render_badge("테스트", "디자인팀", "char_03", "2026-7777")
     result = print_badge(img)
     assert result["backend"] == "screen"
-    assert SCREEN_OUT.exists()
+    assert result["status"] == "preview"
+    assert result["physicalOutput"] is False
+    assert PREVIEWS.get(result["previewUrl"].rsplit("/", 1)[1]) is not None
     st = printer_status()
     assert st["ready"] is True
 
 
-def test_발급_엔드포인트_직접호출():
+def test_발급_엔드포인트_직접호출(monkeypatch):
+    monkeypatch.setenv("KIOSK_ENABLE_LEGACY_ISSUE", "1")
     """httpx 없이 엔드포인트 함수를 직접 부른다. STATE 는 수동 주입."""
     from backend import app as app_module
     from backend.app import IssueRequest, issue
@@ -61,3 +64,18 @@ def test_발급_엔드포인트_직접호출():
     with pytest.raises(HTTPException):
         issue(IssueRequest(name="김지연", dept="개발팀",
                            char_id="char_99", emp_no="2026-4181"))
+
+
+def test_mode_b_badge_renders_the_generated_portrait_without_character_asset():
+    from io import BytesIO
+    from PIL import Image
+
+    source = BytesIO()
+    Image.new('RGB', (720, 960), 'black').save(source, format='PNG')
+    badge = render_badge('프로필', 'AI팀', None, 'MW2610030001', profile_png=source.getvalue())
+    assert badge.mode == '1' and badge.size == (576, 808)
+    assert badge.getpixel((288, 300)) == 0
+    white = BytesIO()
+    Image.new('RGB', (720, 960), 'white').save(white, format='PNG')
+    badge_white = render_badge('프로필', 'AI팀', None, 'MW2610030001', profile_png=white.getvalue())
+    assert badge_white.getpixel((288, 300)) == 255

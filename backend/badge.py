@@ -16,10 +16,11 @@
 from __future__ import annotations
 
 import os
+from io import BytesIO
 from datetime import date
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 ROOT = Path(__file__).resolve().parent.parent
 PRINT_DIR = ROOT / "assets" / "characters" / "print"
@@ -83,8 +84,8 @@ def _center(draw: ImageDraw.ImageDraw, text: str, y: int, font, fill=0,
         draw.text(((W - w) / 2, y), text, font=font, fill=fill)
 
 
-def render_badge(name: str, dept: str, char_id: str, emp_no: str,
-                 issued: str | None = None) -> Image.Image:
+def render_badge(name: str, dept: str, char_id: str | None, emp_no: str,
+                 issued: str | None = None, *, profile_png: bytes | None = None) -> Image.Image:
     """배지 한 장을 1비트로 렌더한다. 매칭 점수는 찍지 않는다 —
     종이에 남으면 맥락이 사라져 'AI가 매긴 유사도'로만 읽힌다(프론트와 같은 결정)."""
     issued = issued or date.today().strftime("%Y. %m. %d")
@@ -98,7 +99,17 @@ def render_badge(name: str, dept: str, char_id: str, emp_no: str,
     _center(d, "STAFF ID", 72, _font(15), fill=255, tracking=10)
 
     # ── 초상 (288폭 인쇄 자산, 중앙) ──
-    portrait = _portrait(char_id)
+    if profile_png is not None:
+        try:
+            with Image.open(BytesIO(profile_png)) as source:
+                portrait = ImageOps.fit(source.convert("L"), (288, 384), method=Image.Resampling.LANCZOS)
+                portrait = portrait.convert("1", dither=Image.Dither.FLOYDSTEINBERG).convert("L")
+        except (OSError, ValueError) as exc:
+            raise BadgeError("프로필 이미지를 읽을 수 없다") from exc
+    elif char_id:
+        portrait = _portrait(char_id)
+    else:
+        raise BadgeError("초상 정보가 없다")
     px = (W - portrait.width) // 2
     py = 148
     canvas.paste(portrait, (px, py))

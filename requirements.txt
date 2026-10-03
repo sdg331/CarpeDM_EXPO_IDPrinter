@@ -1,21 +1,17 @@
 # 4-Fit MirrorTing 사원증 키오스크 — 백엔드 의존성
 # Python 3.12 기준 (3.14는 휠 부재 이슈가 있어 쓰지 않는다)
 
-fastapi>=0.110
-uvicorn[standard]>=0.29
-python-multipart>=0.0.9      # 촬영 프레임 업로드(multipart)
-pydantic>=2.6
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+python-multipart==0.0.32     # 촬영 프레임 업로드(multipart)
+pydantic==2.13.5
+httpx==0.28.1               # MirrorTing 서버 간 연결 및 계약 테스트
+python-dotenv==1.2.4        # 로컬 실행 설정
 
 # 얼굴 검출(YuNet)·임베딩(SFace)
-opencv-python-headless>=4.9,<5
-numpy>=1.26
-pillow>=10.0
+opencv-python-headless==4.14.0.94
+numpy==2.5.3
+pillow==12.3.0
 
-# ACR1252U / PC/SC.
-# Raspberry Pi OS: sudo apt install -y pcscd libpcsclite-dev swig
-pyscard>=2.0
-
-# 감열 출력. 실제 ZTP-80USL2 USB 경로 확정 후 활성화한다.
-# python-escpos>=3.1
-
-pytest>=8.0
+# PC/SC·USB 프린터는 requirements-hardware.txt, 테스트는 requirements-dev.txt.
+# 위 버전은 이 프로젝트의 Python 3.12 검증 환경 기준이다.

@@ -1,12 +1,12 @@
 """출력 계층 — screen / escpos / cups 세 백엔드를 환경변수 하나로 전환한다.
 
-    KIOSK_PRINT=screen   기본. 파일로 저장만 한다 (개발·8/1 데모용)
+    KIOSK_PRINT=screen   기본. 메모리에 잠시 보관하는 미리보기 (실물 출력 아님)
     KIOSK_PRINT=escpos   ESC/POS USB 감열 프린터 (전시용, 파이)
     KIOSK_PRINT=cups     CUPS 대기열 (드라이버가 CUPS 로 잡히는 프린터)
 
 왜 계층을 두나 — 프린터가 없는 맥에서도 발급 흐름 전체(/api/issue)가 끝까지
-돌아야 프론트를 붙여볼 수 있고, 전시 중 프린터가 죽어도 오류를 한 곳에서 잡아
-화면 폴백으로 넘길 수 있다.
+돌아야 프론트를 붙여볼 수 있다. 실제 출력 실패는 오류로 반환하며
+미리보기 성공으로 바꾸지 않는다. 장치/대기열 제출은 용지 배출 확인을 뜻하지 않는다.
 
 escpos 백엔드는 하드웨어 없이는 검증할 수 없다 — 프린터가 확보되면
 RUN.md 의 5단계 점검 절차대로 실기에서 확인할 것.
@@ -15,25 +15,33 @@ RUN.md 의 5단계 점검 절차대로 실기에서 확인할 것.
 from __future__ import annotations
 
 import os
+from io import BytesIO
 import subprocess
+import shutil
 import tempfile
 from pathlib import Path
 
 from PIL import Image
 
+from backend.profile import ProfileStore
+
 ROOT = Path(__file__).resolve().parent.parent
 
-# screen 백엔드의 저장 위치. 마지막 한 장만 남기고 덮어쓴다 —
-# 배지에는 이름이 들어가므로(PII) 발급 이력을 파일로 쌓지 않는다.
-SCREEN_OUT = ROOT / "data" / "last_badge.png"
+PREVIEWS = ProfileStore(
+    ttl_seconds=int(os.getenv("KIOSK_PREVIEW_TTL_SECONDS", "300")), max_items=8,
+)
 
 
 class PrintError(Exception):
-    """출력 실패 — 호출자는 이걸 잡아 화면 폴백으로 넘긴다."""
+    """Only failures known to occur before device access are safe to retry."""
+
+    def __init__(self, detail: str, *, retryable: bool = False):
+        super().__init__(detail)
+        self.retryable = retryable
 
 
 def backend_name() -> str:
-    return os.getenv("KIOSK_PRINT", "screen")
+    return os.getenv("KIOSK_PRINT", "screen").strip().lower()
 
 
 def print_badge(img: Image.Image) -> dict:
@@ -50,7 +58,7 @@ def print_badge(img: Image.Image) -> dict:
         raise
     except Exception as exc:                       # USB 단선·권한 등 무엇이든
         raise PrintError(f"{b} 출력 실패: {exc}") from exc
-    raise PrintError(f"모르는 출력 백엔드: {b} (screen/escpos/cups)")
+    raise PrintError(f"모르는 출력 백엔드: {b} (screen/escpos/cups)", retryable=True)
 
 
 def printer_status() -> dict:
@@ -58,16 +66,17 @@ def printer_status() -> dict:
     b = backend_name()
     if b == "screen":
         return {"backend": b, "ready": True,
-                "detail": f"파일 저장 ({SCREEN_OUT.relative_to(ROOT)})"}
+                "physicalOutput": False, "completionConfirmed": False,
+                "detail": "메모리 미리보기 (실물 출력 없음)"}
     if b == "escpos":
         try:
             import escpos  # noqa: F401
-            return {"backend": b, "ready": True, "detail": "escpos 모듈 로드됨"}
+            return {"backend": b, "ready": bool(os.getenv("KIOSK_ESCPOS_VENDOR") and os.getenv("KIOSK_ESCPOS_PRODUCT")), "physicalOutput": True, "completionConfirmed": False, "detail": "설정 상태만 확인; USB/용지 상태는 실물 확인 필요"}
         except ImportError:
             return {"backend": b, "ready": False,
-                    "detail": "python-escpos 미설치 — requirements.txt 주석 해제"}
+                    "detail": "python-escpos 미설치 — pip install -r requirements-hardware.txt"}
     if b == "cups":
-        return {"backend": b, "ready": True,
+        return {"backend": b, "ready": shutil.which("lp") is not None, "physicalOutput": True, "completionConfirmed": False,
                 "detail": f"lp -d {os.getenv('KIOSK_CUPS_PRINTER', '(기본 프린터)')}"}
     return {"backend": b, "ready": False, "detail": "모르는 백엔드"}
 
@@ -76,9 +85,13 @@ def printer_status() -> dict:
 
 
 def _screen(img: Image.Image) -> dict:
-    SCREEN_OUT.parent.mkdir(parents=True, exist_ok=True)
-    img.save(SCREEN_OUT)
-    return {"backend": "screen", "path": str(SCREEN_OUT.relative_to(ROOT))}
+    data = BytesIO()
+    img.save(data, format="PNG")
+    preview_id = PREVIEWS.put(data.getvalue())
+    return {
+        "backend": "screen", "status": "preview", "physicalOutput": False,
+        "completionConfirmed": False, "previewUrl": f"/api/print/previews/{preview_id}",
+    }
 
 
 def _escpos(img: Image.Image) -> dict:
@@ -89,12 +102,12 @@ def _escpos(img: Image.Image) -> dict:
     try:
         from escpos.printer import Usb
     except ImportError as exc:
-        raise PrintError("python-escpos 미설치 — requirements.txt 주석 해제") from exc
+        raise PrintError("python-escpos 미설치 — pip install -r requirements-hardware.txt", retryable=True) from exc
 
     vendor = os.getenv("KIOSK_ESCPOS_VENDOR")
     product = os.getenv("KIOSK_ESCPOS_PRODUCT")
     if not vendor or not product:
-        raise PrintError("KIOSK_ESCPOS_VENDOR / KIOSK_ESCPOS_PRODUCT 를 지정할 것 (lsusb 로 확인)")
+        raise PrintError("KIOSK_ESCPOS_VENDOR / KIOSK_ESCPOS_PRODUCT 를 지정할 것 (lsusb 로 확인)", retryable=True)
 
     p = Usb(int(vendor, 16), int(product, 16))
     try:
@@ -102,7 +115,7 @@ def _escpos(img: Image.Image) -> dict:
         p.cut()
     finally:
         p.close()
-    return {"backend": "escpos"}
+    return {"backend": "escpos", "status": "submitted", "physicalOutput": True, "completionConfirmed": False}
 
 
 def _cups(img: Image.Image) -> dict:
@@ -116,9 +129,12 @@ def _cups(img: Image.Image) -> dict:
         cmd += ["-d", printer]
     cmd.append(tmp)
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        except FileNotFoundError as exc:
+            raise PrintError("CUPS lp 명령을 찾을 수 없다", retryable=True) from exc
         if r.returncode != 0:
             raise PrintError(f"lp 실패: {r.stderr.strip()}")
     finally:
         Path(tmp).unlink(missing_ok=True)
-    return {"backend": "cups", "printer": printer or "(기본)"}
+    return {"backend": "cups", "printer": printer or "(기본)", "status": "submitted", "physicalOutput": True, "completionConfirmed": False}
