@@ -1,133 +1,118 @@
 # MIRRORTING WORKS · EXPO ID Printer
 
-CarpeDM의 2026 EXPO 사원증 발급·퇴근 리포트 키오스크입니다. **800×1280 세로 터치 화면**을 기준으로, 프레임워크와 빌드 과정 없이 HTML/CSS/JavaScript로 구현했습니다.
+CarpeDM의 **4-Fit MirrorTing 입사·퇴근 키오스크**입니다. 800×1280 터치 화면에서 팀·이름 선택, 얼굴 촬영, AI A/B 프로필, NFC 카드 연결, 사원증과 퇴근 리포트 출력으로 이어집니다. HTML/CSS/JavaScript + FastAPI + SQLite를 사용합니다.
 
-하드웨어·함체·프린터 배선·용지 교체·현재 USB 고장까지 포함한 최신 제작 기준은 [`docs/HARDWARE_ENCLOSURE_2026-09-30.md`](docs/HARDWARE_ENCLOSURE_2026-09-30.md)에 통합했습니다. 기존 문서와 충돌할 경우 이 문서와 [`docs/DECISIONS.md`](docs/DECISIONS.md)의 최신 항목을 우선합니다.
+## 구현과 검증 범위
 
+| 기능 | 소프트웨어 구현 | 실제 환경 확인 |
+| --- | --- | --- |
+| AI A | YuNet/SFace 얼굴 검출·8개 캐릭터 매칭 | Camera Module 3·Pi 처리시간 확인 필요 |
+| AI B | 얼굴·기존 옷 유지, 배경 분리·구도 정리, 임시 결과 저장, 세션 연결·배지 렌더 | 실제 촬영 조건의 품질·성능 확인 필요 |
+| NFC | PC/SC UID 읽기, 세션 연결·카드 재사용·동시 요청 방지 | ACR1252U 실물 태그 확인 필요 |
+| 사원증/리포트 | 감열 이미지, 작업 ID 중복 방지, 결과 불명 시 운영자 복구 | ZTP-80USL2 통신·용지·커터 확인 필요 |
+| MirrorTing | 실제 응답 계약 검증, 인증된 방문자 연결, 조회·리포트 렌더 | 대상 서버에 동봉한 연결 모듈 적용 및 공동 검증 필요 |
 
-## 2026-10-01 Frontend Redesign
+AI B는 새 얼굴이나 정장을 생성하지 않습니다. 이전 정장 합성 설계는 추가 구현안이며 현재 실행 결과와 구분합니다. 실제 장치가 없거나 연결되지 않으면 성공으로 바꾸지 않습니다.
 
-기존 사용자 흐름과 backend 계약은 유지하면서 UI/UX, 3D icon, motion, AI Mode B 연결 방식을 정리한 최신 문서입니다.
+## 샘플 화면 실행
 
-- [리디자인 마스터](docs/REDESIGN_MASTER_2026-10-01.md)
-- [디자인 시스템](docs/DESIGN_SYSTEM_2026-10-01.md)
-- [아이콘/3D 에셋 시스템](docs/ICON_ASSET_SYSTEM_2026-10-01.md)
-- [AI Mode B 연동 설계](docs/AI_MODE_B_INTEGRATION_2026-10-01.md)
-
-## 프론트엔드 실행
-
-Node.js 20 이상에서 별도 패키지 설치 없이 실행합니다.
+Node.js 20 이상에서는 패키지 설치 없이 실행합니다.
 
 ```sh
 npm start
 ```
 
-- **화면 체험:** <http://localhost:4173/?demo=1>
-- **실제 서비스용 UI:** <http://localhost:4173/> — 이 정적 서버에는 백엔드가 없으므로 연결 대기 상태가 정상입니다. 실제 사용 시 아래 FastAPI로 실행하세요.
-- Windows PowerShell에서 실행 정책에 막히면 `npm.cmd start`를 사용하세요.
+<http://localhost:4173/?sample=1>은 **고정 샘플**이며 카메라·카드·프린터에 접근하지 않습니다. 정적 서버의 기본 `/`에는 백엔드가 없으므로 실제 체험은 FastAPI 서버로 실행합니다.
 
-체험 모드에서 입사·퇴근 전체 화면을 확인할 수 있습니다. 상단 **체험 설정**에서 카메라/AI/NFC/프린터 오류, 지연, 기록 없음 등 13가지 상황을 선택할 수 있습니다. 입력한 이름은 메모리에만 유지되며 홈 복귀 또는 새로고침 시 초기화됩니다.
+## Python 설치와 실행
 
-**체험 모드는 실제 촬영·AI 분석·카드 등록·출력을 하지 않습니다.** `?demo=1`을 명시했을 때만 고정 샘플을 사용합니다. 실제 서비스 장애를 샘플 성공으로 바꾸지 않습니다.
-
-## 구현된 화면
-
-2026-09-15 프론트엔드 최종안: 화이트·블루 UI, 팀 소개 카드, 짧은 화면 이동·터치 피드백, 모션 감소 지원을 적용했습니다. 디자인 결정과 검증·연동 인수인계는 [`docs/FRONTEND_FINAL.md`](docs/FRONTEND_FINAL.md)에 정리했습니다.
-
-- 입사: 홈 → 6개 팀과 상세 소개 → 이름 입력 → AI A/B 선택과 설명 → 촬영 → 처리 → 프로필 확인 → NFC 등록 → 출력 → 스마트미러 안내
-- 퇴근: 카드 확인 → 체험 기록 확인 → 리포트 미리보기 → 출력 → 완료
-- 공통: 오류·재시도, 중복 터치 차단, 45초 유휴 경고/60초 초기화, 완료 후 15초 초기화
-
-## 실제 연동 범위
-
-| 기능 | 현재 상태 |
-| --- | --- |
-| 카메라 프리뷰 | 브라우저 `getUserMedia` 구현. 장치 권한 필요 |
-| 얼굴 감지·캐릭터 매칭 | 기존 `/api/detect`, `/api/match` 계약 연결 |
-| AI 프로필 생성 B | 화면·샘플 구현. 실제 로컬 합성 서비스는 연결 예정 |
-| NFC 등록·조회 | **백엔드 구현**: ACR1252U PC/SC UID 읽기 + SQLite 세션 매핑. 실물 Pi 검증 필요 |
-| 사원증 출력 | **백엔드 구현**: session 기반 렌더 + operationId 중복 방지. ZTP-80USL2 실물 출력 검증 필요 |
-| 퇴근 리포트 출력 | 화면·샘플 구현. MirrorTing report 계약/렌더러 연결 예정 |
-| MirrorTing 기록 | 화면·샘플 구현. 실제 데이터 조회 서비스 연결 예정 |
-
-기존 FastAPI + YuNet/SFace + 감열 출력 코드를 유지했습니다. 신규 `/api/nfc/register`, `/api/nfc/resolve`, `/api/badge/print`는 로컬 SQLite 세션과 `operationId` 기반 중복 방지를 사용합니다. 기존 `/api/issue`는 호환용으로만 남겨두며 새 UI는 호출하지 않습니다. `screen` 출력 백엔드는 개발용 파일 출력일 뿐 실물 프린터 검증을 대체하지 않습니다.
-
-실제 장치 연결 어댑터는 [`frontend/js/live-integrations.js`](frontend/js/live-integrations.js)입니다. 현재는 구현이 끝난 NFC 등록·카드 조회·사원증 출력 API만 연결했고, Mode B·MirrorTing 리포트·리포트 출력은 계약이 확정되지 않아 연결 준비 안내를 유지합니다. 자세한 인터페이스와 검증 범위는 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)를 참고하세요.
-
-## 기존 FastAPI 실행
-
-Python 3.12를 권장합니다. 카메라·매칭에는 모델 파일이 필요합니다.
+Python 3.12를 기준으로 검증합니다.
 
 ```sh
-python -m venv .venv
-# Windows
-.venv\Scripts\python -m pip install -r requirements.txt
-# macOS / Raspberry Pi
-.venv/bin/python -m pip install -r requirements.txt
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
 bash scripts/fetch_models.sh
+cp .env.example .env
+.venv/bin/python scripts/preflight.py
+.venv/bin/python scripts/run_kiosk.py
 ```
 
-모델 파일은 `models/face_detection_yunet_2023mar.onnx`, `models/face_recognition_sface_2021dec.onnx`입니다. Windows에서는 Git Bash로 모델 다운로드 스크립트를 실행할 수 있습니다.
+Windows에서는 `.venv/Scripts/python`을 사용하고 모델 다운로드는 Git Bash에서 실행합니다. `.env.example`을 `.env`로 복사해 설정하세요. 테스트가 필요 없는 설치는 `requirements.txt`를 사용합니다.
 
-Raspberry Pi에서 ACR1252U를 실제로 사용할 때:
+서버 기본 주소는 <http://127.0.0.1:8002/>입니다. 포트가 사용 중이면 `scripts/run_kiosk.py --port 8012`처럼 변경합니다. 임시 프로필은 메모리에 있으므로 **worker 1개**로 실행합니다. 제공 실행기는 방문자 식별자·이미지 주소가 로그에 남지 않도록 접근 로그를 끕니다.
+
+### 실행 모드
+
+| 주소 | 동작 |
+| --- | --- |
+| `/` 또는 `/?kiosk=1` | 실제 카메라·AI·NFC·출력·리포트 API. 미연결 장치는 오류/연결 안내 |
+| `/?preview=1` | 실제 카메라·로컬 AI와 디지털 배지 미리보기. NFC·실물 출력 성공으로 표시하지 않음 |
+| `/?sample=1` | 명시적인 고정 샘플 화면 체험 |
+| `/?sample=1&controls=1` | 샘플 체험 + 오류/지연 시나리오 선택 |
+
+기존 로컬 웹 시연의 `?demo=1`은 `?preview=1`과 같은 의미로 유지합니다. `?demo=1&controls=1`은 샘플입니다. 이전 GitHub 문서의 샘플 링크는 `?sample=1`로 바꾸세요.
+
+브라우저 카메라 권한은 사용자가 허용해야 합니다. 현장 Chromium의 권한 유지와 실제 터치/한글 입력은 기기에서 확인합니다.
+
+## Raspberry Pi 장치 연결
 
 ```sh
-sudo apt install -y pcscd libpcsclite-dev swig
+sudo apt install -y pcscd libpcsclite-dev swig libusb-1.0-0-dev fonts-noto-cjk
+.venv/bin/python -m pip install -r requirements-hardware.txt
 sudo systemctl enable --now pcscd
-export KIOSK_NFC=pcsc
 ```
 
-NFC 하드웨어 없이 백엔드/UI 연결만 검증할 때는 **명시적으로** mock을 켭니다.
+`.env`에서 `KIOSK_NFC=pcsc`와 검증할 프린터 백엔드를 설정합니다. ESC/POS USB의 vendor/product ID는 실제 장치에서 확인하세요. 전원·함체·프린터 연결부 기준은 [하드웨어 문서](docs/HARDWARE_ENCLOSURE_2026-09-30.md)를 따릅니다.
 
-```sh
-export KIOSK_NFC=mock
-export KIOSK_NFC_MOCK_UID=04AABBCC
-```
+기본 `KIOSK_NFC=disabled`는 카드 연결을 거절합니다. 개발용 `KIOSK_NFC=mock`은 고정 UID를 반환하므로 실제 NFC 검증으로 취급하지 않습니다.
 
-기본값은 `KIOSK_NFC=disabled`이므로 리더가 없는 상태를 성공으로 가장하지 않습니다. 현재 NFC 구현은 카드 메모리에 개인정보를 쓰지 않고 카드 UID와 로컬 세션을 SQLite에서 연결합니다.
+기본 `KIOSK_PRINT=screen`은 메모리 출력 미리보기입니다. ESC/POS/CUPS의 `submitted`는 장치나 대기열로 전송되었다는 뜻입니다. 장치가 알려주지 않는 물리적 출력 완료를 추정하지 않습니다. 결과가 불명확하면 자동 재출력을 차단하고 [운영 절차](docs/OPERATIONS.md)에 따라 확인합니다.
 
-```sh
-# Windows
-.venv\Scripts\python -m uvicorn backend.app:app --host 127.0.0.1 --port 8002
-# macOS / Raspberry Pi
-.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8002
-```
+## MirrorTing 연결
 
-<http://localhost:8002/>에서 실제 UI, <http://localhost:8002/?demo=1>에서 화면 체험을 엽니다. Pi에는 Pretendard 또는 Noto CJK 한글 폰트가 필요합니다. 이전 프로토타입 실행 문서는 `docs/reference/RUN.md`이며, 새 UI와 다른 동작은 이 README를 우선합니다.
+MirrorTing은 별도 서버이며 정수 체험 세션 ID와 `X-Session-Token`으로 리포트를 제공합니다. 이 키오스크의 사원번호를 그 API에 직접 전달하면 안 됩니다.
 
-## 테스트
+1. `integrations/mirrorting/`의 안내에 따라 대상 서버에 연결 모듈을 적용합니다.
+2. 두 서버에 동일한 비밀 연결 토큰을 설정하고, `KIOSK_MIRRORTING_URL`을 신뢰하는 서버 주소로 지정합니다.
+3. 스마트미러에서 카드 방문자 연결을 먼저 확인하고 생성한 체험 세션을 그 방문자에게 연결합니다.
+4. 퇴근 시 실제 리포트를 조회합니다. 기록 없음·진행 중·분석 오류·연결 실패를 구분합니다.
+
+6개 소속 팀과 MirrorTing의 체험 직무는 서로 다른 개념이며 임의로 자동 변환하지 않습니다. 접근 토큰은 브라우저나 리포트에 표시하지 않습니다. [API 계약](docs/API_CONTRACT.md)을 참고하세요.
+
+## 테스트와 운영
 
 ```sh
 npm test
-# Windows
-.venv\Scripts\python -m pytest tests -q
-# macOS / Raspberry Pi
-.venv/bin/python -m pytest tests -q
+.venv/bin/python -m pytest tests integrations/mirrorting/test_bridge_client.py -q
+.venv/bin/python scripts/preflight.py
+# 실제 Pi에서 장치 설정도 점검
+.venv/bin/python scripts/preflight.py --hardware
 ```
 
-프론트엔드 핵심 동작 테스트 17개가 있으며, Python 쪽에는 기존 14개에 세션/NFC/API 흐름 테스트 9개를 추가했습니다. 실제 Raspberry Pi 하드웨어 검증은 별도입니다. 최신 프론트엔드 검증은 `docs/FRONTEND_FINAL.md`, 실제 하드웨어에서 남은 검증은 `docs/IMPLEMENTATION_STATUS.md`에 기록합니다.
+GitHub Actions 설정은 소프트웨어 테스트를 실행합니다. 실제 Actions 실행 결과와 실물 장치 검증은 별도입니다. 최신 로컬 검증 결과는 [구현 상태](docs/IMPLEMENTATION_STATUS.md)에 기록합니다.
+
+- [현장 운영·출력 결과 불명 복구](docs/OPERATIONS.md)
+- [개인정보 보관과 삭제](docs/DATA_PRIVACY.md)
+- [인수 테스트 기준](docs/ACCEPTANCE_CRITERIA.md)
+- [화면 QA](docs/FRONTEND_QA_CHECKLIST.md)
+- systemd 예시: `deploy/mirrorting-kiosk.service.example`
+
+원본 촬영 사진은 디스크에 기록하지 않습니다. 생성된 B 프로필은 기본 10분, 출력 미리보기는 5분 동안 서버 메모리에 보관합니다. 이름·UID·MirrorTing 접근 토큰은 기본 24시간 후 삭제/익명화하고, 중복 출력 방지에 필요한 최소 작업 상태는 유지합니다. 사용자가 직접 저장한 PNG는 사용자의 기기에 남습니다.
 
 ## 구조
 
 ```text
-frontend/kiosk.html         시작 페이지
-frontend/styles/            디자인 토큰·컴포넌트·화면 스타일
-frontend/js/app.js          화면 흐름·비동기 작업·유휴 초기화
-frontend/js/motion.js       취소 가능한 화면 전환·모달 종료·모션 감소
-frontend/js/state.js        현재 관람객 상태·요청 무효화
-frontend/js/views.js        화면 마크업
-frontend/js/content.js      확정 팀/AI 문구·화면 ID
-frontend/js/api-client.js   실제 API와 명시적 샘플 API
-frontend/js/camera.js       프리뷰·촬영·스트림 해제
-frontend/js/live-integrations.js  구현된 NFC/사원증 backend 연결
-backend/app.py             FastAPI routes·idempotency contract
-backend/store.py           SQLite session/card/operation state
-backend/nfc.py             ACR1252U PC/SC UID reader
-backend/badge.py           감열 사원증 렌더
-backend/printing.py        screen/ESC-POS/CUPS 출력 계층
-assets/                    기존 캐릭터·출력 자산·프로토타입
-docs/                      인수인계 명세·구현 상태
-tests/frontend/            프론트엔드 회귀 테스트
+frontend/                  화면·상태·카메라·API 어댑터
+backend/app.py             FastAPI 계약·장치 작업·세션 연결
+backend/store.py           SQLite 세션·카드·작업 중복 방지
+backend/profile.py         로컬 B 프로필·임시 메모리 저장
+backend/reports.py         실제 MirrorTing 응답 검증·감열 리포트
+backend/badge.py            A/B 배지 렌더
+backend/printing.py         메모리 미리보기·ESC/POS·CUPS
+integrations/mirrorting/   상대 서버 연결 모듈·적용 안내
+scripts/                   실행·점검·운영자 복구
+tests/                     프런트·백엔드 회귀 및 계약 테스트
+docs/                      제품·설계·현재 계약·운영 기록
 ```
 
 ## 출처
@@ -135,4 +120,4 @@ tests/frontend/            프론트엔드 회귀 테스트
 - 설계 명세: [mirrorting-works-frontend-handoff](https://github.com/sdg331/mirrorting-works-frontend-handoff), `8059e8e`
 - 기존 코드·캐릭터 자산: [CarpeDM_2026DMUEXPO_RaspberryPi](https://github.com/DMUCarpeDM/CarpeDM_2026DMUEXPO_RaspberryPi), `057bd81`
 
-`docs/reference/kiosk-baseline.html`은 변경 전 비교 자료이며 서비스하지 않습니다. 새 화면은 항상 `frontend/kiosk.html`에서 시작합니다.
+`docs/reference/`와 구현 상태 문서의 이전 날짜 항목은 이력입니다. 현재 실행 방법은 이 README를 우선합니다.

@@ -338,3 +338,14 @@ Status: CONFIRMED — 2026-10-01
 - fake numeric progress 금지.
 - backend가 실제 stage를 제공하지 않으면 indeterminate UI만 사용한다.
 - stage UI를 쓰려면 backend-reported state와 1:1로 연결한다.
+
+
+## D-042 Integration implementation baseline · 2026-10-03
+Status: IMPLEMENTED; final Mode B presentation pending user preference
+
+- D-040의 정장 합성은 제품 목표로 남아 있으며 구현 완료로 표시하지 않는다.
+- 현재 B는 기존 로컬 코드의 얼굴·의상 보존 + 배경/구도 처리로 사원증까지 연결한다. 정장 생성 품질은 검증되지 않았다.
+- 물리 키보드 없이도 이름을 입력할 수 있도록 터치 한글/영문 키보드를 제공하며 기존 IME 입력도 유지한다.
+- `/`는 장치 흐름, `?preview=1`은 실제 카메라/AI 웹미리보기, `?sample=1`은 고정 화면 체험이다. `?demo=1`은 웹미리보기 별칭이다.
+- 출력은 preview/submitted/confirmed로 구분하며 장치 제출만으로 종이 출력 완료를 주장하지 않는다.
+- 보고서 연결은 실제 MirrorTing ReportOut에 맞추되, 동반 패치의 실제 서버 적용과 현장 검증은 별도 인수 항목이다.
