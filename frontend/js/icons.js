@@ -1,6 +1,7 @@
 const paths = {
   arrow: '<path d="M4 12h15m-6-6 6 6-6 6"/>',
   back: '<path d="M20 12H5m6-6-6 6 6 6"/>',
+  close: '<path d="m6 6 12 12M18 6 6 18"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
   code: '<path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-14-2 16"/>',
   spark:
