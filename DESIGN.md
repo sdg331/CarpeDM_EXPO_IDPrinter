@@ -266,3 +266,49 @@ Error copy formula:
 - Figma screen name은 `SCR-XX__SCREEN_NAME__state` 형식.
 - 새로운 recurring UI pattern이 생기면 먼저 component로 일반화할지 검토.
 - Figma와 DESIGN.md가 충돌하면 어느 쪽이 최신인지 확인하고 둘 다 동기화한다.
+
+
+---
+
+# 2026-10-01 Redesign Addendum
+
+이 섹션은 2026-10-01 리디자인 목표를 기록한다.
+기존 2026-09-15의 "화이트 바탕 중심" 시각 방향과 충돌하는 경우, **구현 전환이 시작된 화면에 한해 이 addendum을 우선**한다.
+기능 흐름/API 계약은 기존 문서를 계속 우선한다.
+
+## Scene-based Visual System
+
+모든 화면을 하나의 light/dark template로 통일하지 않는다.
+
+- HOME: hero composition
+- TEAM_SELECT: dark explore grid 가능
+- TEAM_DETAIL: dark translucent modal
+- NAME_INPUT: neutral/light focus
+- CAMERA: full-bleed preview
+- AI_PROCESSING: immersive process
+- AI_RESULT: reveal
+- NFC/PRINT: hardware interaction
+- REPORT: editorial
+
+공통으로 유지:
+- Pretendard
+- primary blue
+- spacing/radius family
+- state color meaning
+- motion easing
+- accessibility/touch rules
+
+세부 기준:
+- [docs/REDESIGN_MASTER_2026-10-01.md](docs/REDESIGN_MASTER_2026-10-01.md)
+- [docs/DESIGN_SYSTEM_2026-10-01.md](docs/DESIGN_SYSTEM_2026-10-01.md)
+- [docs/ICON_ASSET_SYSTEM_2026-10-01.md](docs/ICON_ASSET_SYSTEM_2026-10-01.md)
+- [docs/AI_MODE_B_INTEGRATION_2026-10-01.md](docs/AI_MODE_B_INTEGRATION_2026-10-01.md)
+
+## Interaction Update
+
+- pointer hover는 보조
+- touch pressed/selected state가 primary
+- Team detail은 SCR-03 state를 유지한 채 modal-like presentation
+- modal open 240ms, close 140–160ms
+- pressed 120ms / scale 약 0.985
+- reduced motion에서 위치/scale animation 제거

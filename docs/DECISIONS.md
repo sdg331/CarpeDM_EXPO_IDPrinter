@@ -257,3 +257,84 @@ NFC and printer are backend-owned.
 Do not control them directly from browser code.
 Do not display success before backend-confirmed NFC/print success.
 Protect irreversible actions against duplicate taps.
+
+
+## D-034 Frontend Redesign Scope
+Status: CONFIRMED — 2026-10-01
+
+Decision:
+- 기존 SCR-01~SCR-20 및 SCR-90의 기능 흐름을 유지한다.
+- 이번 리디자인은 카피, 화면 연출, icon, motion, state 표현을 중심으로 진행한다.
+- NFC/print/API/idempotency 흐름을 시각 리디자인 때문에 변경하지 않는다.
+
+## D-035 Check-in / Team Copy
+Status: CONFIRMED — 2026-10-01
+
+HOME:
+- `입사하신 것을 진심으로 축하드립니다.`
+- `오늘의 직장 생활을 시작해볼까요?`
+- actions: `출근하기`, `퇴근하기`
+
+TEAM_SELECT:
+- `어느 팀의 합격 문자를 받으셨나요?`
+
+## D-036 Team Detail Presentation
+Status: CONFIRMED — 2026-10-01
+
+- SCR-03 logical state는 유지한다.
+- 사용자에게는 SCR-02 위에 뜨는 중앙 modal로 표현한다.
+- 배경 Team Select는 dim/blur 처리한다.
+- modal에는 팀명, 설명, keyword 3개, 주요 업무 3개, `다른 팀 보기`, `이 팀으로 입사하기`를 제공한다.
+
+## D-037 Touch-first Microinteraction
+Status: CONFIRMED — 2026-10-01
+
+- hover는 pointer/demo 환경의 보조 효과다.
+- 실제 kiosk UX는 pressed → selected → loading/success/error state를 기준으로 한다.
+- hover-only 정보 금지.
+- 기본 pressed scale은 약 0.985, 과한 bounce/spin은 사용하지 않는다.
+
+## D-038 Screen Scene Diversity
+Status: CONFIRMED — 2026-10-01
+
+같은 design system을 사용하되 모든 화면을 같은 card template로 만들지 않는다.
+
+Examples:
+- HOME = hero
+- TEAM = explore grid
+- TEAM DETAIL = layered modal
+- NAME = input focus
+- CAMERA = immersive preview
+- AI PROCESSING = process
+- RESULT = reveal
+- NFC = hardware interaction
+- REPORT = editorial
+
+## D-039 3D Icon System
+Status: CONFIRMED direction — 2026-10-01
+
+- hero 3D object, team 3D icon, utility vector icon의 3단계 asset 체계를 사용한다.
+- HOME에는 사원증/퇴근 리포트 3D object를 중앙에 대각선으로 배치한다.
+- 6개 팀 icon은 동일 camera/material/light family로 제작한다.
+- runtime asset 안에 읽어야 하는 text를 bake하지 않는다.
+- 최종 asset은 타 서비스 artwork를 복제하지 않고 독자적으로 제작한다.
+
+## D-040 AI Mode B Integration
+Status: CONFIRMED baseline / enhancement optional — 2026-10-01
+
+Baseline:
+- 외부 cloud 생성형 image API를 사용하지 않는다.
+- 얼굴 identity를 유지하는 local CV + neutral formal-suit composite 방식.
+- frontend flow는 SCR-08 → SCR-09 → SCR-11 그대로 유지한다.
+- `generateProfile`은 backend-owned integration으로 구현한다.
+
+Optional future:
+- 품질이 부족하면 동일 API contract 뒤에 local-LAN GPU worker를 연결할 수 있다.
+- GPU worker는 cloud dependency가 아니며, 실제 benchmark 전에는 필수 경로로 확정하지 않는다.
+
+## D-041 Truthful AI Progress
+Status: CONFIRMED — 2026-10-01
+
+- fake numeric progress 금지.
+- backend가 실제 stage를 제공하지 않으면 indeterminate UI만 사용한다.
+- stage UI를 쓰려면 backend-reported state와 1:1로 연결한다.
