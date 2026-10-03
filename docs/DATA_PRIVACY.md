@@ -1,58 +1,44 @@
-# Data & Privacy Notes
+# 데이터 보관과 개인정보 · 2026-10-03
 
-## Principle
+현재 코드의 실제 처리·보관 동작이다. 전시 운영자는 장비 접근 권한과 행사에 맞는 보관기간을 설정하고 관람객에게 촬영·이름 이용 목적을 안내한다.
 
-Public exhibition kiosk should collect and retain the minimum data required for the experience.
+| 데이터 | 위치 | 현재 보관 동작 |
+| --- | --- | --- |
+| 이름·팀·세션 | 로컬 SQLite | 기본 24시간 후 이름과 프로필 참조 익명화 |
+| 카드 UID 연결 | 로컬 SQLite | 같은 카드 재등록 시 이전 연결 해제, 기본 24시간 후 삭제 |
+| MirrorTing 세션 토큰 | 로컬 SQLite | 브라우저 미전달, 기본 24시간 후 연결·토큰 삭제 |
+| 원본 촬영 프레임 | 브라우저/서버 메모리 | 분석 후 해제, 사진 원본 파일 저장 없음 |
+| 방문객 SFace 임베딩 | 서버 처리 메모리 | 매칭 계산 후 해제, DB·로그·NFC 저장 없음 |
+| B 프로필 | 서버 메모리 | 기본 600초, 최대 8개/32 MiB. 배지 출력 요청 성공 후 삭제 |
+| 출력 미리보기 PNG | 서버 메모리 | 기본 300초, 최대 8개/32 MiB |
+| 출력 작업 상태·ID | 로컬 SQLite | 재출력 방지용 최소 이력 유지, 이름·UID·사진을 포함하지 않음 |
+| 운영자 복구 이력 | 로컬 SQLite | 작업 ID·판정·시각 유지 |
 
-## Name
+세션 보관기간은 `KIOSK_SESSION_RETENTION_HOURS`, 이미지 보관기간은 `KIOSK_PROFILE_TTL_SECONDS`, `KIOSK_PREVIEW_TTL_SECONDS`로 설정한다. 서버 시작과 15초 주기 정리에서 만료를 처리한다. 이미지 조회도 만료를 확인한다. 물리적 메모리 영구 삭제를 보증하는 기능은 아니다.
 
-Used for:
-- badge
-- personalized MirrorTing/check-out experience
+## 출력의 별도 보관 범위
 
-Retention: final policy must be set by project owner/backend. Do not keep indefinitely by default.
+`screen`은 파일을 남기지 않는 메모리 미리보기다. ESC/POS는 출력 이미지를 장치로 전송한다. CUPS는 **생성한 배지/리포트**를 임시 PNG로 만든 뒤 `lp`에 제출하고 임시 파일을 삭제한다. OS 인쇄 대기열·장치 버퍼·종이 출력물의 보관은 별도이므로 운영자가 종료 시 확인한다. 이는 카메라 원본 이미지 저장과 구분한다.
 
-## Face Image
+## 브라우저 초기화
 
-CURRENT `/api/match` decodes image in memory and deletes references; it does not persist capture to disk.
+완료·취소·유휴 초기화에서 이름·촬영 Blob·카메라 스트림·AI 결과·보고서·작업 ID를 제거한다. 진행 중이거나 결과 불명인 출력은 자동 초기화로 중복 출력 보호를 우회하지 않는다. 서버의 SQLite 작업 기록은 브라우저 초기화와 별도로 유지한다.
 
-Target direction:
-- original photo not persistently stored unless explicitly required/approved
-- no raw image in frontend log
-- no cloud upload for Mode B
+프로필/미리보기 URL은 추측하기 어려운 임시 식별자이며 소유자가 접근할 수 있는 capability다. 복사·공유·로그 수집하지 않는다. `/api/*`는 `no-store`다. 기본 실행 스크립트는 URL·카드 UID가 로그에 남지 않도록 HTTP 접근 로그를 비활성화한다. 디버깅이나 프록시에서 접근 로그를 추가할 경우 같은 제한을 적용한다.
 
-## Face Embedding
+## 저장소·서버
 
-Mode A uses SFace embedding for matching. Treat feature data carefully; do not expose/log unnecessarily.
+- `.env`, `data/*.sqlite3`와 WAL/SHM, 모델 캐시, 실제 얼굴 표본은 Git 제외 대상이다.
+- SQLite 파일 자체는 앱이 암호화하지 않는다. 운영 계정만 접근하는 로컬 디스크에 두며 백업·파일 권한도 관리한다.
+- 운영 bridge token은 32자 이상으로 설정한다. 토큰·상위 서버 응답 원문을 화면이나 로그에 출력하지 않는다.
+- 기본 서버는 localhost에 바인딩한다. MirrorTing과 LAN으로 연결할 때는 전시장 신뢰 네트워크와 필요한 접근 범위만 사용한다. 방문객 API는 실제 접속 IP가 loopback인 요청만 허용하고, 원격 API는 토큰 인증 bridge 경로로 제한한다. 인터넷 공개 인증 서비스로 설계된 구성은 아니다. 프록시를 추가할 경우 이 경로 제한을 프록시에서도 유지한다.
+- API 오류는 안정된 코드로 반환하고 검증 오류에 입력한 이름이나 접근 토큰을 되돌려주지 않는다.
+- B 처리에는 외부 이미지 생성 API가 없다. 얼굴·의상을 유지하며 현재 구현은 정장 생성이 아니다.
 
-## Mode B Profile
+## 카드 재사용·보고서
 
-Generated composite may need temporary session storage for badge printing.
-Target: delete or expire after session/report retention purpose unless approved otherwise.
+NFC 카드에는 방문객 이름·사진·생체 특징을 쓰지 않고 UID를 식별자로 사용한다. 같은 카드를 재발급하면 이전 세션에서 새 배지·리포트를 출력할 수 없다. MirrorTing 연결은 체험 시작 전 키오스크 세션 스냅샷과 함께 저장해 늦게 도착한 응답이 다음 관람객에게 연결되지 않도록 한다.
 
-## NFC
+출력 상태가 `unknown`인 최소 기록은 개인정보가 만료되어도 남는다. DB 전체 삭제로 불명 출력을 재시도하지 않는다. [운영 절차](OPERATIONS.md)의 조회·실물 확인·명시적 해소를 사용한다.
 
-CURRENT feature backend (2026-09-30):
-- ACR1252U reads the card's immutable UID.
-- visitor/session details are stored in local SQLite, not written into NFC card memory.
-- reissuing the same physical card deactivates its previous active session binding.
-- full photos and face embeddings are never stored in the card mapping.
-
-Card-memory write remains TBD and must not be described as implemented.
-
-## Logs
-
-Avoid logging:
-- raw photo
-- full name unless necessary
-- full NFC payload
-- biometric feature vector
-
-Prefer diagnostic IDs/error codes.
-
-## Reset
-
-Frontend reset must clear visitor state from memory/UI.
-Backend state is now persisted in `data/kiosk.sqlite3` so browser reset/restart does not break idempotency.
-The DB may contain visitor name + card UID + session metadata and is excluded from Git.
-A final retention/automatic purge period is still **TBD**; do not retain the exhibition DB indefinitely.
+MirrorTing 원본 서버의 보고서·사진·로그 보관은 이 저장소에서 자동으로 정리하지 않는다. 동반 패치의 연결정보 보존기간과 MirrorTing 자체 데이터 정책은 별도로 확인한다.
