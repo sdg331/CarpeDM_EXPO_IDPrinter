@@ -8,3 +8,6 @@
 *.sh text eol=lf
 *.png binary
 *.npz binary
+
+# Unified patch context includes intentional single-space blank lines.
+integrations/mirrorting/*.patch -whitespace
