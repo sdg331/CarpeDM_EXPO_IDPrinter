@@ -1,0 +1,4 @@
+-r requirements.txt
+# Raspberry Pi OS: pcscd libpcsclite-dev swig libusb-1.0-0-dev
+pyscard>=2.0,<3
+python-escpos>=3.1,<4

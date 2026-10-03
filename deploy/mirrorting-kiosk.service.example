@@ -1,0 +1,19 @@
+# Replace the user and installation paths before installing this example.
+[Unit]
+Description=MIRRORTING WORKS kiosk API
+After=network.target pcscd.service
+
+[Service]
+Type=simple
+User=mirrorting
+WorkingDirectory=/opt/mirrorting-kiosk
+EnvironmentFile=-/opt/mirrorting-kiosk/.env
+ExecStart=/opt/mirrorting-kiosk/.venv/bin/python /opt/mirrorting-kiosk/scripts/run_kiosk.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
