@@ -1,0 +1,706 @@
+--- a/poc/backend/app/core/config.py
++++ b/poc/backend/app/core/config.py
+@@ -26,6 +26,9 @@
+     require_secure: bool = False
+     # 익명/계정 저장 동의 시 음성 파일 보관 일수 (S-CBYKOH). '미저장' 동의는 분석 직후 삭제.
+     media_retention_days: int = 7
++    # Server-to-server kiosk bridge. Never include its secret in browser responses.
++    idprinter_base_url: str = ""
++    idprinter_bridge_token: SecretStr = SecretStr("")
+     # 관리자 API(/admin/*) 인증 강제 여부 — 전시 키오스크는 False(로컬 단독 운영),
+     # 기관 납품 시 True + role='admin' 계정 필수 (app.seed.make_admin으로 승격)
+     admin_auth_required: bool = False
+--- a/poc/backend/app/models/models.py
++++ b/poc/backend/app/models/models.py
+@@ -201,6 +201,10 @@
+     # 생성 시 발급하며 URL에 실려도 세션 access_token(데이터 열람권)은 노출되지 않는다.
+     # UNIQUE는 기존 전시 DB에 ALTER로 추가할 수 없어 앱 레벨(충돌 무시 가능한 128bit 난수)로 보장.
+     claim_token: Mapped[str] = mapped_column(String(64), default="", index=True)
++    # Original kiosk card snapshot, persisted for safe retry after a failed link.
++    kiosk_session_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
++    kiosk_card_uid: Mapped[str | None] = mapped_column(String(32), nullable=True)
++    kiosk_link_status: Mapped[str] = mapped_column(String(20), default="not_requested")
+     # 감정 상태 머신 (S-B2B-EMOTION): {"state", "temperature", "history": [...]}
+     emotion: Mapped[dict] = mapped_column(JSON, default=dict)
+     mode: Mapped[int] = mapped_column(Integer, default=5)  # 5 | 10 (분)
+--- a/poc/backend/app/schemas/schemas.py
++++ b/poc/backend/app/schemas/schemas.py
+@@ -136,6 +136,9 @@
+     job_role: str
+     scenario_slug: str  # 발급 시 지정이 없으면 직무 기본 팩 슬러그
+     job_role_label: str = ""
++    # A kiosk-issued card keeps its identity while the visitor selects a role.
++    kiosk_session_id: str = ""
++    requires_role_selection: bool = False
+ 
+ 
+ class NfcTapOut(BaseModel):
+@@ -207,6 +210,7 @@
+     job_role: str = Field(default="", max_length=30)
+     # 미러 NFC 시작: 태그된 카드 uid — 카드의 직무·시나리오가 세션에 스탬프된다
+     nfc_uid: str = Field(default="", max_length=32)
++    kiosk_session_id: str = Field(default="", max_length=16)
+ 
+ 
+ class TurnOut(BaseModel):
+@@ -236,6 +240,7 @@
+     current_turn: TurnOut | None = None
+     # 세션 접근 능력 토큰 — 이후 세션 조회 시 X-Session-Token 헤더로 되돌려준다 (생성 응답에만 값)
+     access_token: str = ""
++    kiosk_link_status: Literal["not_requested", "pending", "linked", "conflict"] = "not_requested"
+ 
+ 
+ class HistoryTurnOut(TurnOut):
+--- a/poc/backend/app/api/nfc.py
++++ b/poc/backend/app/api/nfc.py
+@@ -15,6 +15,8 @@
+ from sqlalchemy.orm import Session
+ 
+ from app.api.deps import require_admin
++from app.core.config import settings
++from app.services.idprinter_bridge import BridgeError, IDPrinterBridge
+ from app.core.database import get_db
+ from app.models import NfcCard, Scenario, User, utcnow
+ from app.schemas import (
+@@ -100,6 +102,21 @@
+     404면 프론트는 수동 카드 선택 폴백 UI를 띄운다 (전시 원칙: 미인식이
+     체험 중단이 되어선 안 된다).
+     """
++    url = settings.idprinter_base_url.strip()
++    token = settings.idprinter_bridge_token.get_secret_value()
++    if url or token:
++        if not url or not token:
++            raise HTTPException(status_code=503, detail="사원증 연결 설정을 확인해주세요")
++        try:
++            with IDPrinterBridge(url, token) as bridge:
++                snapshot = bridge.resolve(body.uid)
++        except BridgeError as error:
++            status = 404 if error.code == "KIOSK_CARD_NOT_FOUND" else 503
++            raise HTTPException(status_code=status, detail="사원증을 확인하지 못했어요") from error
++        return NfcResolveOut(
++            uid=snapshot.uid, job_role="", scenario_slug="", job_role_label="",
++            kiosk_session_id=snapshot.kiosk_session_id, requires_role_selection=True,
++        )
+     card = db.query(NfcCard).filter_by(uid=_normalize_uid(body.uid)).first()
+     if card is None or card.status != "active":
+         raise HTTPException(status_code=404, detail="등록되지 않았거나 폐기된 카드입니다")
+--- a/poc/backend/app/main.py
++++ b/poc/backend/app/main.py
+@@ -52,8 +52,19 @@
+             report.headline = {}
+             report.deep_analysis = {}
+             report.coaching = []  # Before→After 카드도 발화 인용을 담는다 (S-B2B-COACH)
++        # A card UID is needed only while the kiosk link can still be retried.
++        stale_cards = (
++            db.query(RoleplaySession)
++            .filter(RoleplaySession.started_at < cutoff)
++            .filter(RoleplaySession.kiosk_card_uid.isnot(None))
++            .all()
++        )
++        for session in stale_cards:
++            session.kiosk_card_uid = None
++            session.kiosk_session_id = None
++        if expired or stale_cards:
++            db.commit()
+         if expired:
+-            db.commit()
+             print(f"보관 기간 만료 미저장 리포트 인용 {len(expired)}건 파기")
+     finally:
+         db.close()
+--- a/poc/backend/app/api/sessions.py
++++ b/poc/backend/app/api/sessions.py
+@@ -44,6 +44,7 @@
+ from app.services.dialogue import DialogueGenerationError, QuestionSpec, get_dialogue_provider
+ from app.services.dialogue import emotion, reactions
+ from app.services.session_fsm import InvalidTransition, transition
++from app.services.idprinter_bridge import BridgeError, CardSnapshot, IDPrinterBridge
+ from app.services.workplace import WORKPLACE_SLUG, CONTINUOUS_MODE, act_bridge_line, continuous_fallback_line
+ from app.services.dialogue import stats as dialogue_stats
+ 
+@@ -112,6 +113,55 @@
+     return out
+ 
+ 
++def _idprinter_bridge() -> IDPrinterBridge | None:
++    url = settings.idprinter_base_url.strip()
++    token = settings.idprinter_bridge_token.get_secret_value()
++    if not url and not token:
++        return None
++    if not url or not token:
++        raise HTTPException(status_code=503, detail={"code": "KIOSK_BRIDGE_UNCONFIGURED"})
++    try:
++        return IDPrinterBridge(url, token)
++    except BridgeError as error:
++        raise HTTPException(status_code=503, detail={"code": error.code}) from error
++
++
++def _bridge_error_status(error: BridgeError) -> int:
++    if error.code == "KIOSK_CARD_NOT_FOUND":
++        return 404
++    if error.code == "KIOSK_LINK_CONFLICT":
++        return 409
++    return 503
++
++
++def _link_kiosk_session(db: Session, session: RoleplaySession) -> str:
++    """Retry a committed session against its original card snapshot.
++
++    IDPrinter performs the final atomic active-card check. A card reused for
++    another visitor cannot change this stored snapshot to its new owner.
++    """
++    if not session.kiosk_session_id or not session.kiosk_card_uid:
++        return "not_requested"
++    try:
++        bridge = _idprinter_bridge()
++        if bridge is None:
++            status = "pending"
++        else:
++            with bridge:
++                bridge.link(
++                    CardSnapshot(session.kiosk_card_uid, session.kiosk_session_id),
++                    session.id, session.access_token,
++                )
++            status = "linked"
++    except BridgeError as error:
++        status = "conflict" if error.code in {"KIOSK_LINK_CONFLICT", "KIOSK_CARD_NOT_FOUND"} else "pending"
++    except HTTPException:
++        status = "pending"
++    session.kiosk_link_status = status
++    db.commit()
++    return status
++
++
+ @router.post("", response_model=SessionOut)
+ def create_session(
+     body: SessionCreateIn,
+@@ -128,6 +178,7 @@
+     # 등록되지 않은 카드는 404 — 프론트가 수동 카드 선택 폴백을 띄운다.
+     card = None
+     card_org_id = None
++    kiosk_snapshot = None
+     scenario_slug = body.scenario_slug
+     job_role = body.job_role
+     if body.nfc_uid:
+@@ -135,20 +186,36 @@
+         from app.models import NfcCard
+         from app.services import nfc_bridge
+ 
+-        card = db.query(NfcCard).filter_by(uid=_normalize_uid(body.nfc_uid)).first()
+-        if card is None or card.status != "active":
+-            raise HTTPException(status_code=404, detail="등록되지 않았거나 폐기된 카드입니다")
+-        card.last_seen_at = utcnow()
+-        job_role = card.job_role or job_role
+-        if not scenario_slug:
+-            scenario_slug = card.scenario_slug or DEFAULT_PACK_BY_ROLE.get(card.job_role, "")
+-        # 기관 스탬프는 '최근 실물 태그 증거'가 있을 때만 인정한다. 카드 UID는
+-        # 비밀이 아니라(휴대폰으로 읽힘) UID 지식만으로 기관 귀속을 허용하면
+-        # 익명 공격자가 타 기관 대시보드·KPI에 세션을 무한 주입할 수 있다.
+-        # 증거가 없어도 체험은 그대로 진행된다(직무·시나리오는 민감하지 않음) —
+-        # 익명 세션으로 시작하고, 귀속은 영수증 QR 클레임이 담당한다.
+-        if nfc_bridge.recent_tap_matches(body.nfc_uid):
+-            card_org_id = card.institution_id
++        bridge = _idprinter_bridge()
++        if bridge is None:
++            # Original standalone MirrorTing card contract.
++            card = db.query(NfcCard).filter_by(uid=_normalize_uid(body.nfc_uid)).first()
++            if card is None or card.status != "active":
++                raise HTTPException(status_code=404, detail="등록되지 않았거나 폐기된 카드입니다")
++            card.last_seen_at = utcnow()
++            job_role = card.job_role or job_role
++            if not scenario_slug:
++                scenario_slug = card.scenario_slug or DEFAULT_PACK_BY_ROLE.get(card.job_role, "")
++            if nfc_bridge.recent_tap_matches(body.nfc_uid):
++                card_org_id = card.institution_id
++        else:
++            # The kiosk owns identity. The visitor chooses the MirrorTing role;
++            # a stale local NfcCard must not overwrite that choice.
++            if not body.kiosk_session_id or not job_role:
++                raise HTTPException(status_code=422, detail="사원증 확인과 체험 역할 선택이 필요합니다")
++            if not nfc_bridge.recent_tap_matches(body.nfc_uid, max_age_sec=600):
++                raise HTTPException(status_code=409, detail="사원증을 다시 태그해주세요")
++            with bridge:
++                try:
++                    kiosk_snapshot = bridge.resolve(body.nfc_uid)
++                except BridgeError as error:
++                    raise HTTPException(
++                        status_code=_bridge_error_status(error), detail={"code": error.code},
++                    ) from error
++            if kiosk_snapshot.kiosk_session_id != body.kiosk_session_id:
++                raise HTTPException(status_code=409, detail="사원증이 새 방문객에게 등록됐어요. 다시 태그해주세요")
++            if not scenario_slug:
++                scenario_slug = DEFAULT_PACK_BY_ROLE.get(job_role, "")
+ 
+     # 직무 검증 — 다른 모든 job_role 입력 경로(signup·/orgs/join·PATCH /me·nfc/issue)와
+     # 같은 화이트리스트를 쓴다. 무검증 스탬프는 기관 대시보드의 직무 필터·KPI 집계에서
+@@ -199,6 +266,9 @@
+         user_id=user.id if user else None,
+         client_key=client_key,
+         access_token=secrets.token_urlsafe(24),
++        kiosk_session_id=kiosk_snapshot.kiosk_session_id if kiosk_snapshot else None,
++        kiosk_card_uid=kiosk_snapshot.uid if kiosk_snapshot else None,
++        kiosk_link_status="pending" if kiosk_snapshot else "not_requested",
+         # 영수증 QR 클레임 토큰 (S-B2B-CLAIM) — 계정 귀속 전용 능력 토큰.
+         # access_token(데이터 열람권)과 분리해 QR 노출 반경을 귀속 행위로 한정한다.
+         claim_token=secrets.token_urlsafe(24),
+@@ -231,6 +301,8 @@
+     # 첫 대사는 시나리오가 정한 역할·상황을 방문객에게 정확히 전달해야 한다.
+     # 따라서 LLM은 첫 응답을 받은 다음 질문부터만 문장을 개인화한다.
+     turn = _create_turn(db, session, spec, order=1)
++    # _create_turn has committed this session. Keep it retryable on bridge failure.
++    kiosk_link_status = _link_kiosk_session(db, session) if kiosk_snapshot else "not_requested"
+ 
+     return SessionOut(
+         interaction=interaction.public_state(session),
+@@ -242,7 +314,19 @@
+         scenario=to_scenario_out(scenario),
+         current_turn=_turn_out(db, turn),
+         access_token=session.access_token,
+-    )
++        kiosk_link_status=kiosk_link_status,
++    )
++
++
++@router.post("/{session_id}/kiosk-link")
++def retry_kiosk_link(
++    session: RoleplaySession = Depends(require_session),
++    db: Session = Depends(get_db),
++):
++    """Retry only the original snapshot with X-Session-Token."""
++    if not session.kiosk_session_id or not session.kiosk_card_uid:
++        raise HTTPException(status_code=404, detail={"code": "KIOSK_LINK_NOT_REQUESTED"})
++    return {"status": _link_kiosk_session(db, session)}
+ 
+ 
+ @router.get("/mine")
+@@ -384,6 +468,7 @@
+         current_turn=_turn_out(db, current) if current else None,
+         history=history,
+         elapsed_sec=elapsed,
++        kiosk_link_status=session.kiosk_link_status or "not_requested",
+     )
+ 
+ 
+--- a/mvp/src/lib/pocApi.js
++++ b/mvp/src/lib/pocApi.js
+@@ -86,7 +86,7 @@
+ 
+ const SESSION_DIFFICULTIES = new Set(["basic", "pressure", "ultra_pressure"]);
+ 
+-export function createSession({ serviceMode = "workplace", difficulty, mode, scenarioSlug, selectedEpisodeId, consent, jobRole, nfcUid }) {
++export function createSession({ serviceMode = "workplace", difficulty, mode, scenarioSlug, selectedEpisodeId, consent, jobRole, nfcUid, kioskSessionId }) {
+   return request("/sessions", {
+     method: "POST",
+     body: JSON.stringify({
+@@ -99,6 +99,7 @@
+       // nfc_uid를 주면 서버가 카드의 직무·시나리오를 세션에 스탬프한다 (미등록 카드 404).
+       ...(jobRole ? { job_role: jobRole } : {}),
+       ...(nfcUid ? { nfc_uid: nfcUid } : {}),
++      ...(kioskSessionId ? { kiosk_session_id: kioskSessionId } : {}),
+       client_key: getClientKey(),
+       consent: { agreed: consent, storage_policy: "none" },
+     }),
+--- a/mvp/src/lib/useServiceEntryRoute.js
++++ b/mvp/src/lib/useServiceEntryRoute.js
+@@ -164,11 +164,20 @@
+     nfcResolvingRef.current = true;
+     try {
+       const card = await resolveNfcCard(tap.uid);
+-      setNfcCard({ uid: card.uid, jobRole: card.job_role, scenarioSlug: card.scenario_slug, jobRoleLabel: card.job_role_label });
+-      setNfcFallback(false);
+-      setApiError("");
+-      navigate("preview");
++      if (card.requires_role_selection && card.kiosk_session_id && card.uid) {
++        // This UID is already bound to a current IDPrinter visitor.
++        // Keep the verified kiosk snapshot while this visitor picks a role.
++        setNfcCard({ uid: card.uid, kioskSessionId: card.kiosk_session_id });
++        setNfcFallback(true);
++        setApiError("");
++      } else {
++        setNfcCard({ uid: card.uid, jobRole: card.job_role, scenarioSlug: card.scenario_slug, jobRoleLabel: card.job_role_label });
++        setNfcFallback(false);
++        setApiError("");
++        navigate("preview");
++      }
+     } catch {
++      setNfcCard(null);
+       setNfcFallback(true);
+     } finally {
+       nfcResolvingRef.current = false;
+@@ -182,7 +191,10 @@
+   });
+ 
+   const startFromJobRole = (role) => {
+-    setNfcCard({ uid: "", jobRole: role.id, scenarioSlug: role.scenarioSlug, jobRoleLabel: role.label });
++    const verified = nfcCard?.kioskSessionId
++      ? { uid: nfcCard.uid, kioskSessionId: nfcCard.kioskSessionId }
++      : { uid: "", kioskSessionId: "" };
++    setNfcCard({ ...verified, jobRole: role.id, scenarioSlug: role.scenarioSlug, jobRoleLabel: role.label });
+     setNfcFallback(false);
+     setApiError("");
+     navigate("preview");
+--- a/mvp/src/App.jsx
++++ b/mvp/src/App.jsx
+@@ -196,6 +196,7 @@
+         selectedEpisodeId: workplace || nfcCard ? null : selectedEpisodeId,
+         jobRole: nfcCard?.jobRole,
+         nfcUid: nfcCard?.uid || "",
++        kioskSessionId: nfcCard?.kioskSessionId || "",
+         consent: consented,
+       });
+       saveActiveSession(nextSession);
+--- a/mvp/src/pages/ServiceEntryShell.jsx
++++ b/mvp/src/pages/ServiceEntryShell.jsx
+@@ -66,7 +66,7 @@
+       {active === "result" && <ResultPage onPrev={() => go(-1)} onPractice={() => navigate("preview")} report={report} history={history} onIssueCode={issueCode} selectedDifficulty={difficulty} progress={analysisProgress} error={apiError} />}
+     </div>
+     <span className="screen-reader-note" aria-live="polite">현재 화면: {current.label}</span>
+-    {active === "home" && nfcFallback && <NfcStartFallback onPick={startFromJobRole} onClose={() => setNfcFallback(false)} />}
++    {active === "home" && nfcFallback && <NfcStartFallback cardConfirmed={Boolean(entry.state.nfcCard?.kioskSessionId)} onPick={startFromJobRole} onClose={() => setNfcFallback(false)} />}
+     {active === "home" && <AttractLoop active onStart={() => navigate(startView)} />}
+   </main>;
+ }
+--- a/mvp/src/components/nfc/NfcStartFallback.jsx
++++ b/mvp/src/components/nfc/NfcStartFallback.jsx
+@@ -6,9 +6,9 @@
+ /** 미러 NFC 수동 폴백 (E-20 / S-B2B-106) — resolve 404(미등록·폐기 카드) 때 홈 위에 뜬다.
+  *  카드 미인식이 체험 중단이 되면 안 된다: 직무 3버튼으로 같은 흐름(동의 → 연습)을 잇는다.
+  */
+-export function NfcStartFallback({ onPick, onClose }) {
++export function NfcStartFallback({ cardConfirmed = false, onPick, onClose }) {
+   return (
+-    <div className="nfc-fallback-overlay" role="dialog" aria-label="카드 미인식 — 직무 선택으로 시작">
++    <div className="nfc-fallback-overlay" role="dialog" aria-label={cardConfirmed ? "사원증 확인 완료 — 체험 역할 선택" : "카드 미인식 — 직무 선택으로 시작"}>
+       <motion.div
+         className="nfc-fallback-card"
+         initial={{ opacity: 0, y: 22, scale: 0.97 }}
+@@ -16,8 +16,8 @@
+         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+       >
+         <img className="nfc-fallback-mark" src={cafeOndoMark} alt="" aria-hidden="true" />
+-        <h2>카드가 인식되지 않아요</h2>
+-        <p>직무를 선택해 시작하세요 — 발급 카드 없이도 같은 연습을 바로 진행할 수 있어요.</p>
++        <h2>{cardConfirmed ? "사원증을 확인했어요" : "카드가 인식되지 않아요"}</h2>
++        <p>{cardConfirmed ? "이번에 체험할 역할을 선택하세요. 사원증의 팀 소속과는 별개의 선택이에요." : "직무를 선택해 시작하세요 — 발급 카드 없이도 같은 연습을 바로 진행할 수 있어요."}</p>
+         <div className="nfc-fallback-roles">
+           {JOB_ROLES.map((role) => (
+             <button key={role.id} type="button" onClick={() => onPick(role)}>
+--- /dev/null
++++ b/poc/backend/app/services/idprinter_bridge.py
+@@ -0,0 +1,137 @@
++"""Server-side companion client for the IDPrinter kiosk.
++
++The MirrorTing server, never its browser, calls the IDPrinter server over a
++trusted operator-configured URL. A card snapshot is resolved before creating a
++roleplay session; a link is attempted only for that exact snapshot afterward.
++The IDPrinter server must check that the UID still belongs to that kiosk
++session when the link arrives, so a late request cannot attach a reused card
++to the next visitor.
++"""
++
++from __future__ import annotations
++
++import re
++from dataclasses import dataclass
++from urllib.parse import quote, urlsplit
++
++import httpx
++
++
++class BridgeError(Exception):
++    def __init__(self, code: str, *, retryable: bool = False):
++        super().__init__(code)
++        self.code = code
++        self.retryable = retryable
++
++
++@dataclass(frozen=True)
++class CardSnapshot:
++    uid: str
++    kiosk_session_id: str
++
++
++def _base_url(value: str) -> str:
++    try:
++        parsed = urlsplit(value)
++        parsed.port  # Reject malformed ports before making a network request.
++    except ValueError as exc:
++        raise BridgeError("KIOSK_BRIDGE_UNCONFIGURED") from exc
++    if (
++        parsed.scheme not in {"http", "https"}
++        or not parsed.hostname
++        or parsed.username
++        or parsed.password
++        or parsed.path not in {"", "/"}
++        or parsed.query
++        or parsed.fragment
++    ):
++        raise BridgeError("KIOSK_BRIDGE_UNCONFIGURED")
++    return value.rstrip("/")
++
++
++def _uid(value: str) -> str:
++    normalized = value.replace(":", "").replace("-", "").upper()
++    if not re.fullmatch(r"[0-9A-F]{4,32}", normalized):
++        raise BridgeError("KIOSK_CARD_INVALID")
++    return normalized
++
++
++class IDPrinterBridge:
++    def __init__(self, url: str, token: str, *, client: httpx.Client | None = None):
++        self.base_url = _base_url(url)
++        if not token:
++            raise BridgeError("KIOSK_BRIDGE_UNCONFIGURED")
++        self._headers = {"X-Bridge-Token": token, "Accept": "application/json"}
++        self._client = client or httpx.Client(timeout=5, follow_redirects=False, trust_env=False)
++        self._owns_client = client is None
++
++    def close(self) -> None:
++        if self._owns_client:
++            self._client.close()
++
++    def __enter__(self) -> IDPrinterBridge:
++        return self
++
++    def __exit__(self, *_args: object) -> None:
++        self.close()
++
++    def _call(self, method: str, path: str, *, json: dict | None = None) -> dict:
++        try:
++            response = self._client.request(
++                method, self.base_url + path, headers=self._headers,
++                json=json, follow_redirects=False,
++            )
++        except httpx.TimeoutException as exc:
++            raise BridgeError("KIOSK_BRIDGE_TIMEOUT", retryable=True) from exc
++        except httpx.RequestError as exc:
++            raise BridgeError("KIOSK_BRIDGE_UNAVAILABLE", retryable=True) from exc
++        if response.status_code in (401, 403):
++            raise BridgeError("KIOSK_BRIDGE_UNAUTHORIZED")
++        if response.status_code == 404:
++            raise BridgeError("KIOSK_CARD_NOT_FOUND")
++        if response.status_code == 409:
++            raise BridgeError("KIOSK_LINK_CONFLICT")
++        if response.status_code >= 500:
++            raise BridgeError("KIOSK_BRIDGE_UNAVAILABLE", retryable=True)
++        if response.status_code != 200:
++            raise BridgeError("KIOSK_BRIDGE_INVALID_RESPONSE")
++        try:
++            body = response.json()
++        except ValueError as exc:
++            raise BridgeError("KIOSK_BRIDGE_INVALID_RESPONSE") from exc
++        if not isinstance(body, dict) or body.get("ok") is not True:
++            raise BridgeError("KIOSK_BRIDGE_INVALID_RESPONSE")
++        return body
++
++    def resolve(self, card_uid: str) -> CardSnapshot:
++        """Snapshot the currently active IDPrinter visit before roleplay create."""
++        uid = _uid(card_uid)
++        body = self._call("GET", f"/api/integrations/mirrorting/cards/{quote(uid)}")
++        session_id = body.get("sessionId")
++        echoed_uid = body.get("cardUid")
++        if not isinstance(session_id, str) or not re.fullmatch(r"MW[0-9]{10}", session_id):
++            raise BridgeError("KIOSK_BRIDGE_INVALID_RESPONSE")
++        if echoed_uid != uid:
++            raise BridgeError("KIOSK_BRIDGE_INVALID_RESPONSE")
++        return CardSnapshot(uid=uid, kiosk_session_id=session_id)
++
++    def link(self, snapshot: CardSnapshot, mirror_session_id: int, access_token: str) -> dict:
++        """Link exactly the pre-create snapshot; identical retries are safe.
++
++        IDPrinter must atomically verify the UID is *still* active for this
++        kiosk session. A reissue between resolve and link must yield 409/404.
++        """
++        if isinstance(mirror_session_id, bool) or not isinstance(mirror_session_id, int) or mirror_session_id < 1:
++            raise BridgeError("KIOSK_BRIDGE_INVALID_RESPONSE")
++        if not isinstance(access_token, str) or not access_token:
++            raise BridgeError("KIOSK_BRIDGE_INVALID_RESPONSE")
++        payload = {
++            "sessionId": snapshot.kiosk_session_id,
++            "cardUid": snapshot.uid,
++            "mirrorSessionId": mirror_session_id,
++            "accessToken": access_token,
++        }
++        body = self._call("POST", "/api/integrations/mirrorting/link", json=payload)
++        if body.get("sessionId") != snapshot.kiosk_session_id or body.get("mirrorSessionId") != mirror_session_id:
++            raise BridgeError("KIOSK_BRIDGE_INVALID_RESPONSE")
++        return body
+--- /dev/null
++++ b/poc/backend/tests/test_idprinter_bridge.py
+@@ -0,0 +1,64 @@
++"""The companion client contract against the kiosk's authenticated bridge."""
++
++import httpx
++import pytest
++
++from app.services.idprinter_bridge import BridgeError, IDPrinterBridge
++
++
++def test_snapshot_then_link_keeps_uid_and_kiosk_session_identity():
++    calls = []
++
++    def handler(request):
++        calls.append(request)
++        assert request.headers["X-Bridge-Token"] == "private-server-token"
++        if request.method == "GET":
++            assert request.url.path == "/api/integrations/mirrorting/cards/04AABBCC"
++            return httpx.Response(200, json={"ok": True, "sessionId": "MW2610030001", "cardUid": "04AABBCC"})
++        assert request.url.path == "/api/integrations/mirrorting/link"
++        assert request.method == "POST"
++        assert request.content == b'{"sessionId":"MW2610030001","cardUid":"04AABBCC","mirrorSessionId":42,"accessToken":"mirror-private-token"}'
++        return httpx.Response(200, json={"ok": True, "status": "linked", "sessionId": "MW2610030001", "mirrorSessionId": 42})
++
++    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
++        bridge = IDPrinterBridge("http://127.0.0.1:8002", "private-server-token", client=client)
++        snapshot = bridge.resolve("04:aa:bb:cc")
++        result = bridge.link(snapshot, 42, "mirror-private-token")
++    assert snapshot.uid == "04AABBCC"
++    assert result["status"] == "linked"
++    assert len(calls) == 2
++
++
++def test_reissue_between_snapshot_and_link_is_a_conflict_not_success():
++    def handler(request):
++        if request.method == "GET":
++            return httpx.Response(200, json={"ok": True, "sessionId": "MW2610030001", "cardUid": "04AABBCC"})
++        # Kiosk has since rebound this physical card to another visitor.
++        return httpx.Response(409, json={"ok": False, "error": {"code": "OPERATION_CONFLICT"}})
++
++    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
++        bridge = IDPrinterBridge("http://127.0.0.1:8002", "private-server-token", client=client)
++        snapshot = bridge.resolve("04AABBCC")
++        with pytest.raises(BridgeError, match="KIOSK_LINK_CONFLICT"):
++            bridge.link(snapshot, 42, "mirror-private-token")
++
++
++def test_resolve_rejects_mismatched_uid_or_missing_token():
++    with httpx.Client(transport=httpx.MockTransport(
++        lambda _: httpx.Response(200, json={"ok": True, "sessionId": "MW2610030001", "cardUid": "FFFFFFFF"})
++    )) as client:
++        bridge = IDPrinterBridge("http://127.0.0.1:8002", "private-server-token", client=client)
++        with pytest.raises(BridgeError, match="KIOSK_BRIDGE_INVALID_RESPONSE"):
++            bridge.resolve("04AABBCC")
++    with pytest.raises(BridgeError, match="KIOSK_BRIDGE_UNCONFIGURED"):
++        IDPrinterBridge("http://127.0.0.1:8002", "")
++    with pytest.raises(BridgeError, match="KIOSK_BRIDGE_UNCONFIGURED"):
++        IDPrinterBridge("http://127.0.0.1:bad", "private-server-token")
++
++
++def test_unknown_or_unauthorized_card_never_produces_a_snapshot():
++    for status, expected in ((404, "KIOSK_CARD_NOT_FOUND"), (403, "KIOSK_BRIDGE_UNAUTHORIZED")):
++        with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(status))) as client:
++            bridge = IDPrinterBridge("http://127.0.0.1:8002", "private-server-token", client=client)
++            with pytest.raises(BridgeError, match=expected):
++                bridge.resolve("04AABBCC")
+--- /dev/null
++++ b/poc/backend/tests/test_idprinter_kiosk_flow.py
+@@ -0,0 +1,110 @@
++"""Companion endpoint tests, copied into MirrorTing by the prepared patch."""
++
++from fastapi.testclient import TestClient
++from pydantic import SecretStr
++
++from app.api import nfc, sessions
++from app.core.config import settings
++from app.core.database import SessionLocal
++from app.main import app
++from app.models import RoleplaySession
++from app.seed.run import seed
++from app.services import nfc_bridge
++from app.services.idprinter_bridge import BridgeError, CardSnapshot
++
++
++CARD_UID = "04AABBCC"
++KIOSK_ID = "MW2610030001"
++CONSENT = {"agreed": True, "storage_policy": "none"}
++
++
++class FakeBridge:
++    session_id = KIOSK_ID
++    fail_link = False
++    links = []
++
++    def __init__(self, _url, _token):
++        pass
++
++    def __enter__(self):
++        return self
++
++    def __exit__(self, *_args):
++        pass
++
++    def resolve(self, uid):
++        assert uid == CARD_UID
++        return CardSnapshot(uid=CARD_UID, kiosk_session_id=self.session_id)
++
++    def link(self, snapshot, mirror_session_id, access_token):
++        if self.fail_link:
++            raise BridgeError("KIOSK_BRIDGE_UNAVAILABLE", retryable=True)
++        self.links.append((snapshot, mirror_session_id, access_token))
++        return {"ok": True, "status": "linked", "sessionId": snapshot.kiosk_session_id,
++                "mirrorSessionId": mirror_session_id}
++
++
++def _configured(monkeypatch):
++    seed()
++    FakeBridge.session_id = KIOSK_ID
++    FakeBridge.fail_link = False
++    FakeBridge.links = []
++    monkeypatch.setattr(settings, "idprinter_base_url", "http://127.0.0.1:8002")
++    monkeypatch.setattr(settings, "idprinter_bridge_token", SecretStr("server-only-secret-123456789012345"))
++    monkeypatch.setattr(nfc, "IDPrinterBridge", FakeBridge)
++    monkeypatch.setattr(sessions, "IDPrinterBridge", FakeBridge)
++    monkeypatch.setattr(nfc_bridge, "recent_tap_matches", lambda *_args, **_kwargs: True)
++    return TestClient(app)
++
++
++def _body(kiosk_id=KIOSK_ID):
++    return {"mode": 5, "service_mode": "workplace", "job_role": "cafe_crew",
++            "scenario_slug": "ondo-cafe-crew", "nfc_uid": CARD_UID,
++            "kiosk_session_id": kiosk_id, "consent": CONSENT}
++
++
++def test_kiosk_card_without_local_mirror_card_keeps_uid_and_chosen_role(monkeypatch):
++    client = _configured(monkeypatch)
++    verified = client.post("/api/nfc/resolve", json={"uid": CARD_UID})
++    assert verified.status_code == 200
++    assert verified.json()["requires_role_selection"] is True
++    assert verified.json()["kiosk_session_id"] == KIOSK_ID
++    assert verified.json()["job_role"] == ""
++
++    created = client.post("/api/sessions", json=_body())
++    assert created.status_code == 200, created.text
++    payload = created.json()
++    assert payload["kiosk_link_status"] == "linked"
++    assert FakeBridge.links == [(CardSnapshot(CARD_UID, KIOSK_ID), payload["id"], payload["access_token"])]
++    with SessionLocal() as db:
++        session = db.get(RoleplaySession, payload["id"])
++        assert session.job_role == "cafe_crew"
++        assert session.kiosk_session_id == KIOSK_ID
++        assert session.kiosk_card_uid == CARD_UID
++
++
++def test_reissued_card_snapshot_is_rejected_before_session_creation(monkeypatch):
++    client = _configured(monkeypatch)
++    FakeBridge.session_id = "MW2610030002"
++    with SessionLocal() as db:
++        before = db.query(RoleplaySession).count()
++    response = client.post("/api/sessions", json=_body())
++    assert response.status_code == 409
++    with SessionLocal() as db:
++        assert db.query(RoleplaySession).count() == before
++    assert FakeBridge.links == []
++
++
++def test_bridge_outage_retries_original_session_without_creating_another(monkeypatch):
++    client = _configured(monkeypatch)
++    FakeBridge.fail_link = True
++    created = client.post("/api/sessions", json=_body())
++    assert created.status_code == 200, created.text
++    payload = created.json()
++    assert payload["kiosk_link_status"] == "pending"
++    FakeBridge.fail_link = False
++    retried = client.post(f"/api/sessions/{payload['id']}/kiosk-link",
++                          headers={"X-Session-Token": payload["access_token"]})
++    assert retried.status_code == 200
++    assert retried.json()["status"] == "linked"
++    assert FakeBridge.links == [(CardSnapshot(CARD_UID, KIOSK_ID), payload["id"], payload["access_token"])]
