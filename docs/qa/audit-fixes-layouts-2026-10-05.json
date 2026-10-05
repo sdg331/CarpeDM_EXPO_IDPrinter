@@ -1,0 +1,1211 @@
+[
+  {
+    "label": "AI팀 카드 800×1280",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32,
+          "right": 96,
+          "top": 134,
+          "width": 64,
+          "x": 32,
+          "y": 134
+        }
+      },
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "개발팀아이디어를 서비스로 만드는 팀선택하기",
+        "rect": {
+          "bottom": 619.46875,
+          "height": 218.6640625,
+          "left": 32,
+          "right": 394,
+          "top": 400.8046875,
+          "width": 362,
+          "x": 32,
+          "y": 400.8046875
+        }
+      },
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "AI팀데이터로 새로운 기능을 만드는 팀선택하기",
+        "rect": {
+          "bottom": 619.46875,
+          "height": 218.6640625,
+          "left": 406,
+          "right": 768,
+          "top": 400.8046875,
+          "width": 362,
+          "x": 406,
+          "y": 400.8046875
+        }
+      },
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "디자인팀화면과 사용자 경험을 설계하는 팀선택하기",
+        "rect": {
+          "bottom": 850.1328125,
+          "height": 218.6640625,
+          "left": 32,
+          "right": 394,
+          "top": 631.46875,
+          "width": 362,
+          "x": 32,
+          "y": 631.46875
+        }
+      },
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "기획팀문제를 찾고 서비스를 기획하는 팀선택하기",
+        "rect": {
+          "bottom": 850.1328125,
+          "height": 218.6640625,
+          "left": 406,
+          "right": 768,
+          "top": 631.46875,
+          "width": 362,
+          "x": 406,
+          "y": 631.46875
+        }
+      },
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "마케팅팀서비스를 알리고 사람과 연결하는 팀선택하기",
+        "rect": {
+          "bottom": 1080.8046875,
+          "height": 218.671875,
+          "left": 32,
+          "right": 394,
+          "top": 862.1328125,
+          "width": 362,
+          "x": 32,
+          "y": 862.1328125
+        }
+      },
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "인사팀채용과 조직문화를 만드는 팀선택하기",
+        "rect": {
+          "bottom": 1080.8046875,
+          "height": 218.671875,
+          "left": 406,
+          "right": 768,
+          "top": 862.1328125,
+          "width": 362,
+          "x": 406,
+          "y": 862.1328125
+        }
+      },
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "팀 설명 닫기",
+        "rect": {
+          "bottom": 307,
+          "height": 52,
+          "left": 679,
+          "right": 731,
+          "top": 255,
+          "width": 52,
+          "x": 679,
+          "y": 255
+        }
+      },
+      {
+        "disabled": false,
+        "font": "32px",
+        "label": "AI팀으로 입사하기",
+        "rect": {
+          "bottom": 949,
+          "height": 104,
+          "left": 81,
+          "right": 719,
+          "top": 845,
+          "width": 638,
+          "x": 81,
+          "y": 845
+        }
+      },
+      {
+        "disabled": false,
+        "font": "24px",
+        "label": "다른 팀 둘러보기",
+        "rect": {
+          "bottom": 1021,
+          "height": 64,
+          "left": 81,
+          "right": 719,
+          "top": 957,
+          "width": 638,
+          "x": 81,
+          "y": 957
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/teams/development-transparent.png"
+      },
+      {
+        "loaded": true,
+        "src": "/assets/teams/ai-transparent.png"
+      },
+      {
+        "loaded": true,
+        "src": "/assets/teams/design-transparent.png"
+      },
+      {
+        "loaded": true,
+        "src": "/assets/teams/planning-transparent.png"
+      },
+      {
+        "loaded": true,
+        "src": "/assets/teams/marketing-transparent.png"
+      },
+      {
+        "loaded": true,
+        "src": "/assets/teams/hr-transparent.png"
+      },
+      {
+        "loaded": true,
+        "src": "/assets/teams/ai-transparent.png"
+      }
+    ],
+    "screen": "SCR-03",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "이름 입력",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32.059574127197266,
+          "right": 96.0595703125,
+          "top": 134,
+          "width": 63.999996185302734,
+          "x": 32.059574127197266,
+          "y": 134
+        }
+      },
+      {
+        "disabled": true,
+        "font": "30px",
+        "label": "다음",
+        "rect": {
+          "bottom": 1186.1015625,
+          "height": 92,
+          "left": 32.059574127197266,
+          "right": 768.0595741271973,
+          "top": 1094.1015625,
+          "width": 736,
+          "x": 32.059574127197266,
+          "y": 1094.1015625
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/teams/ai-transparent.png"
+      }
+    ],
+    "screen": "SCR-04",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "촬영 안내",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32.969844818115234,
+          "right": 96.96984481811523,
+          "top": 134,
+          "width": 64,
+          "x": 32.969844818115234,
+          "y": 134
+        }
+      },
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "캐릭터 매칭 시작하기",
+        "rect": {
+          "bottom": 1154,
+          "height": 92,
+          "left": 32.969844818115234,
+          "right": 768.9698448181152,
+          "top": 1062,
+          "width": 736,
+          "x": 32.969844818115234,
+          "y": 1062
+        }
+      },
+      {
+        "disabled": false,
+        "font": "24px",
+        "label": "이름 수정하기",
+        "rect": {
+          "bottom": 1228,
+          "height": 64,
+          "left": 32.969844818115234,
+          "right": 768.9698448181152,
+          "top": 1164,
+          "width": 736,
+          "x": 32.969844818115234,
+          "y": 1164
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [],
+    "screen": "SCR-06",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "촬영",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32.061012268066406,
+          "right": 96.0610122680664,
+          "top": 134,
+          "width": 64,
+          "x": 32.061012268066406,
+          "y": 134
+        }
+      },
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "이 사진으로 계속",
+        "rect": {
+          "bottom": 1228,
+          "height": 92,
+          "left": 32.061012268066406,
+          "right": 768.0610122680664,
+          "top": 1136,
+          "width": 736,
+          "x": 32.061012268066406,
+          "y": 1136
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/characters/char_01.png"
+      }
+    ],
+    "screen": "SCR-08",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "캐릭터 결과",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "이 프로필로 사원증 만들기",
+        "rect": {
+          "bottom": 1112.1015625,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1020.1015625,
+          "width": 736,
+          "x": 32,
+          "y": 1020.1015625
+        }
+      },
+      {
+        "disabled": false,
+        "font": "24px",
+        "label": "다시 촬영하기",
+        "rect": {
+          "bottom": 1186.1015625,
+          "height": 64,
+          "left": 32,
+          "right": 768,
+          "top": 1122.1015625,
+          "width": 736,
+          "x": 32,
+          "y": 1122.1015625
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/characters/char_01.png"
+      }
+    ],
+    "screen": "SCR-10",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "NFC 등록",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "카드 등록 시연하기",
+        "rect": {
+          "bottom": 1228,
+          "height": 92,
+          "left": 32.05634689331055,
+          "right": 768.0563468933105,
+          "top": 1136,
+          "width": 736,
+          "x": 32.05634689331055,
+          "y": 1136
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/kiosk-icons/nfc-register.png"
+      },
+      {
+        "loaded": true,
+        "src": "/assets/characters/char_01.png"
+      }
+    ],
+    "screen": "SCR-12",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "수정 후 홈",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "출근하기",
+        "rect": {
+          "bottom": 817.890625,
+          "height": 148,
+          "left": 32,
+          "right": 768,
+          "top": 669.890625,
+          "width": 736,
+          "x": 32,
+          "y": 669.890625
+        }
+      },
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "퇴근하기",
+        "rect": {
+          "bottom": 985.890625,
+          "height": 150,
+          "left": 32,
+          "right": 768,
+          "top": 835.890625,
+          "width": 736,
+          "x": 32,
+          "y": 835.890625
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/kiosk-icons/checkin-badge.png"
+      },
+      {
+        "loaded": true,
+        "src": "/assets/kiosk-icons/checkout-report.png"
+      }
+    ],
+    "screen": "SCR-01",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "퇴근 기록 선택",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32,
+          "right": 96,
+          "top": 134,
+          "width": 64,
+          "x": 32,
+          "y": 134
+        }
+      },
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "기념사진 남기기",
+        "rect": {
+          "bottom": 1154,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1062,
+          "width": 736,
+          "x": 32,
+          "y": 1062
+        }
+      },
+      {
+        "disabled": false,
+        "font": "24px",
+        "label": "사진 없이 리포트 보기",
+        "rect": {
+          "bottom": 1228,
+          "height": 64,
+          "left": 32,
+          "right": 768,
+          "top": 1164,
+          "width": 736,
+          "x": 32,
+          "y": 1164
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [],
+    "screen": "SCR-16",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "기념사진 촬영",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32.02356719970703,
+          "right": 96.02356719970705,
+          "top": 134,
+          "width": 64,
+          "x": 32.02356719970703,
+          "y": 134
+        }
+      },
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "샘플 사진으로 계속",
+        "rect": {
+          "bottom": 1154,
+          "height": 92,
+          "left": 32.02356719970703,
+          "right": 768.023567199707,
+          "top": 1062,
+          "width": 736,
+          "x": 32.02356719970703,
+          "y": 1062
+        }
+      },
+      {
+        "disabled": false,
+        "font": "24px",
+        "label": "사진 없이 계속하기",
+        "rect": {
+          "bottom": 1228,
+          "height": 64,
+          "left": 32.02356719970703,
+          "right": 768.023567199707,
+          "top": 1164,
+          "width": 736,
+          "x": 32.02356719970703,
+          "y": 1164
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/characters/char_01.png"
+      }
+    ],
+    "screen": "SCR-26",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "기념사진 확인",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "사진과 함께 리포트 보기",
+        "rect": {
+          "bottom": 1068,
+          "height": 92,
+          "left": 32.060523986816406,
+          "right": 768.0605239868164,
+          "top": 976,
+          "width": 736,
+          "x": 32.060523986816406,
+          "y": 976
+        }
+      },
+      {
+        "disabled": false,
+        "font": "26px",
+        "label": "다시 찍기",
+        "rect": {
+          "bottom": 1154,
+          "height": 76,
+          "left": 32.060523986816406,
+          "right": 768.0605239868164,
+          "top": 1078,
+          "width": 736,
+          "x": 32.060523986816406,
+          "y": 1078
+        }
+      },
+      {
+        "disabled": false,
+        "font": "24px",
+        "label": "사진 없이 계속하기",
+        "rect": {
+          "bottom": 1228,
+          "height": 64,
+          "left": 32.060523986816406,
+          "right": 768.0605239868164,
+          "top": 1164,
+          "width": 736,
+          "x": 32.060523986816406,
+          "y": 1164
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/characters/char_01.png"
+      }
+    ],
+    "screen": "SCR-27",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "사진 포함 리포트",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32.02267074584961,
+          "right": 96.0226707458496,
+          "top": 134,
+          "width": 64,
+          "x": 32.02267074584961,
+          "y": 134
+        }
+      },
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "체험 기록만 출력 시연",
+        "rect": {
+          "bottom": 1228,
+          "height": 92,
+          "left": 32.02267074584961,
+          "right": 768.0226707458496,
+          "top": 1136,
+          "width": 736,
+          "x": 32.02267074584961,
+          "y": 1136
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/characters/char_01.png"
+      }
+    ],
+    "screen": "SCR-17",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "샘플 퇴근 완료",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "처음 화면으로",
+        "rect": {
+          "bottom": 1228,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1136,
+          "width": 736,
+          "x": 32,
+          "y": 1136
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [],
+    "screen": "SCR-19",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "10자 이름 결과",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "이 프로필로 사원증 만들기",
+        "rect": {
+          "bottom": 1112.1015625,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1020.1015625,
+          "width": 736,
+          "x": 32,
+          "y": 1020.1015625
+        }
+      },
+      {
+        "disabled": false,
+        "font": "24px",
+        "label": "다시 촬영하기",
+        "rect": {
+          "bottom": 1186.1015625,
+          "height": 64,
+          "left": 32,
+          "right": 768,
+          "top": 1122.1015625,
+          "width": 736,
+          "x": 32,
+          "y": 1122.1015625
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/characters/char_01.png"
+      }
+    ],
+    "screen": "SCR-10",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "카메라 오류 복구",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32,
+          "right": 96,
+          "top": 134,
+          "width": 64,
+          "x": 32,
+          "y": 134
+        }
+      },
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "이 사진으로 계속",
+        "rect": {
+          "bottom": 1228,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1136,
+          "width": 736,
+          "x": 32,
+          "y": 1136
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/characters/char_01.png"
+      }
+    ],
+    "screen": "SCR-08",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "AI 오류",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "다시 시도하기",
+        "rect": {
+          "bottom": 1142,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1050,
+          "width": 736,
+          "x": 32,
+          "y": 1050
+        }
+      },
+      {
+        "disabled": false,
+        "font": "26px",
+        "label": "처음으로",
+        "rect": {
+          "bottom": 1228,
+          "height": 76,
+          "left": 32,
+          "right": 768,
+          "top": 1152,
+          "width": 736,
+          "x": 32,
+          "y": 1152
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [],
+    "screen": "SCR-09",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "写真 없는 리포트",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32.05353927612305,
+          "right": 96.05353927612305,
+          "top": 134,
+          "width": 64,
+          "x": 32.05353927612305,
+          "y": 134
+        }
+      },
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "퇴근 리포트 출력",
+        "rect": {
+          "bottom": 1228,
+          "height": 92,
+          "left": 32.05353927612305,
+          "right": 768.053539276123,
+          "top": 1136,
+          "width": 736,
+          "x": 32.05353927612305,
+          "y": 1136
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [],
+    "screen": "SCR-17",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "출력 오류",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "다시 시도하기",
+        "rect": {
+          "bottom": 1142,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1050,
+          "width": 736,
+          "x": 32,
+          "y": 1050
+        }
+      },
+      {
+        "disabled": false,
+        "font": "26px",
+        "label": "처음으로",
+        "rect": {
+          "bottom": 1228,
+          "height": 76,
+          "left": 32,
+          "right": 768,
+          "top": 1152,
+          "width": 736,
+          "x": 32,
+          "y": 1152
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/kiosk-icons/thermal-printer.png"
+      }
+    ],
+    "screen": "SCR-18",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "기록 없음",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "16px",
+        "label": "이전 단계",
+        "rect": {
+          "bottom": 194,
+          "height": 60,
+          "left": 32,
+          "right": 96,
+          "top": 134,
+          "width": 64,
+          "x": 32,
+          "y": 134
+        }
+      },
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "다시 확인",
+        "rect": {
+          "bottom": 1228,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1136,
+          "width": 736,
+          "x": 32,
+          "y": 1136
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [],
+    "screen": "SCR-16",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "정리된 출력 오류",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "다시 시도하기",
+        "rect": {
+          "bottom": 1142,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1050,
+          "width": 736,
+          "x": 32,
+          "y": 1050
+        }
+      },
+      {
+        "disabled": false,
+        "font": "26px",
+        "label": "처음으로",
+        "rect": {
+          "bottom": 1228,
+          "height": 76,
+          "left": 32,
+          "right": 768,
+          "top": 1152,
+          "width": 736,
+          "x": 32,
+          "y": 1152
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/kiosk-icons/thermal-printer.png"
+      }
+    ],
+    "screen": "SCR-18",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "서비스 점검",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "26px",
+        "label": "처음으로",
+        "rect": {
+          "bottom": 1228,
+          "height": 76,
+          "left": 32.31690979003906,
+          "right": 768.3169097900391,
+          "top": 1152,
+          "width": 736,
+          "x": 32.31690979003906,
+          "y": 1152
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [],
+    "screen": "SCR-20",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "NFC 등록 오류",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "다시 시도하기",
+        "rect": {
+          "bottom": 1142,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1050,
+          "width": 736,
+          "x": 32,
+          "y": 1050
+        }
+      },
+      {
+        "disabled": false,
+        "font": "26px",
+        "label": "처음으로",
+        "rect": {
+          "bottom": 1228,
+          "height": 76,
+          "left": 32,
+          "right": 768,
+          "top": 1152,
+          "width": 736,
+          "x": 32,
+          "y": 1152
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [
+      {
+        "loaded": true,
+        "src": "/assets/kiosk-icons/nfc-register.png"
+      },
+      {
+        "loaded": true,
+        "src": "/assets/characters/char_01.png"
+      }
+    ],
+    "screen": "SCR-12",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  },
+  {
+    "label": "AI 시간 초과",
+    "buttons": [
+      {
+        "disabled": false,
+        "font": "30px",
+        "label": "다시 시도하기",
+        "rect": {
+          "bottom": 1142,
+          "height": 92,
+          "left": 32,
+          "right": 768,
+          "top": 1050,
+          "width": 736,
+          "x": 32,
+          "y": 1050
+        }
+      },
+      {
+        "disabled": false,
+        "font": "26px",
+        "label": "처음으로",
+        "rect": {
+          "bottom": 1228,
+          "height": 76,
+          "left": 32,
+          "right": 768,
+          "top": 1152,
+          "width": 736,
+          "x": 32,
+          "y": 1152
+        }
+      }
+    ],
+    "contentHeight": 1120,
+    "images": [],
+    "screen": "SCR-09",
+    "screenHeight": 1120,
+    "viewport": [
+      800,
+      1280
+    ],
+    "width": 800
+  }
+]

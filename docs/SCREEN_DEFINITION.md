@@ -1,3 +1,7 @@
+> 2026-10-05 UI 변경: SCR-05/07/11의 A/B 선택·B 생성 진입은 제거했다. 이름 이후 SCR-06 캐릭터 매칭으로 연결한다. 퇴근은 SCR-16→SCR-26 PHOTO_CAMERA→SCR-27 PHOTO_REVIEW→SCR-17 REPORT이며 사진 없이 진행 가능하다. 아래 이전 B 명세는 이력이다. 기념사진은 화면 전용이며 종이 사진 인쇄는 미연결이다.
+
+> 2026-10-05 전체 점검 수정: SCR-16에서 기념사진 또는 `사진 없이 리포트 보기`를 선택한다. 촬영 화면의 권한 대기/연결 종료는 공통 카메라 오류로 복구한다. 상태 창과 홈 초기화는 서버 상태를 새로 조회한다. 조회 응답은 현재 입력·사진을 지우지 않으며 홈 초기화 자체는 이전 방문자 정보를 제거한다. AI·NFC·출력 오류는 실패 원인과 다음 행동을 중심으로 표시한다. 샘플 완료는 실제 등록한 카드 이동을 지시하지 않는다. [검증 결과](qa/AUDIT_FIXES_2026-10-05.md).
+
 # Screen Definition
 
 ## Naming Rule
@@ -26,10 +30,12 @@ Example:
 **Entry**: app start, completion reset, fatal safe reset, inactivity reset.
 
 **UI**:
-- MIRRORTING WORKS brand
-- short welcome copy
-- large `입사하기` card/button
-- large `퇴근하기` card/button
+- 상단 MIRRORTING WORKS 브랜드 한 개. 중앙 로고는 표시하지 않는다.
+- `입사하신 것을 진심으로 축하드립니다.`를 큰 제목으로 표시한다.
+- 환영 문구와 세로 배치한 `출근하기`·`퇴근하기` 버튼을 하나의 영역으로 묶는다.
+- 제작 표기 `CarpeDM × 동양미래대학교`는 하단에 표시한다.
+- 정상 장치 흐름의 연결 안내는 `장치 상태` 팝업에서 확인한다. 서버 연결 실패 안내는 화면에 유지한다.
+- 샘플/웹 미리보기는 상단에서 모드를 명시한다.
 
 **Actions**:
 - 입사 → SCR-02
@@ -85,9 +91,11 @@ Example:
 - team name
 - 1–2 sentence description
 - `주요 업무` 3 items
-- keyword 3 chips
+- keyword 3 readable tags
 - `다른 팀 보기`
 - `이 팀으로 입사하기`
+
+2026-10-05 가독성 기준: 흰색 중앙 팝업에서 투명 아이콘과 48px 팀명, 26px 원문 설명을 표시한다. 세 업무는 26px 글씨를 가진 개별 중립 카드로 구분하며, 키워드는 26px 글씨의 연한 파란 태그로 표시한다. 업무·키워드 제목은 24px이다. 하단은 전체 폭의 104px 입사 버튼과 64px 보조 행동을 세로 배치한다. 작은 웹 화면에서는 업무를 세로 목록으로 묶고 업무·키워드 20px, 입사 버튼 72px를 사용한다. 모든 팀은 동일한 팝업 스타일을 사용하며 48px 이상의 닫기 버튼, 포커스 잠금·복귀, 배경 입력 차단을 유지한다.
 
 **Actions**:
 - 다른 팀 보기 → SCR-02
@@ -120,7 +128,7 @@ Example:
 - empty value cannot proceed
 - visible focus
 - Korean IME composition must work
-- virtual keyboard not required
+- physical keyboard required; no on-screen keyboard
 
 **Actions**:
 - next → save name → SCR-05

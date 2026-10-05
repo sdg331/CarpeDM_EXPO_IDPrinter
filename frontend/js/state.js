@@ -24,6 +24,7 @@ export function createState() {
     nfc: "idle",
     printer: "idle",
     report: null,
+    souvenirPhoto: null,
     digitalCard: null,
     printResult: null,
     reconciling: false,

@@ -1,5 +1,5 @@
-import { createState, validateName } from "./state.js";
-import { teams, scenarios, screenIds } from "./content.js";
+import { createState, validateName } from "./state.js?v=20261005-checkout-photo";
+import { teams, scenarios, screenIds } from "./content.js?v=20261005-transparent-icons";
 import {
   createDemoApi,
   createLiveApi,
@@ -7,13 +7,12 @@ import {
   KioskError,
   errorCopy,
 } from "./api-client.js";
-import { Camera } from "./camera.js";
-import { renderScreen, renderTeamPreview, escape } from "./views.js";
-import { logo, icon } from "./icons.js";
+import { Camera } from "./camera.js?v=20261005-audit-fixes";
+import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261005-audit-fixes";
+import { icon } from "./icons.js";
 import { createMotion } from "./motion.js";
 import { resolveRuntime } from "./runtime.js";
 import { createDigitalBadge } from "./digital-badge.js";
-import { applyTouchKey } from "./hangul-keyboard.js";
 
 const query = new URLSearchParams(location.search);
 const runtime = resolveRuntime(query);
@@ -42,48 +41,70 @@ let completionAt = 0;
 let modal = null;
 let health = "unknown";
 let healthDetail = null;
+let healthRequest = null;
 let returnFocus = null;
 let renderedScreen = null;
 let badgeUrl = null;
-let cameraPermissionRequest = null;
-let keyboardLayout = "ko";
-const touchKeys = {
-  ko: [..."ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ", ..."ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ"],
-  en: [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"],
-};
 const motion = createMotion();
 
 function resize() {
   const kiosk = document.querySelector("#kiosk");
-  if (!demo) {
+  if (web) {
     kiosk.style.transform = "none";
-    document.querySelector("#stage").style.height = "";
     return;
   }
-  const mobile = innerWidth / innerHeight < 800 / 1280;
-  const scale = mobile
-    ? innerWidth / 800
-    : Math.min(innerWidth / 800, innerHeight / 1280);
+  const scale = Math.min(1, innerWidth / 800, innerHeight / 1280);
   kiosk.style.transform = `scale(${scale})`;
-  document.querySelector("#stage").style.height = mobile
-    ? `${1280 * scale}px`
-    : "";
 }
 addEventListener("resize", resize);
 resize();
 
 function render(direction = "forward") {
   const s = state.data;
-  header.innerHTML = `<div class="header-row"><div class="brand">${logo()}<span class="brand-word">MIRRORTING<br>WORKS</span></div><button class="connection-button" data-action="connections">${icon("info")}<span>장치 상태</span></button></div>${demo ? `<div class="demo-line"><span><b>샘플</b> 카메라 · 카드 · 출력은 화면 체험입니다</span>${showDemoControls ? '<button class="demo-settings" data-action="settings">시연 설정</button>' : ""}</div>` : `<div class="live-notice">${health === "unavailable" ? "서비스 연결 대기 중 · 현장 스태프에게 문의해주세요." : web ? "웹 미리보기 · 카드 등록과 실물 출력 없음" : "기기 체험 · 장치 연결은 진행 중 확인합니다"}</div>`}`;
+  header.innerHTML = renderHeader(demo, web, showDemoControls, health);
   screen.dataset.screen = screenIds[s.screen];
   screen.innerHTML = renderScreen(s, demo, web);
-  footer.innerHTML = `<span class="footer-brand">CarpeDM <span style="font-weight:400">× 동양미래대학교</span></span><span class="footer-index">MIRRORTING WORKS / ${screenIds[s.screen].replace("SCR-", "")}</span>`;
+  footer.innerHTML = `<span class="footer-brand">CarpeDM <span class="footer-partner">× 동양미래대학교</span></span><span class="footer-index">MIRRORTING WORKS / ${screenIds[s.screen].replace("SCR-", "")}</span>`;
   if (web) footer.innerHTML = `<span>CarpeDM · 2026 EXPO</span><span>로컬 웹 미리보기 · 실물 장치 미사용</span>`;
-  header.querySelector(".demo-settings, .connection-button")?.toggleAttribute("disabled", s.busy);
+  lockHeader();
   if (renderedScreen !== s.screen) {
     motion.navigate(screen, direction);
     renderedScreen = s.screen;
   }
+}
+function lockHeader() {
+  header.querySelectorAll(".demo-settings, .connection-button").forEach((button) => {
+    button.disabled = state.data.busy;
+  });
+}
+function refreshHealth() {
+  if (demo || healthRequest) return healthRequest;
+  health = "checking";
+  healthDetail = null;
+  healthRequest = api.getHealth()
+    .then((result) => {
+      health = result?.ok === true ? "healthy" : "unavailable";
+      healthDetail = health === "healthy" ? result : null;
+    })
+    .catch(() => { health = "unavailable"; })
+    .finally(() => {
+      healthRequest = null;
+      // Refresh status without replacing the current form, camera, or photo.
+      const restoreHeaderFocus = header.contains(returnFocus);
+      const headerFocused = header.contains(document.activeElement);
+      header.innerHTML = renderHeader(demo, web, showDemoControls, health);
+      lockHeader();
+      if (restoreHeaderFocus) returnFocus = header.querySelector(".connection-button");
+      if (headerFocused) header.querySelector(".connection-button")?.focus({ preventScroll: true });
+      if (modal === "connections") {
+        const previousFocus = returnFocus;
+        const focusedIndex = [...overlay.querySelectorAll("button")].indexOf(document.activeElement);
+        openModal("connections");
+        returnFocus = previousFocus;
+        overlay.querySelectorAll("button")[focusedIndex]?.focus({ preventScroll: true });
+      }
+    });
+  return healthRequest;
 }
 function resetViewport() {
   window.scrollTo(0, 0);
@@ -91,7 +112,7 @@ function resetViewport() {
   screen.scrollTop = 0;
 }
 function go(next, patch = {}, direction = "forward") {
-  if (state.data.screen === "camera") camera.stop();
+  if (["camera", "photoCamera"].includes(state.data.screen)) camera.stop();
   state.invalidate();
   state.patch({ screen: next, error: null, ...patch });
   lastActivity = Date.now();
@@ -106,18 +127,18 @@ function go(next, patch = {}, direction = "forward") {
     input.setSelectionRange(input.value.length, input.value.length);
     updateName();
   }
-  if (next === "camera") initializeCamera();
+  if (["camera", "photoCamera"].includes(next)) initializeCamera();
 }
 function reset() {
   currentController?.abort();
   camera.stop();
+  clearSouvenirPhoto();
   state.reset();
   api.reset();
   if (badgeUrl) URL.revokeObjectURL(badgeUrl);
   badgeUrl = null;
   operationIds.clear();
   cameraAttempts = 0;
-  keyboardLayout = "ko";
   cameraState = "uninitialized";
   composing = false;
   completionAt = 0;
@@ -126,6 +147,7 @@ function reset() {
   render("reset");
   resetViewport();
   screen.focus({ preventScroll: true });
+  refreshHealth();
 }
 
 // One logical operation ID per intent, reused on explicit safe retries.
@@ -219,7 +241,7 @@ const cameraCopy = {
   error: "카메라를 사용할 수 없어요.",
 };
 function updateCamera(status, code) {
-  if (state.data.screen !== "camera" || state.data.busy) return;
+  if (!["camera", "photoCamera"].includes(state.data.screen) || state.data.busy) return;
   cameraState = status;
   const panel = screen.querySelector("#camera-panel");
   panel.className = `camera-panel ${status}`;
@@ -232,37 +254,15 @@ function updateCamera(status, code) {
   retry.hidden = status !== "error";
   screen.querySelector(".camera-state-note").textContent = status === "error"
     ? (errorCopy[code]?.[1] || errorCopy.CAMERA_UNAVAILABLE[1])
-    : demo ? "실제 현장에서는 얼굴 위치와 선명도를 자동으로 확인해요."
+    : demo ? "샘플 사진으로 촬영 흐름을 확인해요."
     : "촬영한 원본 이미지는 분석 후 저장하지 않아요.";
-  if (web && status !== "error")
+  if (state.data.screen === "photoCamera" && status !== "error")
+    screen.querySelector(".camera-state-note").textContent = demo ? "샘플 사진으로 화면 흐름을 확인해요." : "사진은 이 화면의 미리보기에만 사용하고, 처음으로 돌아가면 지워요.";
+  if (web && state.data.screen !== "photoCamera" && status !== "error")
     screen.querySelector(".camera-state-note").textContent = "사진은 이 컴퓨터의 AI 서버에서 처리해요. 원본은 디스크에 저장하지 않아요.";
   if (status === "error") camera.stop();
 }
-function requestInitialCameraPermission(retry = false) {
-  if (!web) return Promise.resolve(true);
-  if (retry) cameraPermissionRequest = null;
-  if (cameraPermissionRequest) return cameraPermissionRequest;
-  cameraPermissionRequest = navigator.mediaDevices
-    ?.getUserMedia({
-      video: {
-        width: { ideal: 1280 },
-        height: { ideal: 960 },
-        facingMode: "user",
-      },
-      audio: false,
-    })
-    .then((stream) => {
-      stream.getTracks().forEach((track) => track.stop());
-      if (state.data.screen !== "camera") cameraState = "authorized";
-      return true;
-    })
-    .catch(() => {
-      if (state.data.screen !== "camera") cameraState = "error";
-      return false;
-    }) || Promise.resolve(false);
-  return cameraPermissionRequest;
-}
-async function initializeCamera(retryPermission = false) {
+function initializeCamera() {
   if (demo) {
     cameraAttempts++;
     updateCamera(
@@ -276,21 +276,16 @@ async function initializeCamera(retryPermission = false) {
     );
     return;
   }
-  if (web) {
-    updateCamera("initializing");
-    const allowed = await requestInitialCameraPermission(retryPermission);
-    if (state.data.screen !== "camera") return;
-    if (!allowed) return updateCamera("error", "CAMERA_UNAVAILABLE");
-  }
   camera.start(screen.querySelector("#camera-video"), api, updateCamera);
 }
 async function capture() {
   if (cameraState !== "ready" || state.data.busy) return;
+  if (state.data.screen === "photoCamera") return captureSouvenir();
   const token = state.begin();
   cameraState = "capturing";
   screen.querySelector('[data-action="capture"]').disabled = true;
   screen.querySelector(".back").disabled = true;
-  header.querySelector(".demo-settings, .connection-button")?.setAttribute("disabled", "");
+  lockHeader();
   screen.querySelector("#camera-instruction").textContent =
     cameraCopy.capturing;
   try {
@@ -306,6 +301,31 @@ async function capture() {
     state.finish(token);
     render();
     updateCamera("error");
+  }
+}
+function clearSouvenirPhoto() {
+  const photo = state.data.souvenirPhoto;
+  if (photo?.startsWith("blob:")) URL.revokeObjectURL(photo);
+  state.patch({ souvenirPhoto: null });
+}
+async function captureSouvenir() {
+  const token = state.begin();
+  if (!token) return;
+  screen.querySelector('[data-action="capture"]').disabled = true;
+  screen.querySelector(".back").disabled = true;
+  screen.querySelector('[data-action="photo-skip"]').disabled = true;
+  lockHeader();
+  try {
+    const frame = demo ? null : await camera.capture();
+    if (!state.isCurrent(token)) return;
+    state.finish(token);
+    clearSouvenirPhoto();
+    go("photoReview", { souvenirPhoto: demo ? "/assets/characters/char_01.png" : URL.createObjectURL(frame) });
+  } catch {
+    if (!state.isCurrent(token)) return;
+    state.finish(token);
+    go("photoCamera");
+    updateCamera("error", "CAMERA_UNAVAILABLE");
   }
 }
 function prepareBadge() {
@@ -391,6 +411,7 @@ function finishPrint(report, result) {
     throw new KioskError("INVALID_RESPONSE", false);
   if (result.previewUrl && !isSameOriginImage(result.previewUrl, location.href))
     throw new KioskError("INVALID_RESPONSE", false);
+  if (report) clearSouvenirPhoto();
   go(report ? "checkoutComplete" : "checkinComplete", {
     printer: result.status,
     printResult: result,
@@ -511,27 +532,7 @@ function submitName() {
   if (composing || state.data.screen !== "name") return;
   const validation = validateName(screen.querySelector("#visitor-name").value);
   if (!validation.valid) return updateName();
-  go("modes", { name: validation.name });
-}
-function drawTouchKeys() {
-  const grid = overlay.querySelector("#touch-key-grid");
-  if (!grid) return;
-  grid.innerHTML = touchKeys[keyboardLayout].map((key) =>
-    `<button type="button" data-action="keyboard-key" data-key="${key}" aria-label="${key}">${key}</button>`
-  ).join("");
-  for (const button of overlay.querySelectorAll("[data-action='keyboard-layout']"))
-    button.setAttribute("aria-pressed", String(button.dataset.layout === keyboardLayout));
-}
-function updateTouchName(value) {
-  const input = screen.querySelector("#visitor-name");
-  if (!input) return;
-  if (Array.from(value).length > 10) return;
-  input.value = value;
-  updateName();
-  const preview = overlay.querySelector("#touch-name-preview");
-  if (preview) preview.textContent = value || "이름을 입력해주세요";
-  const done = overlay.querySelector("[data-action='keyboard-done']");
-  if (done) done.disabled = !validateName(value).valid;
+  go("detailA", { name: validation.name, aiMode: "A", result: null });
 }
 function back() {
   const s = state.data;
@@ -541,12 +542,12 @@ function back() {
     teams: "home",
     team: "teams",
     name: "teams",
-    modes: "name",
-    detailA: "modes",
-    detailB: "modes",
+    detailA: "name",
     camera: s.aiMode === "A" ? "detailA" : "detailB",
     checkout: "home",
     checkoutResult: "home",
+    photoCamera: "checkoutResult",
+    photoReview: "photoCamera",
     report: "checkoutResult",
     webIssue: s.aiMode === "A" ? "resultA" : "resultB",
     webCheckout: "home",
@@ -561,11 +562,8 @@ function openModal(kind) {
   modal = kind;
   returnFocus = document.activeElement;
   document.body.classList.add("modal-open");
-  if (kind === "keyboard") {
-    keyboardLayout = "ko";
-    overlay.innerHTML = `<div class="overlay-backdrop"><section class="dialog name-keyboard-dialog" role="dialog" aria-modal="true" aria-labelledby="keyboard-title"><h2 id="keyboard-title">화면 키보드</h2><p>한글이나 영문을 터치해 이름을 입력해주세요.</p><output id="touch-name-preview" aria-live="polite">${escape(state.data.name) || "이름을 입력해주세요"}</output><div class="keyboard-layout-switch"><button type="button" data-action="keyboard-layout" data-layout="ko" aria-pressed="true">한글</button><button type="button" data-action="keyboard-layout" data-layout="en" aria-pressed="false">영문</button></div><div id="touch-key-grid" class="touch-key-grid"></div><div class="touch-key-controls"><button type="button" data-action="keyboard-space">띄어쓰기</button><button type="button" data-action="keyboard-backspace">한 글자 지우기</button><button type="button" data-action="keyboard-clear">전체 지우기</button></div><div class="dialog-actions"><button class="button" data-action="keyboard-done" ${validateName(state.data.name).valid ? "" : "disabled"}>입력 마치기</button><button class="button secondary" data-action="modal-close">닫기</button></div></section></div>`;
-    drawTouchKeys();
-  } else if (kind === "connections") {
+  if (kind === "connections") {
+    const checking = health === "checking";
     const cameraLabel = {
       uninitialized: "권한 요청 전",
       authorized: "권한 허용됨 · 촬영 대기",
@@ -579,11 +577,11 @@ function openModal(kind) {
     const nfc = healthDetail?.nfc;
     const printer = healthDetail?.printer;
     const nfcLabel = demo ? "샘플 화면" : web ? "웹 미리보기에서 사용 안 함" :
-      nfc?.backend === "mock" ? "개발용 모의 리더" : nfc?.ready ? "리더 감지 · 실물 태그 확인 필요" : "리더 연결 확인 필요";
+      checking ? "상태 확인 중" : nfc?.backend === "mock" ? "개발용 모의 리더" : nfc?.ready ? "리더 감지 · 실물 태그 확인 필요" : "리더 연결 확인 필요";
     const printerLabel = demo ? "샘플 화면" : web ? "웹 미리보기에서 사용 안 함" :
-      printer?.backend === "screen" ? "이미지 미리보기 · 실물 출력 없음" : printer?.ready ? "출력 설정 감지 · 용지 확인 필요" : "프린터 연결 확인 필요";
-    overlay.innerHTML = `<div class="overlay-backdrop"><section class="dialog system-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><button class="system-dialog-close" data-action="modal-close" aria-label="상태 닫기">${icon("close")}</button><span class="pi-dialog-badge"><i></i> ${demo ? "SAMPLE" : web ? "WEB PREVIEW" : "DEVICE MODE"}</span><h2 id="dialog-title">현재 체험 상태</h2><p>${demo ? "준비된 데이터로 화면 흐름만 체험합니다." : web ? "카메라와 로컬 AI를 사용하며 카드 등록과 실물 출력은 진행하지 않습니다." : "장치 연결 정보는 설정 상태를 보여줍니다. 실제 작동은 각 단계에서 확인합니다."}</p>
-      <section class="system-status-group current-system" aria-labelledby="current-system-title"><div class="system-status-heading"><div><span>현재 모드</span><h3 id="current-system-title">${demo ? "샘플 체험" : web ? "로컬 웹 미리보기" : "실제 서비스 흐름"}</h3></div><strong class="status-chip ${health === "healthy" || demo ? "active" : "pending"}">${demo ? "샘플" : health === "healthy" ? "서버 응답" : "확인 필요"}</strong></div><dl class="connection-list"><div><dt>로컬 AI 서버</dt><dd>${demo ? "사용 안 함" : health === "healthy" ? "응답 확인" : "연결 확인 필요"}</dd></div><div><dt>카메라</dt><dd>${demo ? "준비된 이미지" : cameraLabel}</dd></div><div><dt>NFC</dt><dd>${nfcLabel}</dd></div><div><dt>프린터</dt><dd>${printerLabel}</dd></div><div><dt>MirrorTing 기록</dt><dd>${demo ? "샘플 데이터" : web ? "미리보기에서 조회 안 함" : "퇴근 카드 확인 후 조회"}</dd></div></dl></section>
+      checking ? "상태 확인 중" : printer?.backend === "screen" ? "이미지 미리보기 · 실물 출력 없음" : printer?.ready ? "출력 설정 감지 · 용지 확인 필요" : "프린터 연결 확인 필요";
+    overlay.innerHTML = `<div class="overlay-backdrop"><section class="dialog system-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><button class="system-dialog-close" data-action="modal-close" aria-label="상태 닫기">${icon("close")}</button><span class="pi-dialog-badge"><i></i> ${demo ? "SAMPLE" : web ? "WEB PREVIEW" : "DEVICE MODE"}</span><h2 id="dialog-title">현재 체험 상태</h2><p>${demo ? "준비된 데이터로 화면 흐름만 체험합니다." : web ? "카메라와 로컬 AI를 사용하며 카드 등록과 실물 출력은 진행하지 않습니다." : "기기 체험 · 장치 연결은 진행 중 확인합니다. 아래 정보는 설정 상태이며 실제 작동은 각 단계에서 확인합니다."}</p>
+      <section class="system-status-group current-system" aria-labelledby="current-system-title"><div class="system-status-heading"><div><span>현재 모드</span><h3 id="current-system-title">${demo ? "샘플 체험" : web ? "로컬 웹 미리보기" : "실제 서비스 흐름"}</h3></div><strong class="status-chip ${health === "healthy" || demo ? "active" : "pending"}">${demo ? "샘플" : checking ? "확인 중" : health === "healthy" ? "서버 응답" : "확인 필요"}</strong></div><dl class="connection-list"><div><dt>로컬 AI 서버</dt><dd>${demo ? "사용 안 함" : checking ? "상태 확인 중" : health === "healthy" ? "응답 확인" : "연결 확인 필요"}</dd></div><div><dt>카메라</dt><dd>${demo ? "준비된 이미지" : cameraLabel}</dd></div><div><dt>NFC</dt><dd>${nfcLabel}</dd></div><div><dt>프린터</dt><dd>${printerLabel}</dd></div><div><dt>MirrorTing 기록</dt><dd>${demo ? "샘플 데이터" : web ? "미리보기에서 조회 안 함" : checking ? "상태 확인 중" : healthDetail?.mirrorting?.configured === false ? "스마트미러 연결 설정 필요" : "퇴근 카드 확인 후 조회"}</dd></div></dl></section>
       <p class="connection-footnote">${demo ? "이 모드에서는 촬영·AI·NFC·출력이 실제로 실행되지 않습니다." : "서버 응답이나 출력 명령 전송은 실물 출력 완료를 뜻하지 않습니다."}</p><div class="dialog-actions"><button class="button" data-action="modal-close">확인</button></div></section></div>`;
   } else if (kind === "team") {
     overlay.innerHTML = renderTeamPreview(state.data.draftTeam);
@@ -633,31 +631,13 @@ const handlers = {
     go("name", { team });
   },
   "name-next": submitName,
-  "touch-keyboard": () => openModal("keyboard"),
-  "keyboard-key": (el) => updateTouchName(applyTouchKey(state.data.name, el.dataset.key)),
-  "keyboard-backspace": () => updateTouchName(applyTouchKey(state.data.name, "backspace")),
-  "keyboard-space": () => updateTouchName(applyTouchKey(state.data.name, "space")),
-  "keyboard-clear": () => updateTouchName(""),
-  "keyboard-done": closeModal,
-  "keyboard-layout": (el) => {
-    keyboardLayout = el.dataset.layout === "en" ? "en" : "ko";
-    drawTouchKeys();
-    overlay.querySelector("#touch-key-grid button")?.focus();
-  },
-  "mode-select": (el) => {
-    if (["A", "B"].includes(el.dataset.mode))
-      go(`detail${el.dataset.mode}`, {
-        aiMode: el.dataset.mode,
-        result: null,
-      });
-  },
   "camera-open": () => go("camera"),
-  "camera-retry": () => initializeCamera(true),
+  "camera-retry": initializeCamera,
   "digital-card": prepareBadge,
   "card-connect": () => { if (web && state.data.result) go("webIssue"); },
   "visit-guide": () => go("webComplete"),
   "report-preview": () => go("webReport"),
-  connections: () => openModal("connections"),
+  connections: () => { refreshHealth(); openModal("connections"); },
   retake,
   capture,
   "ai-retry": () => {
@@ -676,8 +656,11 @@ const handlers = {
   "checkout-read": readCheckout,
   "report-fetch": fetchReport,
   "report-open": () => {
-    if (state.data.report?.status === "available") go("report");
+    if (state.data.report?.status === "available") go("photoCamera");
   },
+  "photo-retake": () => { clearSouvenirPhoto(); go("photoCamera"); },
+  "photo-confirm": () => go("report"),
+  "photo-skip": () => { clearSouvenirPhoto(); go("report"); },
   "report-print": () => {
     go("reportPrint");
     print(true);
@@ -739,7 +722,7 @@ document.addEventListener("keydown", (event) => {
       first.focus();
     }
   }
-  if (event.key === "Escape" && ["settings", "team", "connections", "keyboard"].includes(modal)) closeModal();
+  if (event.key === "Escape" && ["settings", "team", "connections"].includes(modal)) closeModal();
   if (event.key === "Enter" && event.target.id === "visitor-name") {
     event.preventDefault();
     submitName();
@@ -783,23 +766,9 @@ setInterval(() => {
 addEventListener("pagehide", (event) => {
   currentController?.abort();
   camera.stop();
-  if (!event.persisted) api.reset();
+  if (!event.persisted) { api.reset(); clearSouvenirPhoto(); }
   if (!event.persisted && badgeUrl) URL.revokeObjectURL(badgeUrl);
   motion.destroy();
 });
 render("reset");
-if (web) requestInitialCameraPermission();
-if (!demo)
-  api
-    .getHealth()
-    .then((result) => {
-      health = result.ok ? "healthy" : "unavailable";
-      healthDetail = result.ok ? result : null;
-    })
-    .catch(() => {
-      health = "unavailable";
-    })
-    .finally(() => {
-      // Health updates must never replace an active name input or camera element.
-      if (state.data.screen === "home") render();
-    });
+refreshHealth();

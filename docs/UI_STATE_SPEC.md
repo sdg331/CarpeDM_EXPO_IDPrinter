@@ -44,6 +44,13 @@ any active → error
 
 CURRENT backend `/api/detect` supports face count/confidence only. `bad_position` requires additional quality metadata or frontend-approved heuristic; do not pretend backend supports it until implemented.
 
+CURRENT lifecycle · 2026-10-05:
+- Device and web preview start permission/stream acquisition only on a camera screen, through the same `Camera.start()` path.
+- Permission and video initialization share a 15-second limit; late streams are stopped after navigation or timeout.
+- Track `ended` or stream `inactive` stops the stream, aborts detection, and shows a retryable camera error.
+- Capture requires an active live video track. Encoded frames and detection responses from an old camera generation are rejected.
+- Detection failures release camera resources; retry opens a new stream without losing the visitor name/team.
+
 ## AI
 
 ```text
@@ -127,12 +134,15 @@ error
 
 ```text
 unknown
+checking
 healthy
 degraded
 unavailable
 ```
 
 Health state may help operator diagnostics, but visitor flow should not expose technical service names unnecessarily.
+
+CURRENT: app entry, Home reset, and opening the connection dialog request fresh health data with a 4-second limit and `cache: no-store`. Concurrent reads share the current request. The actual frontend uses unknown/checking/healthy/unavailable; degraded remains a conceptual state without a current classifier. An unavailable response clears old hardware details. Health responses update the header and connection dialog without replacing the current name field, camera, or photo; dialog focus and its return target are retained. Home reset still clears all previous visitor data.
 
 ## Action Lock
 
@@ -143,6 +153,8 @@ Lock duplicate action while these are in flight:
 - badge print
 - checkout resolve
 - report print
+
+The connection and sample-settings buttons are also disabled while an action is busy.
 
 ## Operation Identity
 

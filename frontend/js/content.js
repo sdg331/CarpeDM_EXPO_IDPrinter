@@ -1,7 +1,7 @@
 export const teams = [
   {
     id: "development",
-    iconImage: "/assets/teams/development.png",
+    iconImage: "/assets/teams/development-transparent.png",
     title: "개발팀",
     summary: "아이디어를 서비스로 만드는 팀",
     english: "Development",
@@ -13,7 +13,7 @@ export const teams = [
   },
   {
     id: "ai",
-    iconImage: "/assets/teams/ai.png",
+    iconImage: "/assets/teams/ai-transparent.png",
     title: "AI팀",
     summary: "데이터로 새로운 기능을 만드는 팀",
     english: "Artificial Intelligence",
@@ -25,7 +25,7 @@ export const teams = [
   },
   {
     id: "design",
-    iconImage: "/assets/teams/design.png",
+    iconImage: "/assets/teams/design-transparent.png",
     title: "디자인팀",
     summary: "화면과 사용자 경험을 설계하는 팀",
     english: "Design",
@@ -37,7 +37,7 @@ export const teams = [
   },
   {
     id: "planning",
-    iconImage: "/assets/teams/planning.png",
+    iconImage: "/assets/teams/planning-transparent.png",
     title: "기획팀",
     summary: "문제를 찾고 서비스를 기획하는 팀",
     english: "Product Planning",
@@ -49,7 +49,7 @@ export const teams = [
   },
   {
     id: "marketing",
-    iconImage: "/assets/teams/marketing.png",
+    iconImage: "/assets/teams/marketing-transparent.png",
     title: "마케팅팀",
     summary: "서비스를 알리고 사람과 연결하는 팀",
     english: "Marketing",
@@ -60,7 +60,7 @@ export const teams = [
   },
   {
     id: "hr",
-    iconImage: "/assets/teams/hr.png",
+    iconImage: "/assets/teams/hr-transparent.png",
     title: "인사팀",
     summary: "채용과 조직문화를 만드는 팀",
     english: "People & Culture",
@@ -138,6 +138,8 @@ export const screenIds = {
   checkinComplete: "SCR-14",
   checkout: "SCR-15",
   checkoutResult: "SCR-16",
+  photoCamera: "SCR-26",
+  photoReview: "SCR-27",
   report: "SCR-17",
   reportPrint: "SCR-18",
   checkoutComplete: "SCR-19",

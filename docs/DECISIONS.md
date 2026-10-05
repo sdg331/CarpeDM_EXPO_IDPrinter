@@ -57,11 +57,9 @@ Two large cards → selected mode detail/HOW IT WORKS → start.
 Same interaction pattern as TeamCard → TeamDetail.
 
 ## D-009 Input
-Status: CURRENT
+Status: CURRENT — input policy updated 2026-10-05
 
-Touch-first.
-**전면 고정 키보드와 키보드 트레이는 사용하지 않는다.**
-이름 입력에 물리 키보드가 꼭 필요할 경우 서비스용/임시 입력 장치로 처리하며, 전면 설계에는 포함하지 않는다.
+Touch-first navigation. 이름 입력에는 물리 키보드를 반드시 연결한다. 화면 키보드는 제공하지 않는다. 전면 고정 트레이/함체 배치는 별도 하드웨어 설계를 따른다.
 
 ## D-010 Audio
 Status: CONFIRMED
@@ -349,3 +347,22 @@ Status: IMPLEMENTED; final Mode B presentation pending user preference
 - `/`는 장치 흐름, `?preview=1`은 실제 카메라/AI 웹미리보기, `?sample=1`은 고정 화면 체험이다. `?demo=1`은 웹미리보기 별칭이다.
 - 출력은 preview/submitted/confirmed로 구분하며 장치 제출만으로 종이 출력 완료를 주장하지 않는다.
 - 보고서 연결은 실제 MirrorTing ReportOut에 맞추되, 동반 패치의 실제 서버 적용과 현장 검증은 별도 인수 항목이다.
+
+
+## D-043 Raspberry Pi and physical keyboard · 2026-10-05
+Status: CONFIRMED by owner
+
+- 운영 대상은 800×1280 라즈베리파이 키오스크다.
+- 물리 키보드를 반드시 연결하고 이름 입력에 사용한다.
+- 화면 키보드와 전용 한글 조합 코드는 제거한다. 브라우저의 물리 키보드/한글 IME 입력은 유지한다.
+- 모바일 화면 키보드 배치는 현장 인수 대상에서 제외한다.
+
+
+## D-044 Character check-in and checkout keepsake · 2026-10-05
+Status: CONFIRMED UI direction
+
+- 출근 UI에서 AI A/B 선택 및 B 생성 진입을 제거한다. 이름 입력 → 캐릭터 매칭 안내 → 촬영 → 캐릭터 결과로 이어진다.
+- 퇴근 기록 조회 후 선택적인 기념사진 촬영 → 확인/다시 찍기/사진 없이 진행 → 리포트 화면으로 이어진다.
+- 기념사진은 브라우저 메모리의 현재 방문자 화면에만 연결한다. 초기화/페이지 종료/출력 완료 시 참조를 해제한다.
+- 사진을 실제 종이 리포트에 넣는 API·인쇄 처리는 아직 연결되지 않았다. UI에서 이를 명시한다.
+- 기존 B 백엔드와 테스트는 이전 기능의 호환성 코드이며 현재 방문자 UI에서 호출하지 않는다.

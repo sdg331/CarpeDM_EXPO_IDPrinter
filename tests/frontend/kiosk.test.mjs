@@ -8,11 +8,11 @@ import {
   normalizeMatch,
   normalizeProfile,
   request,
+  KioskError,
 } from "../../frontend/js/api-client.js";
 import { Camera } from "../../frontend/js/camera.js";
-import { renderScreen, renderTeamPreview } from "../../frontend/js/views.js";
+import { renderScreen, renderHeader, renderTeamPreview } from "../../frontend/js/views.js";
 import { resolveRuntime } from "../../frontend/js/runtime.js";
-import { applyTouchKey } from "../../frontend/js/hangul-keyboard.js";
 import { createLiveIntegrations } from "../../frontend/js/live-integrations.js";
 
 test("Default uses the device flow; web preview and fixtures require explicit URLs", () => {
@@ -33,27 +33,38 @@ test("Kiosk browser presentation keeps hardware stages explicit without inventin
   assert.doesNotMatch(result, /data-action="nfc-open"/);
   assert.match(result, /&lt;김미래&gt;/);
   const issue = renderScreen({ ...state, screen: 'webIssue' }, false, true);
-  assert.match(issue, /ACR1252U 미연결/);
+  assert.match(issue, /카드 등록 없이/);
   assert.match(issue, /data-action="digital-card"/);
   assert.doesNotMatch(issue, /data-action="nfc-write"/);
   const card = renderScreen({ ...state, screen: 'webCard', digitalCard: 'blob:http://localhost/test' }, false, true);
   assert.match(card, /download="MIRRORTING-ID.png"/);
-  assert.match(card, /실물 카드 등록이나 출력을 진행하지 않았어요/);
+  assert.match(card, /실물 카드 등록과 출력은 하지 않았어요/);
 });
 
-test("Kiosk home explains check-in, MirrorTing, and checkout; absent records remain empty", () => {
+test("Kiosk home keeps the two entry actions clear; absent records remain empty", () => {
   const home = renderScreen({ screen: 'home' }, false, true);
   assert.match(home, /data-action="checkin"/);
   assert.match(home, /data-action="checkout"/);
-  assert.match(home, /스마트미러/);
   assert.match(home, /입사하신 것을/);
-  assert.match(home, /웹 미리보기에서는/);
-  assert.match(home, /로컬 AI/);
-  assert.match(home, /NFC/);
-  assert.match(home, /출력/);
+  assert.doesNotMatch(home, /welcome-mark|pi-device-strip|kiosk-journey|pi-intro/);
   const report = renderScreen({ screen: 'webReport' }, false, true);
   assert.match(report, /아직 연결된 체험 기록이 없어요/);
   assert.doesNotMatch(report, /data-action="report-print"/);
+});
+
+test("Header keeps status accessible, discloses previews, and surfaces an unavailable service", () => {
+  for (const health of ["unknown", "healthy", "unavailable"]) {
+    const header = renderHeader(false, false, false, health);
+    assert.match(header, /data-action="connections" aria-label="장치 상태" aria-haspopup="dialog"/);
+    assert.doesNotMatch(header, /기기 체험|장치 연결은/);
+    if (health === "unavailable") assert.match(header, /role="status">서비스 연결 대기 중/);
+    else assert.doesNotMatch(header, /live-notice/);
+  }
+  assert.match(renderHeader(false, true, false, "healthy"), /aria-label="웹 미리보기 · 상태"/);
+  const sample = renderHeader(true, false, true, "unknown");
+  assert.match(sample, /aria-label="샘플 체험 · 상태"/);
+  assert.match(sample, /카메라 · 카드 · 출력은 화면 체험/);
+  assert.match(sample, /data-action="settings"/);
 });
 
 test("Team selection opens a complete, escaped detail card before confirmation", () => {
@@ -76,15 +87,15 @@ test("Team selection opens a complete, escaped detail card before confirmation",
   assert.doesNotMatch(card, /<디자인팀>/);
 });
 
-test("Browser hardware preview names the Raspberry Pi devices without claiming success", () => {
+test("Digital preview keeps hardware limitations without distracting device specifications", () => {
   const state = { name: '김미래', team: { title: '디자인팀' }, aiMode: 'B', result: { image: '/api/profile/p_test/image' } };
   const issue = renderScreen({ ...state, screen: 'webIssue' }, false, true);
-  assert.match(issue, /Raspberry Pi 카드 등록/);
-  assert.match(issue, /ACR1252U 미연결/);
+  assert.doesNotMatch(issue, /ACR1252U|Raspberry Pi/);
+  assert.match(issue, /카드 등록 없이/);
   assert.doesNotMatch(issue, /등록 완료/);
   const card = renderScreen({ ...state, screen: 'webCard', digitalCard: 'blob:http:\/\/localhost\/test' }, false, true);
-  assert.match(card, /ZTP-80USL2 미연결/);
-  assert.match(card, /Raspberry Pi에서 출력될/);
+  assert.match(card, /실물 카드 등록과 출력은 하지 않았어요/);
+  assert.doesNotMatch(card, /ZTP-80USL2|Raspberry Pi/);
   assert.doesNotMatch(card, /출력 완료/);
 });
 
@@ -93,22 +104,33 @@ test("Camera screen auto-starts without a separate permission button", () => {
   assert.match(camera, /data-action="capture"/);
   assert.match(camera, /카메라 권한과 연결을 확인하고 있어요/);
   assert.doesNotMatch(camera, /data-action="camera-start"|카메라 켜기|카메라 허용/);
-  assert.match(camera, /camera-facemap/);
+  assert.doesNotMatch(camera, /camera-facemap/);
   assert.match(camera, /aria-hidden="true"/);
   assert.doesNotMatch(camera, /photo-upload|type="file"|사진 파일로 시작하기/);
 });
 
-test("AI mode selection uses the supplied cover artwork for both options", () => {
-  const screen = renderScreen({ screen: "modes", name: "김미래" }, false, true);
-  assert.match(screen, /ai-mode-a-cover\.jpg/);
-  assert.match(screen, /ai-mode-b-cover\.jpg/);
-  assert.match(screen, /width="720" height="720"/);
-  assert.doesNotMatch(screen, /profile-icon|characters\/char_0[13]\.png/);
+test("Checkout photo is optional and a preview never claims photo printing", () => {
+  const camera = renderScreen({ screen: "photoCamera" }, false);
+  assert.match(camera, /data-action="capture"/);
+  assert.match(camera, /data-action="photo-skip"/);
+  const state = createState();
+  state.patch({ screen: "photoReview", name: "김민수", team: { title: "개발팀" }, souvenirPhoto: "blob:http://localhost/photo" });
+  const review = renderScreen(state.data, false);
+  assert.match(review, /data-action="photo-retake"/);
+  assert.match(review, /체험 기록만 출력/);
+  const report = renderScreen({ ...state.data, screen: "report", report: { fitScores: {} } }, false);
+  assert.match(report, /퇴근 기념사진 미리보기/);
+  assert.match(report, /사진 인쇄는 아직 연결되지/);
+  assert.match(report, /체험 기록만 출력 요청/);
+  const withoutPhoto = renderScreen({ ...state.data, screen: "report", souvenirPhoto: null, report: {} }, false);
+  assert.doesNotMatch(withoutPhoto, /receipt-photo|퇴근 기념사진 미리보기/);
+  state.reset();
+  assert.equal(state.data.souvenirPhoto, null);
 });
 
 test("AI processing uses an indeterminate visual without invented progress stages", () => {
   const modeA = renderScreen({ screen: "processing", aiMode: "A" }, false, true);
-  assert.match(modeA, /ai-facemap/);
+  assert.match(modeA, /role="status"/);
   assert.match(modeA, /얼굴 특징을 읽고 캐릭터와 비교/);
   assert.doesNotMatch(modeA, /analysis-pipeline/);
   assert.doesNotMatch(modeA, /\d+%|정확도/);
@@ -391,16 +413,6 @@ test("Missing MirrorTing data stays missing instead of becoming a report", async
   });
 });
 
-test("Touch keyboard composes Korean names and keeps physical text input available", () => {
-  const type = (keys) => [...keys].reduce((value, key) => applyTouchKey(value, key), "");
-  assert.equal(type("ㄱㅣㅁㅁㅣㄴㅅㅜ"), "김민수");
-  assert.equal(type("ㅎㅏㄴㅏ"), "하나");
-  assert.equal(type("ㅎㅘ"), "화");
-  assert.equal(applyTouchKey("김민수", "backspace"), "김민ㅅ");
-  const name = renderScreen({ screen: "name", name: "", team: { id: "ai", title: "AI팀", iconImage: "/assets/teams/ai.png" } }, false);
-  assert.match(name, /data-action="touch-keyboard"/);
-  assert.match(name, /id="visitor-name"/);
-});
 
 test("Live adapters preserve backend operation IDs and report identity", async () => {
   const calls = [];
@@ -441,6 +453,35 @@ test("Print result wording distinguishes preview, sent command, and operator con
   assert.doesNotMatch(submitted, /실물 출력을 확인했어요/);
   const confirmed = renderScreen({ ...base, printResult: { status: "confirmed" } }, false);
   assert.match(confirmed, /현장 스태프가 종이 출력 결과를 확인했어요/);
+});
+
+test("Sample completion gives a truthful next step and checkout photos remain optional", () => {
+  for (const screen of ["checkinComplete", "checkoutComplete"]) {
+    const html = renderScreen({ screen, name: "점검자", printResult: { status: "success" } }, true);
+    assert.match(html, /실물 카드 등록과 출력은 없었어요/);
+    assert.match(html, /카드 등록과 스마트미러 체험은 현장 스태프의 안내/);
+    assert.doesNotMatch(html, /등록한 카드를 가지고|실물 인쇄 여부를 확인/);
+    assert.equal((html.match(/화면 체험을 마쳤어요/g) || []).length, 1);
+  }
+  const base = { screen: "checkoutResult", name: "점검자", team: { title: "AI팀" } };
+  const available = renderScreen({ ...base, report: { status: "available" } }, true);
+  assert.match(available, /data-action="report-open"/);
+  assert.match(available, /data-action="photo-skip"/);
+  assert.match(available, /사진 없이 리포트 보기/);
+  const missing = renderScreen({ ...base, report: { status: "not_found" } }, true);
+  assert.doesNotMatch(missing, /data-action="photo-skip"|data-action="report-open"/);
+});
+
+test("Health checks always request fresh server state", async () => {
+  const calls = [];
+  const api = createLiveApi({}, async (path, options) => {
+    calls.push({ path, options });
+    return { ok: true, json: async () => ({ ok: true }) };
+  });
+  await api.getHealth();
+  await api.getHealth();
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every(({ path, options }) => path === "/api/health" && options.cache === "no-store"));
 });
 
 test("Live report renders source fields without inventing a scenario", () => {
@@ -524,4 +565,77 @@ test("An unanswered camera permission times out and a late stream is released", 
     if (descriptor) Object.defineProperty(navigator, "mediaDevices", descriptor);
     else delete navigator.mediaDevices;
   }
+});
+
+test("Camera loss stops capture, releases resources, and rejects late frames and detection", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const media = Object.getOwnPropertyDescriptor(navigator, "mediaDevices");
+  const dom = Object.getOwnPropertyDescriptor(globalThis, "document");
+  let stream, encode = (done) => done(new Blob(["frame"], { type: "image/jpeg" }));
+  Object.defineProperty(navigator, "mediaDevices", {
+    configurable: true, value: { getUserMedia: async () => stream },
+  });
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: { createElement: () => ({
+      getContext: () => ({ drawImage() {} }),
+      toBlob: (done) => encode(done),
+    }) },
+  });
+  const camera = new Camera();
+  t.after(() => {
+    camera.stop();
+    if (media) Object.defineProperty(navigator, "mediaDevices", media);
+    else delete navigator.mediaDevices;
+    if (dom) Object.defineProperty(globalThis, "document", dom);
+    else delete globalThis.document;
+  });
+  for (const event of ["ended", "inactive", "backend_error"]) {
+    const track = Object.assign(new EventTarget(), {
+      readyState: "live", stops: 0,
+      stop() { this.stops++; this.readyState = "ended"; },
+    });
+    stream = Object.assign(new EventTarget(), {
+      active: true, getTracks: () => [track], getVideoTracks: () => [track],
+    });
+    const video = { srcObject: null, videoWidth: 1280, videoHeight: 960, play: async () => {} };
+    const states = [];
+    let calls = 0, deliver, rejectDetection, signal, started;
+    const detecting = new Promise(resolve => { started = resolve; });
+    await camera.start(video, {
+      detectPreview: async (_, context) => {
+        if (++calls === 1) return { ok: true, count: 1 };
+        signal = context.signal;
+        started();
+        return new Promise((resolve, reject) => { deliver = resolve; rejectDetection = reject; });
+      },
+    }, (...status) => states.push(status));
+    assert.deepEqual(states.at(-1), ["ready"]);
+    t.mock.timers.tick(650);
+    await detecting;
+    if (event === "backend_error") rejectDetection(new KioskError("BACKEND_UNAVAILABLE"));
+    else {
+      track.readyState = "ended";
+      stream.active = false;
+      (event === "ended" ? track : stream).dispatchEvent(new Event(event));
+      deliver({ ok: true, count: 1 });
+    }
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(states.at(-1), ["error", event === "backend_error" ? "BACKEND_UNAVAILABLE" : "CAMERA_UNAVAILABLE"]);
+    assert.equal(camera.stream, null);
+    assert.equal(video.srcObject, null);
+    assert.equal(track.stops, 1);
+    assert.equal(signal.aborted, true);
+    await assert.rejects(camera.capture(), { code: "CAMERA_UNAVAILABLE" });
+  }
+  // An image still encoding when the visitor leaves cannot become a new photo.
+  const track = { readyState: "live", stop() {} };
+  camera.stream = { active: true, getVideoTracks: () => [track], getTracks: () => [track] };
+  camera.video = { videoWidth: 1280, videoHeight: 960, srcObject: null };
+  let deliverImage;
+  encode = (done) => { deliverImage = done; };
+  const pending = camera.capture();
+  camera.stop();
+  deliverImage(new Blob(["old visitor frame"]));
+  await assert.rejects(pending, { code: "CAMERA_UNAVAILABLE" });
 });

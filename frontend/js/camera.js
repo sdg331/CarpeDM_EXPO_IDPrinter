@@ -33,6 +33,15 @@ export class Camera {
         return;
       }
       this.stream = stream;
+      const interrupted = () => {
+        if (generation !== this.generation) return;
+        this.stop();
+        onState("error", "CAMERA_UNAVAILABLE");
+      };
+      stream.addEventListener("inactive", interrupted, { once: true });
+      stream.getVideoTracks().forEach((track) =>
+        track.addEventListener("ended", interrupted, { once: true }),
+      );
       video.srcObject = stream;
       await video.play();
       if (generation !== this.generation) return;
@@ -56,8 +65,10 @@ export class Camera {
           );
           this.timer = setTimeout(detect, 650);
         } catch (error) {
-          if (generation === this.generation && error.name !== "AbortError")
+          if (generation === this.generation && error.name !== "AbortError") {
+            this.stop();
             onState("error", error.code || "BACKEND_UNAVAILABLE");
+          }
         }
       };
       await detect();
@@ -69,7 +80,10 @@ export class Camera {
     }
   }
   async capture(maxSide = 1280) {
-    if (!this.video?.videoWidth || !this.video?.videoHeight)
+    const generation = this.generation;
+    if (!this.stream?.active ||
+        !this.stream.getVideoTracks().some((track) => track.readyState === "live") ||
+        !this.video?.videoWidth || !this.video?.videoHeight)
       throw new KioskError("CAMERA_UNAVAILABLE");
     const scale = Math.min(
       1,
@@ -85,7 +99,9 @@ export class Camera {
       canvas.toBlob(
         (blob) => {
           canvas.width = canvas.height = 0;
-          blob ? resolve(blob) : reject(new KioskError("CAMERA_UNAVAILABLE"));
+          blob && generation === this.generation && this.stream?.active
+            ? resolve(blob)
+            : reject(new KioskError("CAMERA_UNAVAILABLE"));
         },
         "image/jpeg",
         0.88,

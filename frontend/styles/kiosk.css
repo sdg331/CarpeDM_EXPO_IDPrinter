@@ -168,6 +168,9 @@ body {
 .footer-brand {
   font-weight: 750;
 }
+.footer-partner {
+  font-weight: 500;
+}
 .footer-index {
   font: 11px var(--mono);
   letter-spacing: 1px;
@@ -1491,6 +1494,7 @@ h3 {
   padding: 0;
   border: 1px solid #e1e7ef;
   background: #fff;
+  box-shadow: 0 24px 80px #16294d30;
 }
 .team-preview-close {
   position: absolute;
@@ -1501,44 +1505,44 @@ h3 {
   height: 52px;
   display: grid;
   place-items: center;
-  border: 1px solid #e4e9ef;
+  border: 0;
   border-radius: 50%;
-  background: #ffffffdc;
+  background: #f2f4f6;
   color: #4e5968;
-  backdrop-filter: blur(12px);
 }
 .team-preview-close svg { width: 24px; height: 24px; }
 .team-preview-hero {
   display: grid;
-  grid-template-columns: 168px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr);
   align-items: center;
-  gap: 28px;
-  min-height: 260px;
-  padding: 42px 40px 34px;
-  background: linear-gradient(135deg, #f8fbff 0%, #edf4ff 100%);
+  gap: 20px 24px;
+  padding: 32px 32px 20px;
 }
 .team-preview-image {
   display: grid;
   place-items: center;
-  width: 168px;
-  height: 168px;
-  border: 1px solid #ffffff;
-  border-radius: 32px;
-  background: #ffffffb8;
-  box-shadow: 0 18px 42px #26579712;
+  width: 112px;
+  height: 112px;
+  background: transparent;
 }
-.team-preview-image .team-icon.team-image { width: 138px; height: 138px; background: transparent; }
-.team-preview-hero .section-label { margin: 0 58px 10px 0; color: #3874ca; font-size: 15px; font-weight: 750; letter-spacing: .25px; }
-.team-preview-hero h2 { color: #191f28; font-size: 42px; line-height: 1.15; letter-spacing: -1.2px; }
-.team-preview-hero > div > p:last-child { margin-top: 16px; color: #596577; font-size: 22px; line-height: 1.55; word-break: keep-all; }
-.team-preview-content { display: grid; grid-template-columns: 1.2fr .8fr; gap: 32px; padding: 30px 40px 8px; }
-.team-preview-label { margin: 0 0 14px !important; color: #8b95a1 !important; font-size: 14px !important; font-weight: 750; letter-spacing: .5px; }
-.team-preview-tasks { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.team-preview-tasks li { display: flex; align-items: center; gap: 12px; min-height: 44px; color: #252d38; font-size: 19px; font-weight: 650; }
-.team-preview-tasks li span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #f1f5fb; color: #3673ce; font-size: 12px; font-weight: 750; }
-.team-preview-keywords { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px; }
-.team-preview-keywords span { padding: 9px 12px; border: 1px solid #dce6f3; border-radius: 999px; background: #f8fafd; color: #46617f; font-size: 15px; font-weight: 650; }
-.team-preview-actions { padding: 20px 40px 36px; }
+.team-preview-image .team-icon.team-image { width: 104px; height: 104px; background: transparent; }
+.team-preview-heading { padding-right: 56px; }
+.team-preview-hero .section-label { margin: 0 0 8px; color: #596577; font-size: 20px; font-weight: 550; letter-spacing: .15px; }
+.team-preview-hero h2 { color: #191f28; font-size: 48px; line-height: 1.2; letter-spacing: -1.2px; }
+.team-preview-hero > p { grid-column: 1 / -1; margin: 0; color: #4e5968; font-size: 26px; line-height: 1.5; word-break: keep-all; text-wrap: pretty; }
+.team-preview-content { display: grid; grid-template-columns: 1fr; gap: 28px; padding: 12px 32px 0; }
+.team-preview-label { margin: 0 0 16px !important; color: #4e5968 !important; font-size: 24px !important; font-weight: 650; letter-spacing: -.3px; }
+.team-preview-tasks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.team-preview-tasks li { display: grid; place-items: center; min-height: 112px; padding: 18px; border: 1px solid #e9edf2; border-radius: 20px; background: #f5f7fa; color: #252d38; font-size: 26px; line-height: 1.4; font-weight: 650; text-align: center; word-break: keep-all; text-wrap: pretty; }
+.team-preview-keyword-row { display: grid; gap: 16px; }
+.team-preview-keyword-row .team-preview-label { margin: 0 !important; }
+.team-preview-keywords { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 12px; }
+.team-preview-keywords span { display: inline-flex; align-items: center; min-height: 60px; padding: 10px 18px; border-radius: 16px; background: #e8f3ff; color: #1b64da; font-size: 26px; line-height: 1.4; font-weight: 650; }
+.dialog-actions.team-preview-actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 0; padding: 32px 32px 24px; }
+.team-preview-actions .button { min-height: 104px; font-size: 32px; }
+.team-preview-actions .button svg { width: 32px; height: 32px; }
+.team-preview-actions .button.secondary { min-height: 64px; border: 0; background: transparent; color: #4e5968; font-size: 24px; font-weight: 550; }
+.team-preview-actions .button.secondary:active { background: #edf0f3; }
 .idle-count {
   font: 64px var(--mono);
   margin: 27px 0 0;
@@ -1637,16 +1641,23 @@ h3 {
 @media (max-width: 640px) {
   .overlay-backdrop { padding: 20px; }
   .team-preview-dialog { max-height: calc(100dvh - 40px); overflow-y: auto; }
-  .team-preview-hero { grid-template-columns: 96px minmax(0, 1fr); gap: 18px; min-height: 0; padding: 30px 24px 24px; }
-  .team-preview-image { width: 96px; height: 96px; border-radius: 22px; }
-  .team-preview-image .team-icon.team-image { width: 82px; height: 82px; }
-  .team-preview-hero .section-label { margin-right: 44px; font-size: 11px; }
-  .team-preview-hero h2 { font-size: 30px; }
-  .team-preview-hero > div > p:last-child { grid-column: 1 / -1; font-size: 16px; }
-  .team-preview-content { grid-template-columns: 1fr; gap: 20px; padding: 22px 24px 4px; }
-  .team-preview-tasks li { font-size: 16px; }
-  .team-preview-actions { padding: 18px 24px 24px; }
-  .team-preview-close { top: 14px; right: 14px; width: 44px; height: 44px; }
+  .team-preview-hero { grid-template-columns: 72px minmax(0, 1fr); gap: 16px; min-height: 0; padding: 28px 24px 20px; }
+  .team-preview-image { width: 72px; height: 72px; }
+  .team-preview-image .team-icon.team-image { width: 72px; height: 72px; }
+  .team-preview-heading { padding-right: 40px; }
+  .team-preview-hero .section-label { font-size: 16px; }
+  .team-preview-hero h2 { font-size: 34px; }
+  .team-preview-hero > p { font-size: 20px; }
+  .team-preview-content { gap: 20px; padding: 0 24px; }
+  .team-preview-label { margin-bottom: 12px !important; font-size: 18px !important; }
+  .team-preview-tasks { grid-template-columns: 1fr; gap: 0; padding: 4px 16px; border-radius: 16px; background: #f5f7fa; }
+  .team-preview-tasks li { min-height: 52px; padding: 12px 0; border: 0; border-bottom: 1px solid #e5e8eb; border-radius: 0; background: transparent; font-size: 20px; text-align: left; justify-items: start; }
+  .team-preview-tasks li:last-child { border-bottom: 0; }
+  .team-preview-keyword-row { gap: 12px; }
+  .team-preview-keywords { gap: 8px; }
+  .team-preview-keywords span { min-height: 48px; padding: 8px 12px; border-radius: 12px; font-size: 20px; }
+  .dialog-actions.team-preview-actions { gap: 6px; padding: 24px 24px 20px; }
+  .team-preview-close { top: 14px; right: 14px; width: 48px; height: 48px; }
 }
 
 /* Keep the action area visible with both waiting and error copy at 800x1280. */
@@ -1808,7 +1819,7 @@ h3 {
   letter-spacing: 0.5px;
 }
 .demo-settings {
-  min-height: 32px;
+  min-height: 48px;
   margin-left: auto;
   padding-left: 18px;
   font-size: 16px;
@@ -2254,92 +2265,23 @@ h2 {
   margin-top: 24px;
 }
 
-/* Shared team artwork supplied for the exhibition kiosk. */
+/* Transparent team artwork shared by selection, details, and summaries. */
 .team-icon.team-image {
   flex-shrink: 0;
   background: transparent;
-  overflow: hidden;
-  border-radius: 12px;
+  overflow: visible;
+  border-radius: 0;
 }
 .team-image img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
-  mix-blend-mode: multiply;
-  transform: scale(1.18);
 }
 .team-card .team-icon.team-image { width: 72px; height: 72px; }
 .team-profile .team-icon.team-image { width: 120px; height: 120px; }
 .selection-summary .team-icon.team-image { width: 64px; height: 64px; }
 
-.touch-keyboard-open {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 58px;
-  padding: 10px 20px;
-  border: 1px solid var(--brand);
-  border-radius: 14px;
-  background: var(--brand-soft);
-  color: var(--brand-pressed);
-  font-size: 20px;
-  font-weight: 700;
-}
-.name-keyboard-dialog {
-  width: min(92vw, 720px);
-  max-height: min(94dvh, 1080px);
-  overflow: auto;
-  padding: 30px;
-}
-#touch-name-preview {
-  display: flex;
-  align-items: center;
-  min-height: 70px;
-  margin: 20px 0;
-  padding: 12px 18px;
-  border: 2px solid var(--line);
-  border-radius: 14px;
-  font-size: 30px;
-  font-weight: 700;
-  word-break: break-all;
-}
-.keyboard-layout-switch { display: flex; gap: 8px; margin-bottom: 12px; }
-.keyboard-layout-switch button,
-.touch-key-controls button {
-  min-height: 50px;
-  padding: 8px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--elevated);
-  color: var(--ink);
-  font-weight: 650;
-}
-.keyboard-layout-switch button[aria-pressed="true"] {
-  border-color: var(--brand);
-  background: var(--brand-soft);
-  color: var(--brand-pressed);
-}
-.touch-key-grid {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 6px;
-}
-.touch-key-grid button {
-  min-width: 0;
-  min-height: 58px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: #fff;
-  color: var(--ink);
-  font-size: 24px;
-  font-weight: 700;
-}
-.touch-key-grid button:active { background: var(--brand-soft); }
-.touch-key-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
-.name-keyboard-dialog .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.name-keyboard-dialog .button { min-height: 64px; font-size: 21px; }
 .print-preview-link {
   display: block;
   width: fit-content;
@@ -2360,11 +2302,3 @@ h2 {
 .fit-item { padding: 12px 14px; border-radius: 12px; background: var(--elevated); }
 .fit-item strong { display: block; }
 .fit-item p { margin-top: 6px; }
-@media (max-width: 640px) {
-  .touch-keyboard-open { width: 100%; font-size: 17px; }
-  .name-keyboard-dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 20px 16px; }
-  .touch-key-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
-  .touch-key-grid button { min-height: 48px; font-size: 20px; }
-  .touch-key-controls button { font-size: 13px; padding: 6px; }
-  .name-keyboard-dialog .button { font-size: 17px; }
-}

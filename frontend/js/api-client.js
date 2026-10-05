@@ -364,7 +364,7 @@ export function createLiveApi(
       profileIds.delete(profileId);
     },
     getHealth: (signal) =>
-      request("/api/health", { signal, timeout: 4000 }, fetcher),
+      request("/api/health", { signal, timeout: 4000, cache: "no-store" }, fetcher),
     detectPreview: (frame, { signal } = {}) =>
       request(
         "/api/detect",
