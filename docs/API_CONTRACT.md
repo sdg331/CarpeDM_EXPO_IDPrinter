@@ -67,7 +67,7 @@ B는 `aiMode:"B"`, `result:{"kind":"B","profileId":"서버가 반환한 ID"}`를
 
 `GET /api/operations/{operationId}`는 읽기 전용이며 `{ok,operationId,kind,sessionId,status,errorCode,retryable,result}`를 반환한다. 저장 상태는 `running`, `success`, `retryable_error`, `unknown`, `error`다. 출력 성공의 `result.status`를 따로 확인한다.
 
-장치 접근 후 오류·서버 재시작으로 결과를 모르면 `UNKNOWN_OUTCOME`이다. 운영 CLI가 실물 확인 후 처리하도록 [운영 절차](OPERATIONS.md)를 따른다. 출력을 확인해도 카드 회수가 확인된 것은 아니므로 카드 연결은 자동 해제하지 않는다.
+장치 접근 후 오류·서버 재시작으로 결과를 모르면 `UNKNOWN_OUTCOME`이다. 오류 화면에는 해당 요청의 `운영 확인용 작업 ID`를 표시한다. 운영 CLI가 실물 확인 후 처리하도록 [운영 절차](OPERATIONS.md)를 따른다. 출력을 확인해도 카드 회수가 확인된 것은 아니므로 카드 연결은 자동 해제하지 않는다.
 
 기존 `POST /api/issue`는 기본 410 `LEGACY_ENDPOINT_DISABLED`다. `KIOSK_ENABLE_LEGACY_ISSUE=1`과 `KIOSK_PRINT=screen`을 함께 설정한 개발 환경만 허용한다.
 
@@ -94,3 +94,5 @@ dayEnding.{label,text}, coaching[].{issue,suggestion}
 ```
 
 누락 점수는 0으로 만들지 않는다. eye 관측값과 잠정 평가 표기를 유지한다. 미완료는 `REPORT_PENDING`, 기록 없음은 `REPORT_NOT_FOUND`, 미설정은 `INTEGRATION_PENDING`이며 샘플 피드백으로 대체하지 않는다. 키오스크 팀과 MirrorTing 체험 직무는 별개다.
+
+리포트 출력 이미지는 기존 576도트·1비트 규격을 유지하고, 받아들인 강점/개선 항목의 줄바꿈을 계산해 높이를 정한다. 긴 유효 리포트도 마지막 결말과 출처까지 포함한다.

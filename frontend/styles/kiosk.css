@@ -2302,3 +2302,7 @@ h2 {
 .fit-item { padding: 12px 14px; border-radius: 12px; background: var(--elevated); }
 .fit-item strong { display: block; }
 .fit-item p { margin-top: 6px; }
+
+/* Keep the recovery ID readable even for the maximum accepted 128 characters. */
+.error-box .operation-id { font-size: 22px; }
+.operation-id code { display: block; overflow-wrap: anywhere; user-select: text; }

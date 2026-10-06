@@ -639,3 +639,31 @@ test("Camera loss stops capture, releases resources, and rejects late frames and
   deliverImage(new Blob(["old visitor frame"]));
   await assert.rejects(pending, { code: "CAMERA_UNAVAILABLE" });
 });
+
+test("Unknown badge and report outcomes expose the failed operation ID without unlocking print", () => {
+  for (const screen of ["badge", "reportPrint"]) {
+    const operationId = screen === "badge"
+      ? "a0123456-7890-4abc-8123-456789abcdef"
+      : "b0123456-7890-4abc-8123-456789abcdef";
+    for (const reconciling of [false, true]) {
+      const html = renderScreen({ screen, reconciling, error: { code: "UNKNOWN_OUTCOME", operationId, retryable: false } }, false);
+      assert.match(html, /운영 확인용 작업 ID/);
+      assert.ok(html.includes(`<code>${operationId}</code>`));
+      assert.match(html, /data-action="operation-check"/);
+      assert.doesNotMatch(html, /data-action="(home|print-retry)"/);
+      if (reconciling) assert.match(html, /data-action="operation-check" disabled aria-busy="true"/);
+    }
+  }
+});
+
+test("Recovery IDs are escaped and disappear when the error or visitor is cleared", () => {
+  const state = createState();
+  state.patch({ screen: "badge", error: { code: "UNKNOWN_OUTCOME", operationId: '<img src=x onerror="alert(1)">', retryable: false } });
+  const unknown = renderScreen(state.data, false);
+  assert.match(unknown, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
+  assert.doesNotMatch(unknown, /<img src=x/);
+  state.patch({ error: { code: "PRINTER_ERROR", operationId: "old-operation", retryable: true } });
+  assert.doesNotMatch(renderScreen(state.data, false), /운영 확인용 작업 ID|old-operation/);
+  state.reset();
+  assert.doesNotMatch(renderScreen(state.data, false), /운영 확인용 작업 ID|onerror/);
+});

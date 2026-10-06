@@ -221,6 +221,7 @@ async function run(
     state.patch({
       error: {
         code,
+        ...(code === "UNKNOWN_OUTCOME" ? { operationId: context.operationId } : {}),
         retryable: code === "UNKNOWN_OUTCOME" ? false : error.retryable ?? !sideEffect,
       },
       ...(statusField ? { [statusField]: "error" } : {}),

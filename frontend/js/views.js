@@ -67,7 +67,7 @@ const faceMap = (mode = "B", camera = false, showStages = false) => {
 const errorPanel = (error) => {
   if (!error) return "";
   const [title, copy] = errorCopy[error.code] || errorCopy.BACKEND_UNAVAILABLE;
-  return `<div class="error-box" role="alert"><h3>${title}</h3><p>${copy}</p></div>`;
+  return `<div class="error-box" role="alert"><h3>${title}</h3><p>${copy}</p>${error.code === "UNKNOWN_OUTCOME" && error.operationId ? `<p class="operation-id">운영 확인용 작업 ID<br><code>${escape(error.operationId)}</code></p>` : ""}</div>`;
 };
 const errorActions = (s, retry) =>
   s.error?.code === "UNKNOWN_OUTCOME"
