@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { createState, validateName } from "../../frontend/js/state.js";
 import {
   createLiveApi,
@@ -9,6 +11,8 @@ import {
   normalizeProfile,
   request,
   KioskError,
+  errorCopy,
+  wait,
 } from "../../frontend/js/api-client.js";
 import { Camera } from "../../frontend/js/camera.js";
 import { renderScreen, renderHeader, renderTeamPreview } from "../../frontend/js/views.js";
@@ -102,11 +106,45 @@ test("Digital preview keeps hardware limitations without distracting device spec
 test("Camera screen auto-starts without a separate permission button", () => {
   const camera = renderScreen({ screen: "camera", aiMode: "B" }, false, true);
   assert.match(camera, /data-action="capture"/);
-  assert.match(camera, /카메라 권한과 연결을 확인하고 있어요/);
+  assert.match(camera, /카메라를 준비하고 있어요/);
   assert.doesNotMatch(camera, /data-action="camera-start"|카메라 켜기|카메라 허용/);
   assert.doesNotMatch(camera, /camera-facemap/);
   assert.match(camera, /aria-hidden="true"/);
   assert.doesNotMatch(camera, /photo-upload|type="file"|사진 파일로 시작하기/);
+});
+
+test("Camera status reflects detection and only a ready face enables capture", () => {
+  const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
+  const elements = Object.fromEntries([
+    "#camera-panel", "#camera-instruction", "#camera-detection", ".camera-state-note",
+    '[data-action="capture"]', '[data-action="camera-retry"]',
+  ].map((selector) => [selector, {}]));
+  const state = createState();
+  let stops = 0;
+  const context = {
+    state, errorCopy, demo: false, web: false,
+    screen: { querySelector: (selector) => elements[selector] },
+    camera: { stop: () => { stops++; } },
+  };
+  runInNewContext(source.slice(source.indexOf("const cameraCopy ="), source.indexOf("function initializeCamera()")), context);
+  for (const screen of ["camera", "photoCamera"]) {
+    state.patch({ screen });
+    for (const [status, label] of [
+      ["initializing", "준비 중"], ["no_person", "얼굴 확인 중"],
+      ["multiple_people", "한 분씩 촬영"], ["ready", "촬영 준비 완료"],
+      ["capturing", "촬영 중"], ["error", "연결 확인 필요"],
+    ]) {
+      runInNewContext(`updateCamera(${JSON.stringify(status)})`, context);
+      assert.equal(elements["#camera-detection"].textContent, label);
+      assert.equal(elements["#camera-panel"].className, `camera-panel ${status}`);
+      assert.equal(elements['[data-action="capture"]'].disabled, status !== "ready");
+      assert.equal(elements['[data-action="camera-retry"]'].hidden, status !== "error");
+    }
+  }
+  assert.equal(stops, 2);
+  state.patch({ busy: true });
+  runInNewContext('updateCamera("ready")', context);
+  assert.equal(elements['[data-action="capture"]'].disabled, true);
 });
 
 test("Checkout photo is optional and a preview never claims photo printing", () => {
@@ -129,16 +167,101 @@ test("Checkout photo is optional and a preview never claims photo printing", () 
 });
 
 test("AI processing uses an indeterminate visual without invented progress stages", () => {
-  const modeA = renderScreen({ screen: "processing", aiMode: "A" }, false, true);
+  const modeA = renderScreen({ screen: "processing", aiMode: "A", capturePreview: "blob:captured-photo" }, false, true);
+  assert.match(modeA, /src="blob:captured-photo"/);
+  assert.match(modeA, /analysis-light" aria-hidden="true"/);
+  assert.equal((modeA.match(/class="analysis-point"/g) || []).length, 12);
+  assert.doesNotMatch(modeA, /facemap|FACE MAP/);
   assert.match(modeA, /role="status"/);
   assert.match(modeA, /얼굴 특징을 읽고 캐릭터와 비교/);
   assert.doesNotMatch(modeA, /analysis-pipeline/);
-  assert.doesNotMatch(modeA, /\d+%|정확도/);
+  assert.doesNotMatch(modeA.replace(/<[^>]*>/g, ""), /\d+%|정확도/);
 
   const modeB = renderScreen({ screen: "processing", aiMode: "B" }, false, true);
   assert.match(modeB, /얼굴 위치를 읽고 프로필 구도/);
   assert.doesNotMatch(modeB, /analysis-pipeline/);
   assert.doesNotMatch(modeB, /SFace|\d+%|정확도/);
+  const sample = renderScreen({ screen: "processing", aiMode: "B", capturePreview: "/assets/characters/char_01.png" }, true);
+  assert.match(sample, /샘플 분석 화면/);
+  const error = renderScreen({ screen: "processing", aiMode: "A", capturePreview: "blob:captured-photo", error: { code: "AI_ERROR", retryable: true } }, false);
+  assert.doesNotMatch(error, /blob:captured-photo|analysis-point/);
+});
+
+test("AI preview uses the captured Blob and releases it after success, failure or cancellation", async () => {
+  const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
+  const state = createState();
+  const frame = new Blob(["actual capture"], { type: "image/jpeg" });
+  const created = [], revoked = [];
+  const context = {
+    state, Blob, demo: false, presentation: false, cameraState: "ready",
+    camera: { capture: async () => frame, stop() {} },
+    URL: { createObjectURL: blob => { created.push(blob); return "blob:captured-photo"; }, revokeObjectURL: url => revoked.push(url) },
+    screen: { querySelector: () => ({}), focus() {} },
+    render() {}, resetViewport() {}, lockHeader() {}, updateCamera() {}, analyze() {},
+    Date, crypto: { randomUUID: () => "test-ai" }, operationIds: new Map(),
+    AbortController, KioskError, setTimeout, clearTimeout,
+  };
+  runInNewContext(source.slice(source.indexOf("function go("), source.indexOf("function reset()")) +
+    source.slice(source.indexOf("async function run("), source.indexOf("const cameraCopy")) +
+    source.slice(source.indexOf("function clearCapturePreview()"), source.indexOf("function clearSouvenirPhoto()")), context);
+  state.patch({ screen: "camera" });
+  await context.capture();
+  assert.equal(created[0], frame);
+  assert.equal(state.data.capture, frame);
+  assert.equal(state.data.capturePreview, "blob:captured-photo");
+  context.go("resultA");
+  assert.deepEqual(revoked, ["blob:captured-photo"]);
+  assert.equal(state.data.capture, null);
+  assert.equal(state.data.capturePreview, null);
+  context.clearCapturePreview();
+  assert.equal(revoked.length, 1);
+
+  state.patch({ screen: "camera" });
+  await context.capture();
+  await context.run("ai", async () => { throw new KioskError("AI_ERROR"); }, () => assert.fail("Unexpected success"));
+  assert.equal(state.data.error.code, "AI_ERROR");
+  assert.equal(state.data.capturePreview, null);
+  assert.equal(state.data.capture, null);
+  assert.equal(revoked.length, 2);
+
+  state.patch({ screen: "camera" });
+  context.camera.capture = async () => { state.reset(); return frame; };
+  await context.capture();
+  assert.equal(created.length, 2, "A late capture must not allocate a preview URL");
+  assert.equal(state.data.capturePreview, null);
+});
+
+test("AI success stays visible for six seconds, while slow requests, errors and cancellation stay immediate", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
+  let now = 0, task;
+  const state = createState();
+  state.patch({ aiMode: "A", capture: new Blob(["frame"]) });
+  const result = { kind: "A", image: "/assets/characters/char_01.png" };
+  const api = { matchCharacter: async () => result, generateProfile: async () => ({ ...result, kind: "B" }) };
+  const context = { state, api, wait, performance: { now: () => now }, run: (_, callback) => { task = callback; } };
+  const minimum = source.match(/const MIN_AI_SCREEN_MS = \d+;/)[0];
+  runInNewContext(minimum + source.slice(source.indexOf("function analyze()"), source.indexOf("function finishNfc(")) + "analyze();", context);
+  let completed = false;
+  const pending = task({}).then(value => { completed = true; return value; });
+  await new Promise(setImmediate);
+  t.mock.timers.tick(5999);
+  await Promise.resolve();
+  assert.equal(completed, false);
+  t.mock.timers.tick(1);
+  assert.equal(await pending, result);
+
+  api.matchCharacter = async () => { now += 7000; return result; };
+  assert.equal(await task({}), result);
+  api.matchCharacter = async () => { throw new KioskError("AI_ERROR"); };
+  await assert.rejects(task({}), { code: "AI_ERROR" });
+
+  state.patch({ aiMode: "B" });
+  const controller = new AbortController();
+  const canceled = task({ signal: controller.signal });
+  await new Promise(setImmediate);
+  controller.abort();
+  await assert.rejects(canceled, { name: "AbortError" });
 });
 
 test("Name validation trims, supports Korean/codepoints and rejects invalid lengths", () => {
@@ -153,6 +276,58 @@ test("Name validation trims, supports Korean/codepoints and rejects invalid leng
   assert.equal(validateName("김\n미래").valid, false);
   assert.equal(validateName("😀".repeat(10)).valid, true);
 });
+test("Name enables Next during Korean composition and only explicit confirmation advances", () => {
+  const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
+  const listeners = {};
+  const input = { id: "visitor-name", value: "", setAttribute() {} };
+  const button = { disabled: true };
+  const error = { textContent: "", classList: { toggle() {} } };
+  const count = { textContent: "" };
+  const state = createState();
+  state.patch({ screen: "name" });
+  const transitions = [];
+  const context = {
+    validateName, state, composing: false, modal: null,
+    screen: { querySelector: (selector) => ({
+      "#visitor-name": input, "#name-count": count, "#name-error": error,
+      '[data-action="name-next"]': button,
+    })[selector] },
+    document: { addEventListener: (type, callback) => { listeners[type] = callback; } },
+    go: (next, patch) => transitions.push({ next, patch }),
+  };
+  // Exercise the actual form handlers without starting cameras or hardware.
+  runInNewContext(
+    source.slice(source.indexOf("function updateName()"), source.indexOf("function back()")) +
+    source.slice(source.indexOf('document.addEventListener("input"'), source.indexOf("function activity()")),
+    context,
+  );
+  const event = { target: input, preventDefault() {} };
+  listeners.compositionstart(event);
+  assert.equal(button.disabled, true);
+  input.value = "김";
+  listeners.input(event);
+  assert.equal(button.disabled, false);
+  assert.equal(count.textContent, "1 / 10");
+  listeners.keydown({ ...event, key: "Enter", isComposing: true, keyCode: 229 });
+  listeners.submit({ ...event, target: { id: "name-form" } });
+  assert.equal(transitions.length, 0);
+  runInNewContext("submitName()", context);
+  assert.equal(transitions[0].next, "detailA");
+  assert.equal(transitions[0].patch.name, "김");
+  for (const value of ["", "   ", "가나다라마바사아자차카", "김\u0001"]) {
+    input.value = value;
+    listeners.input(event);
+    assert.equal(button.disabled, true);
+    runInNewContext("submitName()", context);
+    assert.equal(transitions.length, 1);
+  }
+  input.value = "  김미래  ";
+  listeners.compositionend(event);
+  assert.equal(button.disabled, false);
+  listeners.keydown({ ...event, key: "Enter", isComposing: false, keyCode: 13 });
+  assert.equal(transitions.length, 2);
+  assert.equal(transitions[1].patch.name, "김미래");
+});
 test("Reset isolates all visitor data and rejects late responses", () => {
   const state = createState();
   state.patch({
@@ -162,6 +337,7 @@ test("Reset isolates all visitor data and rejects late responses", () => {
     draftTeam: {},
     aiMode: "B",
     capture: new Blob(["photo"]),
+    capturePreview: "blob:private-photo",
     result: { image: "photo" },
     sessionId: "private",
     nfc: "writing",
@@ -178,6 +354,7 @@ test("Reset isolates all visitor data and rejects late responses", () => {
     "draftTeam",
     "aiMode",
     "capture",
+    "capturePreview",
     "result",
     "sessionId",
     "report",

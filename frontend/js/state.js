@@ -18,6 +18,7 @@ export function createState() {
     name: "",
     aiMode: null,
     capture: null,
+    capturePreview: null,
     result: null,
     replacingProfile: false,
     sessionId: null,

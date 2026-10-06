@@ -187,7 +187,7 @@ const multipart = (frame, operationId) => {
   if (operationId) form.append("operationId", operationId);
   return form;
 };
-function wait(ms, signal) {
+export function wait(ms, signal) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted)
       return reject(new DOMException("Aborted", "AbortError"));

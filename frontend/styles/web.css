@@ -70,7 +70,8 @@ body[data-runtime="web"] .mode-card h2 { font-size: 26px; }
 body[data-runtime="web"] .mode-card p { font-size: 18px; }
 body[data-runtime="web"] .mode-link, body[data-runtime="web"] .mode-note { font-size: 16px; }
 body[data-runtime="web"] .camera-panel { height: clamp(280px, 36vh, 400px); border-radius: 24px; background: #e8edf3; }
-body[data-runtime="web"] .camera-caption { font-size: 14px; top: 14px; left: 14px; }
+body[data-runtime="web"] .camera-toolbar { inset: 14px 14px auto; }
+body[data-runtime="web"] .camera-caption, body[data-runtime="web"] .camera-detection { font-size: 14px; padding: 9px 11px; }
 body[data-runtime="web"] .camera-instruction { font-size: 19px; padding: 14px; left: 14px; right: 14px; bottom: 14px; }
 body[data-runtime="web"] .camera-state-note, .web-limit { font-size: 15px; line-height: 1.6; color: #6b7684; margin-top: 14px; }
 body[data-runtime="web"] .result-pass { width: min(100%,620px); grid-template-columns: 180px minmax(0,1fr); padding: 24px; gap: 18px 24px; background: #f7f8fa; box-shadow: none; }
@@ -85,11 +86,6 @@ body[data-runtime="web"] .error-box p { font-size: 18px; }
 body[data-runtime="web"] #screen .status-copy h2 { font-size: 25px; }
 body[data-runtime="web"] #screen .status-copy p { font-size: 18px; }
 body[data-runtime="web"] .status-visual { width: 140px; height: 140px; margin: 24px auto; }
-body[data-runtime="web"] .ai-facemap { width: min(100%, 560px); margin: 8px auto 18px; }
-body[data-runtime="web"] .ai-facemap:not(.camera-facemap) .facemap-viewport { height: clamp(250px, 32vh, 330px); }
-body[data-runtime="web"] .ai-facemap:not(.camera-facemap) .facemap-svg { width: 245px; height: 290px; }
-body[data-runtime="web"] .analysis-pipeline li { min-height: 54px; font-size: 13px; padding: 8px 9px; }
-body[data-runtime="web"] .camera-facemap { width: min(58%, 330px); height: 86%; margin: 0; }
 .device-step { display: flex; gap: 28px; align-items: center; background: #f5f7fa; padding: 32px; border-radius: 24px; }
 .reader-visual { display: flex; align-items: center; justify-content: center; gap: 12px; width: 160px; height: 150px; flex-shrink: 0; border-radius: 22px; background: #e8effb; color: #3277de; }
 .reader-visual svg:first-child { width: 66px; height: 66px; }
@@ -205,9 +201,6 @@ body[data-runtime="web"] a.button:focus-visible { outline: 3px solid #1b64da; ou
   .system-dialog { width: calc(100vw - 40px) !important; padding: 22px !important; }
   .system-dialog-close { top: 14px; right: 14px; }
   .system-status-group .connection-list > div { align-items: flex-start; }
-  body[data-runtime="web"] .analysis-pipeline { grid-template-columns: 1fr; gap: 7px; }
-  body[data-runtime="web"] .analysis-pipeline li { min-height: 44px; }
-  body[data-runtime="web"] .camera-facemap { width: min(78%, 310px); }
 }
 
 /* Let the touch actions anchor the screen instead of leaving an empty lower half. */
@@ -248,6 +241,18 @@ body[data-runtime="web"] #footer { border-top: 0; }
 .ai-details summary { cursor: pointer; min-height: 48px; padding: 14px 0; font-size: 20px; color: #4e5968; }
 .ai-details summary:focus-visible { outline: 3px solid #2864ed; outline-offset: 4px; }
 .ai-details .how-list { margin-top: 16px; }
+body[data-runtime="web"] [data-screen="SCR-06"] .how-list { margin-top: 0; }
+@media (max-width: 640px) {
+  body[data-runtime="web"] .matching-preview-heading { font-size: 16px; }
+  body[data-runtime="web"] .matching-preview-heading > span { font-size: 14px; }
+  body[data-runtime="web"] .matching-portraits { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  body[data-runtime="web"] [data-screen="SCR-06"] .how-list { padding: 0 14px; }
+  body[data-runtime="web"] [data-screen="SCR-06"] .how-list li { gap: 12px; min-height: 92px; padding: 16px 0; }
+  body[data-runtime="web"] [data-screen="SCR-06"] .how-list strong { font-size: 22px; }
+  body[data-runtime="web"] [data-screen="SCR-06"] .how-list p { font-size: 17px; }
+  body[data-runtime="web"] .matching-step-icon { width: 36px; height: 36px; border-radius: 10px; }
+  body[data-runtime="web"] .matching-step-icon svg { width: 20px; height: 20px; }
+}
 .print-preview { justify-content: center; }
 
 

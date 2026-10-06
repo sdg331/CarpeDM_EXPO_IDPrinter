@@ -49,20 +49,11 @@ const statusVisual = (symbol, working = false, nfc = false) => {
   const artwork = nfc ? "nfc-register" : symbol === "printer" ? "thermal-printer" : null;
   return `<div class="status-visual ${artwork ? "status-art" : ""} ${working ? "working" : ""}" aria-hidden="true">${artwork ? kioskArtwork(artwork) : icon(symbol)}</div>`;
 };
-const faceMap = (mode = "B", camera = false, showStages = false) => {
-  const pipeline = mode === "A"
-    ? ["YuNet 얼굴 감지", "SFace 128D 특징", "8개 캐릭터 비교"]
-    : ["YuNet 랜드마크", "로컬 인물 분리", "프로필 구도 생성"];
-  return `<div class="ai-facemap ${camera ? "camera-facemap" : ""}" aria-hidden="true">
-    <div class="facemap-viewport"><span class="facemap-corner corner-tl"></span><span class="facemap-corner corner-tr"></span><span class="facemap-corner corner-bl"></span><span class="facemap-corner corner-br"></span>
-      <svg class="facemap-svg" viewBox="0 0 320 360" focusable="false">
-        <g class="facemap-mesh"><path class="facemap-outline" d="M160 35c-64 0-105 48-105 119 0 58 25 136 105 171 80-35 105-113 105-171 0-71-41-119-105-119Z"/><path d="M87 137c22-14 48-18 73-18s51 4 73 18M82 181c27 15 51 20 78 20s51-5 78-20M109 239c33 13 69 13 102 0M160 35v290M55 154l105 47 105-47M76 219l84-18 84 18M93 93l67 26 67-26"/><path d="M112 151c13-8 26-8 39 0M169 151c13-8 26-8 39 0M139 242c14 8 28 8 42 0"/></g>
-        <g class="facemap-nodes">${[[160,35],[93,93],[227,93],[55,154],[112,151],[151,151],[169,151],[208,151],[160,201],[76,219],[244,219],[139,242],[181,242],[160,325]].map(([x,y], index) => `<circle cx="${x}" cy="${y}" r="4" style="--node-delay:${index * 90}ms"></circle>`).join("")}</g>
-      </svg><span class="facemap-axis axis-x"></span><span class="facemap-axis axis-y"></span><span class="facemap-scan"></span>
-      <span class="facemap-badge">FACE MAP · LOCAL AI</span>
-    </div>
-    ${camera || !showStages ? "" : `<ol class="analysis-pipeline">${pipeline.map((label, index) => `<li><span>0${index + 1}</span>${label}</li>`).join("")}</ol>`}
-  </div>`;
+const analysisPhoto = (s, demo = false) => {
+  if (!s.capturePreview) return statusVisual("camera", true);
+  // Decorative light points; actual face detection remains on the backend.
+  const points = [[46,22],[58,28],[36,34],[65,40],[43,43],[54,46],[34,52],[63,57],[47,59],[55,67],[40,72],[60,78]];
+  return `<div class="analysis-photo ${demo ? "sample" : "captured"}"><img src="${escape(s.capturePreview)}" alt="${demo ? "분석 화면용 샘플 사진" : "방금 촬영한 사진"}"><div class="analysis-light" aria-hidden="true">${points.map(([x,y], i) => `<i class="analysis-point" style="--x:${x}%;--y:${y}%;--delay:-${i * 230}ms"></i>`).join("")}</div><span class="analysis-photo-label">${icon("spark")} ${demo ? "샘플 분석 화면" : "AI 분석 중"}</span></div>`;
 };
 const errorPanel = (error) => {
   if (!error) return "";
@@ -83,9 +74,12 @@ function webHome(demo = false, web = false) {
   <div class="kiosk-entry-actions"><button class="kiosk-entry checkin-entry" data-action="checkin" aria-label="출근하기"><span class="entry-symbol">${kioskArtwork("checkin-badge")}</span><span class="entry-content"><strong>출근하기</strong><span>나의 팀을 선택하고 사원증을 만들어요.</span></span>${icon("arrow")}</button><button class="kiosk-entry checkout-entry" data-action="checkout" aria-label="퇴근하기"><span class="entry-symbol">${kioskArtwork("checkout-report")}</span><span class="entry-content"><strong>퇴근하기</strong><span>오늘의 기록을 확인하고 기념사진을 남겨요.</span></span>${icon("arrow")}</button></div>`;
 }
 
+const cameraOverlay = (demo = false) =>
+  `<div class="camera-toolbar" aria-hidden="true"><span class="camera-caption">${icon("camera")} ${demo ? "샘플 미리보기" : "카메라"}</span><span class="camera-detection" id="camera-detection">준비 중</span></div><p class="camera-instruction" id="camera-instruction" role="status">카메라를 준비하고 있어요.</p>`;
+
 function webCamera(s) {
   return `${step(3, "사진 준비")}${heading("", "내 얼굴을 담아볼까요?", "밝은 곳에서 얼굴 전체가 보이도록 정면을 바라봐주세요.")}
-  <div class="camera-panel" id="camera-panel"><video id="camera-video" autoplay muted playsinline aria-label="카메라 프리뷰"></video><p class="camera-instruction" id="camera-instruction" role="status">카메라 권한과 연결을 확인하고 있어요.</p></div>
+  <div class="camera-panel" id="camera-panel"><video id="camera-video" autoplay muted playsinline aria-label="카메라 프리뷰"></video>${cameraOverlay()}</div>
   <p class="camera-state-note">사진은 이 기기에서 처리하고, 원본은 저장하지 않아요.</p><div id="camera-error"></div>
   ${actions(btn("capture", "이 모습으로 촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "", "").replace('data-action="camera-retry"', 'data-action="camera-retry" hidden'))}`;
 }
@@ -132,7 +126,7 @@ function webReport() {
 
 function webProcessing(s) {
   return `${step(3, "캐릭터 분석", false)}${heading("", s.error ? "사진을 다시<br>확인해주세요." : "AI가 사진을<br>분석하고 있어요.")}
-  ${s.error ? errorPanel(s.error) + actions(errorActions(s, "ai-retry")) : `<div class="status-visual working">${icon("spark")}</div><div class="status-copy" role="status"><h2>${s.aiMode === "A" ? "얼굴 특징을 읽고 캐릭터와 비교해요." : "얼굴 위치를 읽고 프로필 구도를 만들어요."}</h2><p>외부 전송 없이 이 기기 안에서 분석하고 있어요.</p></div>`}`;
+  ${s.error ? errorPanel(s.error) + actions(errorActions(s, "ai-retry")) : `${analysisPhoto(s)}<div class="status-copy" role="status"><h2>${s.aiMode === "A" ? "얼굴 특징을 읽고 캐릭터와 비교해요." : "얼굴 위치를 읽고 프로필 구도를 만들어요."}</h2><p>외부 전송 없이 이 기기 안에서 분석하고 있어요.</p></div>`}`;
 }
 
 function teamSelection() {
@@ -154,13 +148,15 @@ function modeDetail(s, demo) {
   const steps = s.aiMode === "A"
     ? [["얼굴 확인", "얼굴 위치와 촬영 상태를 확인해요."], ["특징 추출", "얼굴의 특징을 데이터로 변환해요."], ["캐릭터 비교", "8명의 캐릭터와 얼굴 특징을 비교해요."]]
     : [["얼굴 확인", "얼굴 위치와 사진 선명도를 확인해요."], ["구도 정리", "촬영한 옷 그대로, 얼굴이 크게 보이도록 맞춰요."], ["프로필 생성", "배경과 구도를 정리해 이미지를 만들어요."]];
-  return `${step(3, "캐릭터 매칭")}${heading("", mode.title, mode.detail)}<details class="ai-details"><summary>어떻게 만들어지나요?</summary><ol class="how-list">${steps.map(([title, copy], i) => `<li><span class="num">0${i + 1}</span><div><strong>${title}</strong><p>${copy}</p></div></li>`).join("")}</ol></details><p class="mode-note">${demo ? "준비된 데모 이미지로 전체 과정을 이어서 보여드려요." : s.aiMode === "A" ? "현재 촬영 준비 여부는 얼굴 감지를 기준으로 확인해요." : "사진은 외부로 보내지 않고 이 기기 안에서만 합성해요."}</p>${actions(btn("camera-open", mode.cta) + btn("back", "이름 수정하기", "text", ""))}`;
+  const preview = s.aiMode === "A" ? `<section class="matching-preview" aria-label="매칭 캐릭터 미리보기"><div class="matching-preview-heading"><strong>8명의 MIRRORTING 캐릭터</strong><span>미리보기</span></div><div class="matching-portraits" aria-hidden="true">${Array.from({ length: 8 }, (_, i) => `<img src="/assets/characters/char_${String(i + 1).padStart(2, "0")}.png" alt="" width="96" height="128" decoding="async">`).join("")}</div></section>` : "";
+  const stepIcons = s.aiMode === "A" ? ["user", "spark", "people"] : ["user", "camera", "badge"];
+  return `${step(3, "캐릭터 매칭")}${heading("", mode.title, mode.detail)}${preview}<div class="ai-details"><ol class="how-list" aria-label="진행 과정">${steps.map(([title, copy], i) => `<li><span class="num">0${i + 1}</span><div><strong>${title}</strong><p>${copy}</p></div><span class="matching-step-icon">${icon(stepIcons[i])}</span></li>`).join("")}</ol></div><p class="mode-note">${demo ? "준비된 데모 이미지로 전체 과정을 이어서 보여드려요." : s.aiMode === "A" ? "현재 촬영 준비 여부는 얼굴 감지를 기준으로 확인해요." : "사진은 외부로 보내지 않고 이 기기 안에서만 합성해요."}</p>${actions(btn("camera-open", mode.cta) + btn("back", "이름 수정하기", "text", ""))}`;
 }
 function cameraScreen(s, demo) {
-  return `${step(3, "프로필 촬영")}${heading("READY FOR YOUR CLOSE-UP?", demo ? "이 사진으로 시작할게요." : "화면을 바라봐주세요.", demo ? "오늘 시연은 준비된 인물 이미지로 진행해요." : "얼굴이 잘 보이면 촬영 버튼이 활성화돼요.")}<div class="camera-panel${demo ? " ready" : ""}" id="camera-panel">${demo ? '<div class="camera-sample"><img src="/assets/characters/char_01.png" alt="데모용 인물 이미지"></div>' : '<video id="camera-video" autoplay muted playsinline aria-label="카메라 프리뷰"></video>'}<span class="camera-caption"><span class="camera-dot"></span>${demo ? "샘플 카메라" : "카메라 · AI 얼굴 감지"}</span><p class="camera-instruction" id="camera-instruction" role="status">카메라를 준비하고 있어요.</p></div><p class="camera-state-note">${demo ? "샘플 사진으로 촬영 흐름을 확인해요." : "촬영한 원본 이미지는 분석 후 저장하지 않아요."}</p><div id="camera-error"></div>${actions(btn("capture", demo ? "이 사진으로 계속" : "촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "", "")).replace('data-action="camera-retry"', 'data-action="camera-retry" hidden')}`;
+  return `${step(3, "프로필 촬영")}${heading("READY FOR YOUR CLOSE-UP?", demo ? "이 사진으로 시작할게요." : "화면을 바라봐주세요.", demo ? "오늘 시연은 준비된 인물 이미지로 진행해요." : "얼굴이 잘 보이면 촬영 버튼이 활성화돼요.")}<div class="camera-panel${demo ? " ready" : ""}" id="camera-panel">${demo ? '<div class="camera-sample"><img src="/assets/characters/char_01.png" alt="데모용 인물 이미지"></div>' : '<video id="camera-video" autoplay muted playsinline aria-label="카메라 프리뷰"></video>'}${cameraOverlay(demo)}</div><p class="camera-state-note">${demo ? "샘플 사진으로 촬영 흐름을 확인해요." : "촬영한 원본 이미지는 분석 후 저장하지 않아요."}</p><div id="camera-error"></div>${actions(btn("capture", demo ? "이 사진으로 계속" : "촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "", "")).replace('data-action="camera-retry"', 'data-action="camera-retry" hidden')}`;
 }
 function processing(s, demo) {
-  return `${step(3, "캐릭터 분석", false)}${heading("A LITTLE MOMENT OF DISCOVERY", s.error ? "사진을 다시<br>확인해주세요." : "닮은 캐릭터를<br>찾고 있어요.")}${s.error ? statusVisual("camera") : `${faceMap(s.aiMode)}<div class="status-copy" role="status"><h2>${s.aiMode === "A" ? "얼굴 특징을 읽고 캐릭터와 비교해요." : "얼굴 위치를 읽고 프로필 구도를 만들어요."}</h2><p>${demo ? "준비된 샘플 데이터로 결과 화면을 보여드려요." : "외부 전송 없이 이 기기 안에서 분석하고 있어요."}</p></div>`}${errorPanel(s.error)}${s.error ? actions(errorActions(s, "ai-retry")) : ""}`;
+  return `${step(3, "캐릭터 분석", false)}${heading("A LITTLE MOMENT OF DISCOVERY", s.error ? "사진을 다시<br>확인해주세요." : "닮은 캐릭터를<br>찾고 있어요.")}${s.error ? statusVisual("camera") : `${analysisPhoto(s, demo)}<div class="status-copy" role="status"><h2>${s.aiMode === "A" ? "얼굴 특징을 읽고 캐릭터와 비교해요." : "얼굴 위치를 읽고 프로필 구도를 만들어요."}</h2><p>${demo ? "준비된 샘플 데이터로 결과 화면을 보여드려요." : "외부 전송 없이 이 기기 안에서 분석하고 있어요."}</p></div>`}${errorPanel(s.error)}${s.error ? actions(errorActions(s, "ai-retry")) : ""}`;
 }
 function result(s, demo) {
   return `${step(3, "나의 AI 프로필", false)}${heading("YOUR NEW IDENTITY", s.aiMode === "A" ? "나의 캐릭터를 찾았어요." : "나만의 프로필이 완성됐어요.", s.aiMode === "A" ? "8명의 캐릭터 중 가장 가까운 캐릭터예요." : "사원증에 들어갈 프로필을 확인해주세요.")}<div class="result-pass"><div class="pass-header">MIRRORTING WORKS ${logo()}</div><div class="pass-photo"><img src="${escape(s.result.image)}" alt="${demo ? "데모용 프로필 예시" : "나의 AI 프로필"}"></div><div class="pass-info"><div><h2>${escape(s.name)}</h2><p>${escape(s.team.title)}</p></div></div><div class="pass-number">MIRRORTING WORKS 사원 프로필</div></div><p class="result-explanation">${demo ? '<span class="demo-chip">샘플</span> 준비된 이미지로 보여드리는 결과예요.' : s.aiMode === "A" ? "캐릭터 간 상대적인 특징을 비교한 결과예요." : "촬영한 얼굴과 옷을 유지하고, 얼굴이 잘 보이도록 배경과 구도를 정리했어요."}</p>${errorPanel(s.error)}${actions(s.error ? errorActions(s, "nfc-open") : btn("nfc-open", s.replacingProfile ? "새 프로필로 출력 다시 준비" : "이 프로필로 사원증 만들기", "", "badge") + btn("retake", "다시 촬영하기", "text", "", s.busy) + helper(s.replacingProfile ? "카드는 이미 등록됐어요. 새 프로필만 현재 세션에 연결합니다." : "다음 단계에서 사원증 카드를 등록해요.", "nfc"))}`;
@@ -215,7 +211,7 @@ function checkoutResult(s, demo) {
   return `${step(2, "오늘의 체험 확인", !s.busy)}${heading("LOOK BACK ON YOUR DAY", `${escape(s.name)}님,<br>어떤 하루였나요?`, available ? "사진은 선택이에요. 바로 리포트를 확인해도 좋아요." : "MirrorTing에서 함께한 경험을 확인해보세요.")}${identity(s)}<div class="record-card"><span class="pill">${demo ? "체험용 예시 데이터" : "MirrorTing에서 받은 기록"}</span><h2>${s.busy ? "체험 기록을 불러오고 있어요." : available ? escape(headline || "체험 기록을 받았어요.") : "아직 체험 기록을 찾지 못했어요."}</h2><p>${available ? escape(summary || "아래에서 실제 리포트 항목을 확인할 수 있어요.") : s.busy ? "잠시만 기다려주세요." : "스마트미러 체험을 마쳤다면 잠시 후 다시 확인해주세요."}</p></div>${errorPanel(s.error)}${actions(available ? btn("report-open", "기념사진 남기기", "", "camera") + btn("photo-skip", "사진 없이 리포트 보기", "text", "") : btn("report-fetch", s.busy ? "기록을 확인하고 있어요" : "다시 확인", "", "arrow", s.busy, s.busy))}`;
 }
 function souvenirCamera(s, demo) {
-  return `${step(3, "퇴근 기념사진")}${heading("ONE LAST MEMORY", "오늘의 나를<br>한 장 남겨볼까요?", "사진은 선택이에요. 촬영하지 않아도 리포트를 확인할 수 있어요.")}<div class="camera-panel souvenir-camera" id="camera-panel">${demo ? '<div class="camera-sample"><img src="/assets/characters/char_01.png" alt="기념사진 샘플"></div>' : '<video id="camera-video" autoplay muted playsinline aria-label="기념사진 카메라 미리보기"></video>'}<p class="camera-instruction" id="camera-instruction" role="status">카메라를 준비하고 있어요.</p></div><p class="camera-state-note">사진은 이번 리포트 화면에서만 미리 볼 수 있어요.</p><div id="camera-error"></div>${actions(btn("capture", demo ? "샘플 사진으로 계속" : "기념사진 촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "secondary", "").replace('data-action="camera-retry"', 'data-action="camera-retry" hidden') + btn("photo-skip", "사진 없이 계속하기", "text", ""))}`;
+  return `${step(3, "퇴근 기념사진")}${heading("ONE LAST MEMORY", "오늘의 나를<br>한 장 남겨볼까요?", "사진은 선택이에요. 촬영하지 않아도 리포트를 확인할 수 있어요.")}<div class="camera-panel souvenir-camera" id="camera-panel">${demo ? '<div class="camera-sample"><img src="/assets/characters/char_01.png" alt="기념사진 샘플"></div>' : '<video id="camera-video" autoplay muted playsinline aria-label="기념사진 카메라 미리보기"></video>'}${cameraOverlay(demo)}</div><p class="camera-state-note">사진은 이번 리포트 화면에서만 미리 볼 수 있어요.</p><div id="camera-error"></div>${actions(btn("capture", demo ? "샘플 사진으로 계속" : "기념사진 촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "secondary", "").replace('data-action="camera-retry"', 'data-action="camera-retry" hidden') + btn("photo-skip", "사진 없이 계속하기", "text", ""))}`;
 }
 function souvenirReview(s, demo) {
   return `${step(3, "기념사진 확인", false)}${heading("KEEP THIS MOMENT", "이 사진으로<br>기억할까요?", demo ? "실제 촬영 결과가 아닌 샘플 사진이에요." : "마음에 들지 않으면 다시 찍을 수 있어요.")}<figure class="souvenir-review"><img src="${escape(s.souvenirPhoto)}" alt="이번 방문자의 퇴근 기념사진"><figcaption>${escape(s.name)} · ${escape(s.team?.title)}</figcaption></figure><p class="photo-print-note">현재 사진은 화면 미리보기에만 들어가요. 종이 리포트에는 체험 기록만 출력돼요.</p>${actions(btn("photo-confirm", "사진과 함께 리포트 보기", "", "receipt") + btn("photo-retake", "다시 찍기", "secondary", "camera") + btn("photo-skip", "사진 없이 계속하기", "text", ""))}`;

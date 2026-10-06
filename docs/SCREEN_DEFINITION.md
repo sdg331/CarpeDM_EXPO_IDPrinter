@@ -128,6 +128,7 @@ Example:
 - empty value cannot proceed
 - visible focus
 - Korean IME composition must work
+- 유효한 1~10자 이름은 한글 조합 중에도 다음 버튼을 즉시 활성화한다. 버튼 터치는 현재 입력값으로 진행하며, 조합 확정용 Enter와 조합 중 form submit은 화면을 넘기지 않는다.
 - physical keyboard required; no on-screen keyboard
 
 **Actions**:
@@ -167,6 +168,10 @@ Example:
 `AI가 얼굴의 특징을 분석해 8명의 MIRRORTING WORKS 캐릭터 중 가장 가까운 캐릭터를 찾아드립니다.`
 
 **HOW IT WORKS**:
+현재 방문자 UI는 얼굴 확인·특징 추출·캐릭터 비교의 세 단계를 항상 표시한다. 설명을 접는 토글은 사용하지 않는다.
+
+2026-10-06 안내 디자인: 실제 8개 캐릭터 자산을 미리보기로 표시하고, 세 단계 설명은 번호·아이콘·구분선이 있는 공통 패널로 구성한다. 미리보기는 분석 결과나 선택 상태를 뜻하지 않는다. 원래 설명·촬영 조건·시작 및 이름 수정 동작을 유지한다. 키오스크는 800×1280에 전체 내용과 버튼을 표시하며 작은 웹 미리보기는 캐릭터를 4열로 배치한다.
+
 1. 사람 탐지 — 카메라 앞 사용자를 찾습니다. *(Target; model TBD)*
 2. 얼굴 분석 — 얼굴 위치와 촬영 상태를 확인합니다.
 3. 특징 추출 — 딥러닝으로 얼굴 특징을 128차원 데이터로 변환합니다.
@@ -224,6 +229,8 @@ Example:
 - capture CTA
 - safe back when not processing
 
+2026-10-06 표현: 상단 카메라 라벨과 감지 상태, 하단 반투명 안내 바로 구성한다. 준비 중·얼굴 확인 중·한 분씩 촬영·촬영 준비 완료·촬영 중·연결 확인 필요는 실제 카메라 상태를 따른다. 얼굴 위치를 추적하는 박스나 수치 진행률은 표시하지 않는다. 웹 미리보기와 퇴근 기념사진도 같은 상태 표현을 사용하며 샘플은 명시한다.
+
 **States**:
 - initializing: `카메라를 준비하고 있어요.`
 - ready: `얼굴이 잘 보이도록 화면을 바라봐주세요.`
@@ -250,7 +257,10 @@ Example:
 
 **UI**:
 - mode-aware title
-- step animation
+- captured photo with subtle decorative glowing points (shared by kiosk/web, modes A/B)
+- sample mode explicitly uses a labeled fixture photo
+- light points are visual decoration, not detected landmarks or progress
+- reduced-motion disables the animation
 - indeterminate/progress only if truthful
 
 **Mode A steps**:
@@ -269,7 +279,7 @@ detect → pose/landmark → segmentation → suit composite → final quality
 - B → SCR-11
 
 **Failure**:
-- retryable → retry path preserving session/capture when valid
+- retryable → retake path preserving name/team/session; release the failed capture preview
 - fatal backend → SCR-20 or operator path
 
 ---
@@ -314,6 +324,8 @@ detect → pose/landmark → segmentation → suit composite → final quality
 ## SCR-12 NFC_REGISTER
 
 **Purpose**: current session을 NFC 사원증과 연결.
+
+2026-10-06 요약 카드: 등록 화면에서만 프로필을 144×192, 이름을 38px로 확대한다. 약 240px 카드에서 팀과 등록 상태를 사진 옆에 배치하며, 오류 안내·재시도 버튼까지 800×1280에 들어오는지 확인한다. 다른 화면의 요약 카드와 NFC 동작은 유지한다.
 
 **UI states**:
 - waiting: `사원증 카드를 태그해주세요.`

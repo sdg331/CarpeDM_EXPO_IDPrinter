@@ -1,4 +1,4 @@
-import { createState, validateName } from "./state.js?v=20261005-checkout-photo";
+import { createState, validateName } from "./state.js?v=20261006-analysis-photo";
 import { teams, scenarios, screenIds } from "./content.js?v=20261005-transparent-icons";
 import {
   createDemoApi,
@@ -6,9 +6,10 @@ import {
   isSameOriginImage,
   KioskError,
   errorCopy,
-} from "./api-client.js";
+  wait,
+} from "./api-client.js?v=20261006-ai-duration";
 import { Camera } from "./camera.js?v=20261005-audit-fixes";
-import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261005-audit-fixes";
+import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261006-analysis-photo";
 import { icon } from "./icons.js";
 import { createMotion } from "./motion.js";
 import { resolveRuntime } from "./runtime.js";
@@ -46,6 +47,7 @@ let returnFocus = null;
 let renderedScreen = null;
 let badgeUrl = null;
 const motion = createMotion();
+const MIN_AI_SCREEN_MS = 6000;
 
 function resize() {
   const kiosk = document.querySelector("#kiosk");
@@ -113,6 +115,7 @@ function resetViewport() {
 }
 function go(next, patch = {}, direction = "forward") {
   if (["camera", "photoCamera"].includes(state.data.screen)) camera.stop();
+  if (state.data.screen === "processing" && next !== "processing") clearCapturePreview();
   state.invalidate();
   state.patch({ screen: next, error: null, ...patch });
   lastActivity = Date.now();
@@ -133,6 +136,7 @@ function reset() {
   currentController?.abort();
   camera.stop();
   clearSouvenirPhoto();
+  clearCapturePreview();
   state.reset();
   api.reset();
   if (badgeUrl) URL.revokeObjectURL(badgeUrl);
@@ -213,6 +217,7 @@ async function run(
     state.finish(token);
     state.invalidate();
     lastActivity = Date.now();
+    if (name === "ai") clearCapturePreview();
     // A malformed response after a hardware write cannot prove that the
     // physical action did not happen. Keep the operation locked for review.
     const code = sideEffect && !demo && error?.code === "INVALID_RESPONSE"
@@ -240,6 +245,10 @@ const cameraCopy = {
   capturing: "촬영 중이에요. 잠시만 그대로 있어주세요.",
   error: "카메라를 사용할 수 없어요.",
 };
+const cameraLabels = {
+  initializing: "준비 중", ready: "촬영 준비 완료", no_person: "얼굴 확인 중",
+  multiple_people: "한 분씩 촬영", capturing: "촬영 중", error: "연결 확인 필요",
+};
 function updateCamera(status, code) {
   if (!["camera", "photoCamera"].includes(state.data.screen) || state.data.busy) return;
   cameraState = status;
@@ -247,6 +256,7 @@ function updateCamera(status, code) {
   panel.className = `camera-panel ${status}`;
   screen.querySelector("#camera-instruction").textContent =
     code && errorCopy[code] ? errorCopy[code][0] : cameraCopy[status];
+  screen.querySelector("#camera-detection").textContent = cameraLabels[status];
   const captureButton = screen.querySelector('[data-action="capture"]');
   captureButton.disabled = status !== "ready";
   captureButton.hidden = status === "error";
@@ -278,23 +288,26 @@ function initializeCamera() {
   }
   camera.start(screen.querySelector("#camera-video"), api, updateCamera);
 }
+function clearCapturePreview() {
+  const preview = state.data.capturePreview;
+  if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+  state.patch({ capture: null, capturePreview: null });
+}
 async function capture() {
   if (cameraState !== "ready" || state.data.busy) return;
+  updateCamera("capturing");
   if (state.data.screen === "photoCamera") return captureSouvenir();
   const token = state.begin();
-  cameraState = "capturing";
-  screen.querySelector('[data-action="capture"]').disabled = true;
   screen.querySelector(".back").disabled = true;
   lockHeader();
-  screen.querySelector("#camera-instruction").textContent =
-    cameraCopy.capturing;
   try {
     const frame = demo
       ? new Blob(["demo fixture"], { type: "image/jpeg" })
       : await camera.capture();
     if (!state.isCurrent(token)) return;
     state.finish(token);
-    go("processing", { capture: frame });
+    clearCapturePreview();
+    go("processing", { capture: frame, capturePreview: demo ? "/assets/characters/char_01.png" : URL.createObjectURL(frame) });
     analyze();
   } catch {
     if (!state.isCurrent(token)) return;
@@ -351,9 +364,13 @@ function analyze() {
   run(
     "ai",
     async (ctx) => {
-      return s.aiMode === "A"
+      const startedAt = performance.now();
+      const result = await (s.aiMode === "A"
         ? api.matchCharacter(s.capture, ctx)
-        : api.generateProfile(s.capture, ctx);
+        : api.generateProfile(s.capture, ctx));
+      const remaining = MIN_AI_SCREEN_MS - (performance.now() - startedAt);
+      if (remaining > 0) await wait(remaining, ctx.signal);
+      return result;
     },
     (result) => {
       if (
@@ -526,10 +543,10 @@ function updateName() {
   error.classList.toggle("invalid", invalid);
   input.setAttribute("aria-invalid", String(invalid));
   screen.querySelector('[data-action="name-next"]').disabled =
-    !validation.valid || composing;
+    !validation.valid;
 }
 function submitName() {
-  if (composing || state.data.screen !== "name") return;
+  if (state.data.screen !== "name") return;
   const validation = validateName(screen.querySelector("#visitor-name").value);
   if (!validation.valid) return updateName();
   go("detailA", { name: validation.name, aiMode: "A", result: null });
@@ -706,7 +723,7 @@ document.addEventListener("compositionend", (event) => {
 });
 document.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (event.target.id === "name-form") submitName();
+  if (event.target.id === "name-form" && !composing) submitName();
 });
 document.addEventListener("keydown", (event) => {
   if (event.isComposing || event.keyCode === 229) return;
@@ -766,6 +783,7 @@ setInterval(() => {
 addEventListener("pagehide", (event) => {
   currentController?.abort();
   camera.stop();
+  clearCapturePreview();
   if (!event.persisted) { api.reset(); clearSouvenirPhoto(); }
   if (!event.persisted && badgeUrl) URL.revokeObjectURL(badgeUrl);
   motion.destroy();
