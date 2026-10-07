@@ -15,6 +15,7 @@ import {
   wait,
 } from "../../frontend/js/api-client.js";
 import { Camera } from "../../frontend/js/camera.js";
+import { characters } from "../../frontend/js/content.js";
 import { renderScreen, renderHeader, renderTeamPreview } from "../../frontend/js/views.js";
 import { resolveRuntime } from "../../frontend/js/runtime.js";
 import { createLiveIntegrations } from "../../frontend/js/live-integrations.js";
@@ -401,7 +402,7 @@ test("Only known character results are accepted; diagnostic scores stay out of U
   assert.deepEqual(actual, {
     kind: "A",
     characterId: "char_01",
-    image: "/assets/characters/char_01.png",
+    image: characters[0].image,
   });
   assert.throws(() => normalizeMatch({ ok: true, top: 20, characters: [] }), {
     code: "INVALID_RESPONSE",
@@ -412,6 +413,22 @@ test("Only known character results are accepted; diagnostic scores stay out of U
   assert.throws(() => normalizeMatch({ ok: false, error: "multiple_faces" }), {
     code: "MULTIPLE_PEOPLE",
   });
+});
+test("All 8 portraits are previewed and accepted; unknown IDs are rejected", () => {
+  assert.equal(characters.length, 8);
+  for (const [top, character] of characters.entries()) {
+    assert.deepEqual(normalizeMatch({ ok: true, top, characters }), {
+      kind: "A", characterId: character.id, image: character.image,
+    });
+  }
+  for (const id of ["char_00", "char_09", "char_10", "char_11", "char_12", "char_13", "char_99", "../char_01", 1, null]) {
+    assert.throws(() => normalizeMatch({ ok: true, top: 0, characters: [{ id }] }), {
+      code: "INVALID_RESPONSE",
+    });
+  }
+  const html = renderScreen({ screen: "detailA", aiMode: "A" }, false);
+  assert.match(html, /8명의 MIRRORTING 캐릭터/);
+  for (const { thumbnail } of characters) assert.ok(html.includes(`src="${thumbnail}"`));
 });
 test("Mode B profile responses are normalized without accepting arbitrary image paths", () => {
   const profileId = `p_${"a".repeat(24)}`;
@@ -566,10 +583,10 @@ test("Mode B demo keeps the camera and result identity consistent", async () => 
   const api = createDemoApi("success");
   const result = await api.generateProfile(null, { operationId: "profile-1" });
   const cameraHtml = renderScreen({ screen: "camera" }, true);
-  assert.match(cameraHtml, /src="\/assets\/characters\/char_01\.png"/);
+  assert.ok(cameraHtml.includes(`src="${characters[0].image}"`));
   assert.deepEqual(result, {
     kind: "B",
-    image: "/assets/characters/char_01.png",
+    image: characters[0].image,
     sample: true,
   });
 });

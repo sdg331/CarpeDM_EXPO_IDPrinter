@@ -1,5 +1,5 @@
 import { createState, validateName } from "./state.js?v=20261006-analysis-photo";
-import { teams, scenarios, screenIds } from "./content.js?v=20261005-transparent-icons";
+import { characters, teams, scenarios, screenIds } from "./content.js?v=20261007-portraits8-r1";
 import {
   createDemoApi,
   createLiveApi,
@@ -7,9 +7,9 @@ import {
   KioskError,
   errorCopy,
   wait,
-} from "./api-client.js?v=20261006-ai-duration";
+} from "./api-client.js?v=20261007-portraits8-r1";
 import { Camera } from "./camera.js?v=20261005-audit-fixes";
-import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261006-analysis-photo";
+import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261007-portraits8-r1";
 import { icon } from "./icons.js";
 import { createMotion } from "./motion.js";
 import { resolveRuntime } from "./runtime.js";
@@ -307,7 +307,7 @@ async function capture() {
     if (!state.isCurrent(token)) return;
     state.finish(token);
     clearCapturePreview();
-    go("processing", { capture: frame, capturePreview: demo ? "/assets/characters/char_01.png" : URL.createObjectURL(frame) });
+    go("processing", { capture: frame, capturePreview: demo ? characters[0].image : URL.createObjectURL(frame) });
     analyze();
   } catch {
     if (!state.isCurrent(token)) return;
@@ -333,7 +333,7 @@ async function captureSouvenir() {
     if (!state.isCurrent(token)) return;
     state.finish(token);
     clearSouvenirPhoto();
-    go("photoReview", { souvenirPhoto: demo ? "/assets/characters/char_01.png" : URL.createObjectURL(frame) });
+    go("photoReview", { souvenirPhoto: demo ? characters[0].image : URL.createObjectURL(frame) });
   } catch {
     if (!state.isCurrent(token)) return;
     state.finish(token);

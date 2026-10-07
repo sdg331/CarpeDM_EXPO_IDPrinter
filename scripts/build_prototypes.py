@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""캐릭터 8종의 프로토타입 벡터를 만들어 assets/prototypes.npz 에 저장한다.
+"""현재 캐릭터의 프로토타입 벡터를 만들어 assets/prototypes.npz 에 저장한다.
 
 변형 이미지가 있으면 함께 평균낸다. 기대하는 배치는 이렇다.
 
@@ -7,12 +7,13 @@
     assets/characters/variants/char_01/*.png   ← i2i 변형 (있으면 자동 사용)
 
 변형이 없으면 원본 1장만으로 프로토타입을 만든다. character-prompts.md 가 지적한
-대로 1장짜리는 뾰족해서 매칭이 불안정할 수 있지만, 먼저 8×8 행렬을 보고
+대로 1장짜리는 뾰족해서 매칭이 불안정할 수 있지만, 먼저 캐릭터 간 행렬을 보고
 문제 있는 캐릭터만 골라 변형을 뽑는 쪽이 싸다.
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -26,7 +27,6 @@ from backend.face import FaceEngine, Prototypes, l2_normalize, load_groups  # no
 ROOT = Path(__file__).resolve().parent.parent
 CHARS = ROOT / "assets" / "characters"
 VARIANTS = CHARS / "variants"
-STYLE_SET = ROOT / "assets" / "style_set"
 OUT = ROOT / "assets" / "prototypes.npz"
 
 EXTS = {".png", ".jpg", ".jpeg", ".webp"}
@@ -42,16 +42,16 @@ def images_for(char_id: str) -> list[Path]:
     return paths
 
 
-def build_style_mean(engine: FaceEngine) -> tuple[np.ndarray | None, int]:
+def build_style_mean(engine: FaceEngine, style_set: Path) -> tuple[np.ndarray | None, int]:
     """스타일 추정 세트로 μ_style을 구한다 (scripts/style_set_prompts.md 참고).
 
-    캐릭터 8종과 **독립된** 표본이어야 한다. 8종 자기 평균으로 센터링하면
+    현재 캐릭터와 **독립된** 표본이어야 한다. 캐릭터 자기 평균으로 센터링하면
     잔차 사이에 −1/(n−1)의 음의 상관이 강제돼 분리도를 잘못 읽게 된다.
     """
-    if not STYLE_SET.is_dir():
-        return None, 0
+    if not style_set.is_dir():
+        raise SystemExit(f"스타일 세트가 없다: {style_set}")
 
-    paths = sorted(p for p in STYLE_SET.iterdir() if p.suffix.lower() in EXTS)
+    paths = sorted(p for p in style_set.iterdir() if p.suffix.lower() in EXTS)
     if not paths:
         return None, 0
 
@@ -74,6 +74,10 @@ def build_style_mean(engine: FaceEngine) -> tuple[np.ndarray | None, int]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="캐릭터 원본으로 SFace 비교 데이터 생성")
+    parser.add_argument("--style-set", type=Path,
+                        help="현재 캐릭터와 같은 스타일의 독립 표본 폴더 (검증 후 지정)")
+    args = parser.parse_args()
     engine = FaceEngine()
 
     char_ids = sorted(p.stem for p in CHARS.glob("char_*.png"))
@@ -112,11 +116,12 @@ def main() -> None:
         note = "원본만" if len(embeddings) == 1 else f"원본+변형 {len(embeddings)}장 평균"
         print(f"{char_id}  그룹 {groups[-1]}  {note}")
 
-    mu_style, style_n = build_style_mean(engine)
+    # ponytail: 독립 스타일 표본 미지정 시 기존 자기 평균 경로, 새 스타일 표본 검증 후 --style-set 사용.
+    mu_style, style_n = build_style_mean(engine, args.style_set) if args.style_set else (None, 0)
     if style_n:
         print(f"\n스타일 세트 {style_n}장으로 μ_style 추정")
     else:
-        print("\n스타일 세트 없음 — 8종 자기 평균으로 대체한다")
+        print(f"\n스타일 세트 미지정 — 현재 {len(ids)}종의 자기 평균으로 대체한다")
 
     Prototypes(ids=ids, vectors=np.array(vectors, dtype=np.float32),
                counts=counts, groups=groups,
@@ -127,8 +132,8 @@ def main() -> None:
     if all(c == 1 for c in counts):
         print("주의: 변형 이미지가 없다. 지금은 보류가 맞다 — PLAN.md §7 참고.")
     if style_n == 0:
-        print("주의: μ_style이 8종 자기 평균이라 잔차 상관이 −1/7로 강제된다.")
-        print("      scripts/style_set_prompts.md 로 40장을 만들어 넣을 것.")
+        print("주의: 자기 평균으로 계산한 분리도는 독립 표본 검증을 대체하지 않는다.")
+        print("      현재 캐릭터와 같은 스타일의 독립 표본을 검증한 뒤 --style-set으로 지정할 것.")
     elif style_n < 24:
         print(f"주의: 스타일 세트가 {style_n}장뿐이다. 24장 이상을 권장한다.")
 

@@ -39,9 +39,22 @@ def main() -> int:
         path = ROOT / "models" / filename
         check(filename, path.is_file() and path.stat().st_size >= minimum,
               "없으면 bash scripts/fetch_models.sh")
-    check("캐릭터 프로토타입", (ROOT / "assets/prototypes.npz").is_file())
-    check("8개 인쇄 자산", all((ROOT / f"assets/characters/print/char_{i:02d}_print.png").is_file()
-                               for i in range(1, 9)))
+    expected = [f"char_{i:02d}" for i in range(1, 9)]
+    prototype_path = ROOT / "assets/prototypes.npz"
+    if importlib.util.find_spec("numpy") and prototype_path.is_file():
+        import numpy as np
+        try:
+            with np.load(prototype_path, allow_pickle=False) as data:
+                ready = data["ids"].tolist() == expected and data["vectors"].shape == (8, 128)
+        except (OSError, ValueError, KeyError):
+            ready = False
+    else:
+        ready = False
+    check("8명 캐릭터 프로토타입", ready, "불일치 시 scripts/build_prototypes.py 실행")
+    check("8개 컬러·미리보기·인쇄 자산", all(
+        (ROOT / f"assets/characters/{cid}.{ext}").is_file()
+        for cid in expected for ext in ("png", "webp")
+    ) and all((ROOT / f"assets/characters/print/{cid}_print.png").is_file() for cid in expected))
     if importlib.util.find_spec("PIL"):
         from backend.badge import BadgeError, _font_path
         try:

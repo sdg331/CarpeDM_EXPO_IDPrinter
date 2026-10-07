@@ -1,3 +1,12 @@
+export const characters = Array.from({ length: 8 }, (_, i) => {
+  const id = `char_${String(i + 1).padStart(2, "0")}`;
+  return {
+    id,
+    image: `/assets/characters/${id}.png?v=20261007-portraits8-r1`,
+    thumbnail: `/assets/characters/${id}.webp?v=20261007-portraits8-r1`,
+  };
+});
+
 export const teams = [
   {
     id: "development",
@@ -76,13 +85,13 @@ export const modes = {
     title: "AI 캐릭터 매칭",
     summary: "나와 가장 닮은 MIRRORTING 캐릭터를 찾아요.",
     detail:
-      "AI가 얼굴의 특징을 분석해 8명의 MIRRORTING WORKS 캐릭터 중 가장 가까운 캐릭터를 찾아드립니다.",
+      `AI가 얼굴의 특징을 분석해 ${characters.length}명의 MIRRORTING WORKS 캐릭터 중 가장 가까운 캐릭터를 찾아드립니다.`,
     cta: "캐릭터 매칭 시작하기",
     steps: [
       ["사람 탐지", "카메라 앞 사용자를 찾습니다."],
       ["얼굴 분석", "얼굴 위치와 촬영 상태를 확인합니다."],
       ["특징 추출", "얼굴 특징을 128차원 데이터로 변환합니다."],
-      ["캐릭터 비교", "8개 캐릭터의 특징과 비교합니다."],
+      ["캐릭터 비교", `${characters.length}개 캐릭터의 특징과 비교합니다.`],
       ["최종 매칭", "가장 가까운 캐릭터를 선택합니다."],
     ],
   },

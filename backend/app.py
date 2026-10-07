@@ -271,7 +271,7 @@ async def detect(frame: UploadFile = File(...)) -> dict:
 
 @app.post("/api/match")
 async def match(frame: UploadFile = File(...)) -> dict:
-    """One captured frame -> 8-character relative scores. Image is not saved."""
+    """One captured frame -> current-character relative scores. Image is not saved."""
     raw = await _frame_bytes(frame)
     proto = STATE.get("proto")
     if proto is None:

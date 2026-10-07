@@ -2128,8 +2128,11 @@ h2 {
 .matching-preview-heading strong { font-weight: 650; color: #365477; }
 .matching-preview-heading > span { font-size: 20px; color: #596d86; }
 .matching-portraits {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 .matching-portraits img {
@@ -2153,9 +2156,9 @@ h2 {
   background: #fff;
 }
 [data-screen="SCR-06"] .how-list li {
-  min-height: 104px;
+  min-height: 72px;
   gap: 18px;
-  padding: 18px 0;
+  padding: 12px 0;
   border-bottom: 1px solid #edf0f5;
   border-radius: 0;
   background: transparent;

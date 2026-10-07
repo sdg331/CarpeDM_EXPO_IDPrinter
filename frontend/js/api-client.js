@@ -1,4 +1,5 @@
 import { liveIntegrations } from "./live-integrations.js";
+import { characters } from "./content.js?v=20261007-portraits8-r1";
 
 export class KioskError extends Error {
   constructor(code, retryable = true) {
@@ -126,16 +127,16 @@ export function normalizeMatch(data) {
         "AI_ERROR",
     );
   const character = data.characters?.[data.top];
+  const known = characters.find(({ id }) => id === character?.id);
   if (
     !Number.isInteger(data.top) ||
-    !character ||
-    !/^char_0[1-8]$/.test(character.id)
+    !known
   )
     throw new KioskError("INVALID_RESPONSE", false);
   return {
     kind: "A",
-    characterId: character.id,
-    image: `/assets/characters/${character.id}.png`,
+    characterId: known.id,
+    image: known.image,
   };
 }
 
@@ -248,7 +249,7 @@ export function createDemoApi(scenario = "success") {
         {
           kind: "A",
           characterId: "char_01",
-          image: "/assets/characters/char_01.png",
+          image: characters[0].image,
         },
         scenario === "ai_error"
           ? "AI_ERROR"
@@ -260,7 +261,7 @@ export function createDemoApi(scenario = "success") {
       operation(
         "ai",
         ctx,
-        { kind: "B", image: "/assets/characters/char_01.png", sample: true },
+        { kind: "B", image: characters[0].image, sample: true },
         scenario === "ai_error"
           ? "AI_ERROR"
           : scenario === "ai_timeout"

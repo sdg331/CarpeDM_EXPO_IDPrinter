@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""캐릭터 8종의 감열 프린터용 흑백 1비트 버전을 만든다.
+"""현재 캐릭터의 감열 프린터용 흑백 1비트 버전을 만든다.
 
 감열식은 흑백 1비트라 실사 사진을 그대로 보내면 뭉개진다. 그레이스케일 →
 대비/감마 보정 → 최종 크기로 리사이즈 → Floyd-Steinberg 디더링 순서로 굽는다.
@@ -16,7 +16,7 @@
 --sweep 으로 계수별 비교 시트를 뽑아 실제로 한 장 출력해보고 고른다.
 
 사용법
-    python scripts/make_print_assets.py                    # 기본값으로 8장 생성
+    python scripts/make_print_assets.py                    # 전체 캐릭터 생성
     python scripts/make_print_assets.py --sweep            # 계수 비교 시트 생성
     python scripts/make_print_assets.py --contrast 2.1     # 계수 확정 후 재생성
 """

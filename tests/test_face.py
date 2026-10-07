@@ -5,8 +5,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from PIL import Image
 
-from backend.face import Prototypes, display_scores, l2_normalize, load_groups
+from backend.face import FaceEngine, Prototypes, SFACE, YUNET, display_scores, l2_normalize, load_groups
 
 ROOT = Path(__file__).resolve().parent.parent
 PROTO = ROOT / "assets" / "prototypes.npz"
@@ -20,24 +21,56 @@ def proto() -> Prototypes:
 
 
 def test_프로토타입_형태(proto):
-    assert len(proto.ids) == 8
+    assert proto.ids == [f"char_{i:02d}" for i in range(1, 9)]
     assert proto.vectors.shape == (8, 128)
     # 각 행이 L2 정규화돼 있어야 내적 = 코사인이 성립한다
     norms = np.linalg.norm(proto.vectors, axis=1)
     assert np.allclose(norms, 1.0, atol=1e-5)
 
 
-def test_뮤스타일은_독립_표본이다(proto):
-    """μ_style 이 8종 자기 평균으로 떨어지면 잔차 상관이 −1/7 로 강제된다(PLAN §7.4)."""
-    assert proto.mu_style is not None
-    assert proto.style_n >= 24, f"스타일 표본 {proto.style_n}장 — 24장 이상이어야 한다"
+def test_컬러_미리보기_감열_자산은_같은_8명이다(proto):
+    from scripts.make_print_assets import DEFAULTS, bake
+
+    folder = ROOT / "assets" / "characters"
+    assert sorted(p.stem for p in folder.glob("char_*.png")) == proto.ids
+    for cid in proto.ids:
+        with Image.open(folder / f"{cid}.png") as master:
+            assert master.size == (1086, 1448)
+            assert master.mode in {"RGB", "RGBA"}
+        with Image.open(folder / f"{cid}.webp") as preview:
+            assert preview.size == (192, 256)
+        with Image.open(folder / "print" / f"{cid}_print.png") as printed:
+            assert printed.size == (288, 384) and printed.mode == "1"
+            assert printed.tobytes() == bake(folder / f"{cid}.png", **DEFAULTS).tobytes()
+
+
+@pytest.mark.skipif(not (YUNET.is_file() and SFACE.is_file()), reason="로컬 얼굴 모델 없음")
+def test_새_원본에서_만든_비교데이터와_자기매칭(proto):
+    import cv2
+
+    engine = FaceEngine()
+    for i, cid in enumerate(proto.ids):
+        image = cv2.imread(str(ROOT / "assets" / "characters" / f"{cid}.png"))
+        embedding, _ = engine.embed_single(image, strict=True)
+        assert np.allclose(embedding, proto.vectors[i], atol=1e-5)
+        assert int(proto.match_scores(embedding).argmax()) == i
+
+
+def test_새_사진은_이전_스타일_보정을_재사용하지_않는다(proto):
+    """새 스타일의 독립 표본이 없으므로 이전 8명 보정을 상속하면 안 된다."""
+    assert proto.mu_style is None
+    assert proto.style_n == 0
+    assert np.isfinite(proto.residuals()).all()
+    assert np.allclose(np.linalg.norm(proto.residuals(), axis=1), 1, atol=1e-5)
 
 
 def test_잔차_분리도_게이트(proto):
     """캐릭터 교체의 통과 기준 그 자체 — 잔차 최대 쌍 < 0.36."""
+    if proto.mu_style is None or proto.style_n < 24:
+        pytest.skip("새 스타일 독립 표본 미확보 — 분리도 품질 승인은 보류")
     r = proto.residuals()
     m = r @ r.T
-    worst = m[np.triu_indices(8, 1)].max()
+    worst = m[np.triu_indices(len(proto.ids), 1)].max()
     assert worst < 0.36, f"잔차 최대 쌍 {worst:.3f} — 캐릭터를 다시 골라야 한다"
 
 

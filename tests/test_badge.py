@@ -13,9 +13,10 @@ NEEDS_ASSETS = not (ROOT / "assets" / "characters" / "print" / "char_01_print.pn
 pytestmark = pytest.mark.skipif(NEEDS_ASSETS, reason="인쇄 자산 없음 — make_print_assets.py 먼저")
 
 
-def test_배지_크기와_모드():
+@pytest.mark.parametrize("char_id", [f"char_{i:02d}" for i in range(1, 9)])
+def test_배지_크기와_모드(char_id):
     """576×808 · 1비트 — 80mm 감열지 72×101mm 의 도트 수 그대로."""
-    img = render_badge("김지연", "개발팀", "char_01", "2026-4181")
+    img = render_badge("김지연", "개발팀", char_id, "2026-4181")
     assert img.size == (576, 808)
     assert img.mode == "1"
 
