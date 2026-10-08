@@ -34,7 +34,8 @@ OUT = SRC / "print"
 
 # 감열 프린터는 도트가 번져서 실제 출력이 화면보다 어둡게 나온다.
 # 1.0보다 큰 감마로 중간톤을 밝혀 이를 상쇄한다.
-DEFAULTS = dict(width=288, contrast=1.8, gamma=1.15, sharpen=True)
+# 밝은 증명사진에서는 1.8이 머리카락/재킷을 검게 뭉친다. 실물 농도는 --sweep으로 확정한다.
+DEFAULTS = dict(width=288, contrast=1.2, gamma=1.15, sharpen=True)
 
 SWEEP_CONTRAST = [1.2, 1.5, 1.8, 2.1, 2.4]
 

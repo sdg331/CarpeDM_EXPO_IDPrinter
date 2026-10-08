@@ -45,6 +45,23 @@ def test_컬러_미리보기_감열_자산은_같은_8명이다(proto):
 
 
 @pytest.mark.skipif(not (YUNET.is_file() and SFACE.is_file()), reason="로컬 얼굴 모델 없음")
+def test_증명사진_눈높이와_얼굴크기가_통일되어_있다(proto):
+    import cv2
+
+    engine = FaceEngine()
+    for cid in proto.ids:
+        image = cv2.imread(str(ROOT / "assets" / "characters" / f"{cid}.png"))
+        detections = engine.detect(image)
+        assert len(detections) == 1, cid
+        eyes = detections[0].row[4:8].reshape(2, 2)
+        height, width = image.shape[:2]
+        assert abs(eyes[0, 1] - eyes[1, 1]) / height < .006, cid
+        assert abs(eyes[:, 1].mean() / height - .40) < .008, cid
+        assert abs(eyes[:, 0].mean() / width - .50) < .008, cid
+        assert abs((eyes[1, 0] - eyes[0, 0]) / width - .20) < .008, cid
+
+
+@pytest.mark.skipif(not (YUNET.is_file() and SFACE.is_file()), reason="로컬 얼굴 모델 없음")
 def test_새_원본에서_만든_비교데이터와_자기매칭(proto):
     import cv2
 
