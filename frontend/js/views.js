@@ -125,7 +125,7 @@ function webReport() {
 
 function webProcessing(s) {
   return `${step(3, "캐릭터 분석", false)}${heading("", s.error ? "사진을 다시<br>확인해주세요." : "AI가 사진을<br>분석하고 있어요.")}
-  ${s.error ? errorPanel(s.error) + actions(errorActions(s, "ai-retry")) : `${analysisPhoto(s)}<div class="status-copy" role="status"><h2>${s.aiMode === "A" ? "얼굴 특징을 읽고 캐릭터와 비교해요." : "얼굴 위치를 읽고 프로필 구도를 만들어요."}</h2><p>외부 전송 없이 이 기기 안에서 분석하고 있어요.</p></div>`}`;
+  ${s.error ? errorPanel(s.error) + actions(errorActions(s, "ai-retry")) : `${analysisPhoto(s)}<div class="status-copy loading-state" role="status"><h2>${s.aiMode === "A" ? "얼굴 특징을 읽고 캐릭터와 비교해요." : "얼굴 위치를 읽고 프로필 구도를 만들어요."}</h2><p>외부 전송 없이 이 기기 안에서 분석하고 있어요.</p></div>`}`;
 }
 
 function teamSelection() {
