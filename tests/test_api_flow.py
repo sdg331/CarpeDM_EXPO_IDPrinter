@@ -448,3 +448,31 @@ def test_lan_clients_can_only_use_authenticated_mirrorting_bridge(monkeypatch, t
     allowed = remote.get('/api/integrations/mirrorting/cards/04AABBCC', headers={'X-Bridge-Token': 'bridge-secret-' * 4})
     assert allowed.status_code == 200
     assert allowed.json()['sessionId'] == session_id
+
+
+def test_verbose_source_report_prints_once_with_real_renderer(monkeypatch, tmp_path):
+    from PIL import ImageFont
+    import backend.reports as reports
+
+    store = configure(monkeypatch, tmp_path)
+    monkeypatch.setenv('KIOSK_MIRRORTING_URL', 'http://127.0.0.1:8001')
+    session_id = backend_app.register_nfc(register_request())['sessionId']
+    store.link_mirrorting(session_id=session_id, card_uid='04AABBCC', mirror_session_id=42, access_token='private-token')
+    source = reports.normalize_report(session_id, 42, {
+        'session_id': 42, 'mode': 5, 'fit_scores': {},
+        'strengths': ['verbose strength ' * 40] * 8,
+        'improvements': ['verbose improvement ' * 40] * 8,
+        'headline': {}, 'day_ending': {'label': '마지막 결말', 'text': '대화를 마쳤어요.'},
+    })
+    monkeypatch.setattr(backend_app, 'fetch_mirrorting_report', lambda *a, **kw: source)
+    monkeypatch.setattr(reports, '_font', lambda size: ImageFont.load_default(size=size))
+    images = []
+    monkeypatch.setattr(backend_app, 'print_badge', lambda image: images.append(image) or {'backend': 'screen'})
+    request = backend_app.ReportPrintRequest(operationId='verbose-report-print', sessionId=session_id, reportId='42')
+    first = backend_app.print_session_report(request)
+    repeated = backend_app.print_session_report(request)
+    assert first['status'] == repeated['status'] == 'preview'
+    assert first['printJobId'] == repeated['printJobId'] == request.operationId
+    assert len(images) == 1
+    assert images[0].mode == '1' and images[0].width == 576 and images[0].height > 4300
+    assert store.get_operation(request.operationId)['status'] == 'success'

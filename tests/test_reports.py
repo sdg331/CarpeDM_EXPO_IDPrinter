@@ -128,3 +128,43 @@ def test_real_report_sections_fit_a_receipt_without_coaching_quotes():
     assert image.mode == "1"
     assert image.width == 576
     assert image.height < 4300
+
+
+@pytest.mark.parametrize("content", ["긴 리포트 " * 100, "verbose report " * 100, "줄\n" * 250])
+def test_maximum_accepted_report_renders_all_lines_and_footer(monkeypatch, content):
+    from PIL import ImageDraw, ImageFont
+    import backend.reports as reports
+
+    # A deterministic scalable font keeps this regression active without OS fonts.
+    monkeypatch.setattr(reports, "_font", lambda size: ImageFont.load_default(size=size))
+    payload = upstream_report(
+        strengths=[f"강점{i}: {content}" for i in range(8)],
+        improvements=[f"연습{i}: {content}" for i in range(8)],
+        headline={"sentence": content, "context": content},
+        coaching=[{"issue": content, "suggestion": content} for _ in range(5)],
+        day_ending={"label": "마지막 결말", "text": "마지막 기록 " + content},
+    )
+    report = normalize_report(KIOSK_ID, MIRROR_ID, payload)
+    drawn = []
+    original_text = ImageDraw.ImageDraw.text
+
+    def record_text(draw, position, value, **kwargs):
+        drawn.append((position, value, kwargs["font"]))
+        return original_text(draw, position, value, **kwargs)
+
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", record_text)
+    image = render_report(report, name="김지연", team="AI팀")
+    assert image.mode == "1" and image.width == 576
+    assert image.height > 4300
+    printed_text = "".join(value for _, value, _ in drawn)
+    # All accepted strengths/improvements and the last section survive wrapping.
+    for value in report["strengths"] + report["improvements"] + [report["dayEnding"]["text"]]:
+        assert value.replace("\n", "") in printed_text
+    assert drawn[-1][1] == "출처: MirrorTing 세션 분석 결과"
+    assert drawn[-1][0][1] > 4300
+    for (x, y), value, font in drawn:
+        bounds = font.getbbox(value)
+        assert x + bounds[2] <= image.width
+        assert y + bounds[3] <= image.height
+    # Check real ink in the footer, not just a tall empty allocation.
+    assert image.crop((34, image.height - 48, 542, image.height)).getextrema() == (0, 255)

@@ -243,22 +243,27 @@ def render_report(report: Mapping[str, object], *, name: str, team: str) -> Imag
         raise ReportError("REPORT_RENDER_FAILED") from exc
 
     width, margin = REPORT_WIDTH, 34
-    canvas = Image.new("L", (width, 4300), 255)
-    draw = ImageDraw.Draw(canvas)
-    y = 0
-    draw.rectangle((0, 0, width, 108), fill=0)
-    draw.text((margin, 20), "MIRRORTING WORKS", font=section_font, fill=255)
-    draw.text((margin, 60), "오늘의 퇴근 리포트", font=body_font, fill=255)
+    # Measure and record every wrapped line before allocating the receipt.
+    # Valid normalized reports can be much taller than the old fixed canvas.
+    draw = ImageDraw.Draw(Image.new("L", (1, 1), 255))
+    text_runs = []
+    rules = []
+
+    def text(position, value, font, fill=0):
+        text_runs.append((position, value, font, fill))
+
+    text((margin, 20), "MIRRORTING WORKS", section_font, 255)
+    text((margin, 60), "오늘의 퇴근 리포트", body_font, 255)
     y = 135
 
     def line(label: str, value: str) -> None:
         nonlocal y
         if not value:
             return
-        draw.text((margin, y), label, font=small_font, fill=0)
+        text((margin, y), label, small_font)
         y += 28
         for part in _wrapped(draw, value, body_font, width - 2 * margin):
-            draw.text((margin, y), part, font=body_font, fill=0)
+            text((margin, y), part, body_font)
             y += 32
         y += 10
 
@@ -267,13 +272,13 @@ def render_report(report: Mapping[str, object], *, name: str, team: str) -> Imag
         if not values:
             return
         y += 12
-        draw.line((margin, y, width - margin, y), fill=0, width=2)
+        rules.append(y)
         y += 22
-        draw.text((margin, y), label, font=section_font, fill=0)
+        text((margin, y), label, section_font)
         y += 44
         for value in values:
             for part in _wrapped(draw, value, body_font, width - 2 * margin):
-                draw.text((margin, y), part, font=body_font, fill=0)
+                text((margin, y), part, body_font)
                 y += 32
             y += 12
 
@@ -323,8 +328,13 @@ def render_report(report: Mapping[str, object], *, name: str, team: str) -> Imag
     ending = report.get("dayEnding") or {}
     if isinstance(ending, Mapping):
         section(_text(ending.get("label"), limit=80) or "하루의 결말", [_text(ending.get("text"))] if ending.get("text") else [])
-    if y > canvas.height - 100:
-        raise ReportError("REPORT_RENDER_FAILED")
-    draw.line((margin, y + 10, width - margin, y + 10), fill=0, width=2)
-    draw.text((margin, y + 26), "출처: MirrorTing 세션 분석 결과", font=small_font, fill=0)
-    return canvas.crop((0, 0, width, y + 74)).point(lambda pixel: 255 if pixel > 127 else 0).convert("1")
+    rules.append(y + 10)
+    text((margin, y + 26), "출처: MirrorTing 세션 분석 결과", small_font)
+    canvas = Image.new("L", (width, y + 74), 255)
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle((0, 0, width, 108), fill=0)
+    for rule_y in rules:
+        draw.line((margin, rule_y, width - margin, rule_y), fill=0, width=2)
+    for position, value, font, fill in text_runs:
+        draw.text(position, value, font=font, fill=fill)
+    return canvas.point(lambda pixel: 255 if pixel > 127 else 0).convert("1")
