@@ -1,5 +1,11 @@
 # MIRRORTING WORKS — Design Contract
 
+## 2026-10-08 Visitor UI update
+
+현재 구현 화면은 HOME의 화이트·블루·연한 회색을 공통 기준으로 사용한다. 본문은 네이비, 보조 안내는 회색이며 주 행동에만 블루를 집중한다. 모서리는 18~24px, 그림자는 최소화한다. 제목과 핵심 이미지는 가운데 배치하고 입력·리포트 본문은 읽기 좋은 정렬을 유지한다. 팀은 152px 아이콘과 이름, 프로필은 280×360px 이미지, 장치 대기는 340px 아이콘을 중심으로 구성한다. HOME은 좌우 선택 카드, 팀은 2×3 선택 카드, 이름은 입력칸, 촬영은 사진, 결과는 사원 프로필, NFC·출력은 상태와 큰 아이콘, 리포트는 내부 스크롤을 유지한다. 아래 이전 시안 설명보다 이 갱신과 현재 `SCREEN_DEFINITION.md`를 우선한다.
+
+캐릭터 매칭 안내는 8개 큰 사진과 짧은 부제로 구성하며 토글과 단계별 기술 설명을 표시하지 않는다. 그림은 480ms에 8px 이내로 등장하며 화면 전체의 투명도 전환은 사용하지 않는다. HOME 그림은 서로 다른 6/6.8초 주기로 5px 안에서 움직인다. 장치 그림은 실제 처리 상태에서만 4.8초 주기로 움직이고 오류에서는 반복하지 않는다. 완료 그림은 520ms에 한 번 자리 잡으며 촬영·결과·기념사진은 반복해서 움직이지 않는다. 동작 줄이기 설정에서는 모든 장식 애니메이션을 끈다. 촬영 안내판은 블러 없이 반투명 배경을 사용한다. 오류·재시도·샘플·실물 출력 여부는 계속 읽을 수 있게 표시한다. 제작 풋터는 모든 화면에서 `동양미래대학교 컴퓨터공학부 전공동아리 CarpeDM`을 사용한다.
+
 > 역할: **디자인 원칙 Source of Truth**. Figma는 시각적 구현 기준, `SCREEN_DEFINITION.md`는 기능 기준이다.
 
 ## 1. Product Character
@@ -312,3 +318,10 @@ Error copy formula:
 - modal open 240ms, close 140–160ms
 - pressed 120ms / scale 약 0.985
 - reduced motion에서 위치/scale animation 제거
+
+## Touch and click presentation · 2026-10-08
+
+- Visitor actions work by click/tap without hover or press-scale effects. Background-color changes give immediate press feedback. The latest owner request adds restrained illustration motion through `frontend/styles/motion.css`: home floating, one-time entry, processing-only device movement and one-time completion. Photos stay still; reduced-motion turns decorations off. Loading spinners remain functional state indicators.
+- Team, entry, identity, record, error and report cards use pale neutral surfaces without decorative outer borders. Primary buttons share the brand blue and the 22px radius; header/footer decorative separators are removed. Internal report separators remain.
+- Name input retains a stable 2px border space: blue on focus, red for invalid input, without a second shadow ring. Keyboard focus indicators remain available for accessibility.
+- SCR-14/SCR-19 reuse `assets/kiosk-icons/completion-check.png`, generated with the development team and check-in badge artwork as style references. The previous vector imitation was removed. The replacement uses a frosted white slab, blue acrylic check and matching perspective, with genuine alpha transparency.

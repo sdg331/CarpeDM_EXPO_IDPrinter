@@ -17,7 +17,7 @@ button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  transition: transform var(--motion-release) var(--ease), background-color 160ms ease, border-color 160ms ease;
+  transition: background-color 120ms ease;
 }
 button:disabled {
   cursor: not-allowed;
@@ -25,12 +25,11 @@ button:disabled {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 3px solid var(--ink);
-  outline-offset: 5px;
+  outline: 3px solid var(--brand);
+  outline-offset: 3px;
 }
 button:active:not(:disabled) {
-  transform: scale(0.985);
-  transition-duration: var(--motion-press);
+  transform: none;
 }
 [hidden] {
   display: none !important;
@@ -65,7 +64,7 @@ body {
   display: flex;
   flex-direction: column;
   padding: 0 32px;
-  box-shadow: 0 0 80px #21345412;
+  box-shadow: none;
 }
 #header {
   height: 128px;
@@ -73,7 +72,7 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 0;
   gap: 6px;
 }
 .header-row {
@@ -270,7 +269,7 @@ h3 {
   width: 100%;
   min-height: 104px;
   border-radius: 22px;
-  border: 1px solid var(--brand);
+  border: 0;
   background: var(--brand);
   color: var(--inverse);
   font-size: var(--type-action);
@@ -1038,7 +1037,6 @@ h3 {
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 0 5px 2px #d4f0ff, 0 0 16px 5px #6ac5ff99;
-  animation: analysis-shimmer 2.8s ease-in-out var(--delay) infinite;
 }
 .analysis-point::before,
 .analysis-point::after {
@@ -1424,7 +1422,6 @@ h3 {
   align-items: center;
   justify-content: center;
   padding: 48px;
-  animation: veil-in 160ms ease-out;
 }
 .dialog {
   background: var(--canvas);
@@ -1432,7 +1429,6 @@ h3 {
   padding: 32px;
   border-radius: 28px;
   box-shadow: 0 24px 80px #16294d26;
-  animation: dialog-in 240ms var(--ease);
 }
 .dialog h2 {
   font-size: 40px;

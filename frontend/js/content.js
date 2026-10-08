@@ -2,8 +2,8 @@ export const characters = Array.from({ length: 8 }, (_, i) => {
   const id = `char_${String(i + 1).padStart(2, "0")}`;
   return {
     id,
-    image: `/assets/characters/${id}.png?v=20261007-portraits8-r1`,
-    thumbnail: `/assets/characters/${id}.webp?v=20261007-portraits8-r1`,
+    image: `/assets/characters/${id}.png?v=20261008-idphoto8-r1`,
+    thumbnail: `/assets/characters/${id}.webp?v=20261008-idphoto8-r1`,
   };
 });
 

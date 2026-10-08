@@ -1,5 +1,5 @@
 import { liveIntegrations } from "./live-integrations.js";
-import { characters } from "./content.js?v=20261007-portraits8-r1";
+import { characters } from "./content.js?v=20261008-idphoto8-r1";
 
 export class KioskError extends Error {
   constructor(code, retryable = true) {

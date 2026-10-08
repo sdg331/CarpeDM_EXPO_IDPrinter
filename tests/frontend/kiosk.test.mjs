@@ -50,24 +50,26 @@ test("Kiosk home keeps the two entry actions clear; absent records remain empty"
   const home = renderScreen({ screen: 'home' }, false, true);
   assert.match(home, /data-action="checkin"/);
   assert.match(home, /data-action="checkout"/);
-  assert.match(home, /입사하신 것을/);
+  assert.match(home, /입사를 진심으로<br>축하합니다\./);
+  assert.match(home, /당신과 함께할 오늘을 기대합니다\./);
+  assert.doesNotMatch(home, /WELCOME TO MIRRORTING WORKS|오늘, 어떤 나로|오늘의 직장 생활/);
   assert.doesNotMatch(home, /welcome-mark|pi-device-strip|kiosk-journey|pi-intro/);
   const report = renderScreen({ screen: 'webReport' }, false, true);
   assert.match(report, /아직 연결된 체험 기록이 없어요/);
   assert.doesNotMatch(report, /data-action="report-print"/);
 });
 
-test("Header keeps status accessible, discloses previews, and surfaces an unavailable service", () => {
+test("Header omits the status button, discloses previews, and surfaces an unavailable service", () => {
   for (const health of ["unknown", "healthy", "unavailable"]) {
     const header = renderHeader(false, false, false, health);
-    assert.match(header, /data-action="connections" aria-label="장치 상태" aria-haspopup="dialog"/);
+    assert.doesNotMatch(header, /connection-button|data-action="connections"|장치 상태/);
     assert.doesNotMatch(header, /기기 체험|장치 연결은/);
     if (health === "unavailable") assert.match(header, /role="status">서비스 연결 대기 중/);
     else assert.doesNotMatch(header, /live-notice/);
   }
-  assert.match(renderHeader(false, true, false, "healthy"), /aria-label="웹 미리보기 · 상태"/);
+  assert.doesNotMatch(renderHeader(false, true, false, "healthy"), /connection-button/);
   const sample = renderHeader(true, false, true, "unknown");
-  assert.match(sample, /aria-label="샘플 체험 · 상태"/);
+  assert.doesNotMatch(sample, /connection-button/);
   assert.match(sample, /카메라 · 카드 · 출력은 화면 체험/);
   assert.match(sample, /data-action="settings"/);
 });
@@ -428,6 +430,7 @@ test("All 8 portraits are previewed and accepted; unknown IDs are rejected", () 
   }
   const html = renderScreen({ screen: "detailA", aiMode: "A" }, false);
   assert.match(html, /8명의 MIRRORTING 캐릭터/);
+  assert.doesNotMatch(html, /<details|<summary|class="how-list"/);
   for (const { thumbnail } of characters) assert.ok(html.includes(`src="${thumbnail}"`));
 });
 test("Mode B profile responses are normalized without accepting arbitrary image paths", () => {

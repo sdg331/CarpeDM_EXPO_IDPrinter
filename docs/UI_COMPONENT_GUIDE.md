@@ -46,9 +46,11 @@ States:
 
 Grid target: 2×3.
 
-현재 선택 카드는 팀 이름·작은 단색 아이콘·짧은 소개·`소개 보기`로 구성한다. 카드 전체를 누르면 상세로 이동하며, 이름과 동작을 접근 가능한 버튼 이름으로 제공한다. 소개는 24px, 팀 이름은 36px이며 얇은 테두리와 14px 모서리를 사용한다. 문장이 두 줄로 나뉠 때는 줄 길이를 균형 있게 맞춘다.
+현재 선택 카드는 큰 투명 3D 아이콘·팀 이름·화살표로 구성한다. 짧은 소개와 `선택하기`는 접근 가능한 설명/이름에 유지하고 시각적 반복은 줄인다. 카드 전체를 누르면 선택한 팀을 저장하고 이름 입력으로 이동한다. 이름과 동작을 접근 가능한 버튼 이름으로 제공한다. 팀 이름은 32px이며 얇은 테두리와 22px 모서리를 사용한다. 키오스크 아이콘은 152px이고 카드 최소 높이는 240px이다. 아이콘은 행마다 60ms 간격으로 한 번 등장하고 버튼은 터치할 때 배경색으로 즉시 반응한다. 동작 줄이기에서는 그림의 등장 효과를 끈다.
 
 ## TeamDetailCard
+
+2026-10-08: SCR-03은 흐름에서 제외했다. 아래는 이전 명세다.
 
 Contents:
 - icon
@@ -72,6 +74,8 @@ Props:
 A and B use same structure/size.
 
 ## AIModeDetail
+
+현재 SCR-06은 8개 큰 캐릭터 사진과 한 줄 부제, 촬영 시작 버튼으로 구성한다. 기술 과정·토글은 표시하지 않는다.
 
 Contents:
 - title
@@ -169,3 +173,9 @@ Before creating new component/style:
 2. search current CSS/JS patterns
 3. check DESIGN.md
 4. create only if semantics genuinely differ
+
+## Current loading presentation · 2026-10-08
+
+- Decorative artwork remains still. A single 28px indicator has a reserved row above status copy; it never overlays an icon. Reduced motion disables rotation.
+- Kiosk and sample presentation share portrait dimensions. Checkout artwork occupies a centered 400px square; error artwork is reduced to preserve recovery actions.
+- While fetching a report, stale report content and onward actions stay hidden and the fetch button remains disabled.

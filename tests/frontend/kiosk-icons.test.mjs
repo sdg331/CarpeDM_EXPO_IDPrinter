@@ -3,9 +3,20 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renderScreen } from "../../frontend/js/views.js";
 
+test("Card artwork stops its working motion when an error is shown", () => {
+  const state = { name: "김미래", team: { title: "개발팀" }, busy: true, nfc: "writing" };
+  for (const screen of ["nfc", "checkout"]) {
+    assert.match(renderScreen({ ...state, screen }, false), /status-art working/);
+    const error = renderScreen({ ...state, screen, error: { code: "NFC_ERROR", retryable: true } }, false);
+    assert.doesNotMatch(error, /status-art working/);
+    assert.match(error, /role="alert"/);
+    assert.match(error, /다시 시도하기/);
+  }
+});
+
 test("Merged glass icons retain current entry labels and hardware error recovery", () => {
   const home = renderScreen({ screen: "home" }, false);
-  assert.match(home, /입사하신 것을/);
+  assert.match(home, /입사를 진심으로<br>축하합니다\./);
   assert.match(home, /aria-label="출근하기"/);
   const screens = [[home, ["checkin-badge", "checkout-report"]]];
   const state = { name: "김미래", team: { title: "디자인팀" }, aiMode: "A" };
@@ -15,6 +26,9 @@ test("Merged glass icons retain current entry labels and hardware error recovery
     assert.match(html, /role="alert"/);
     assert.match(html, /data-action="(?:nfc-write|checkout-read|print-retry)"/);
     assert.doesNotMatch(html, /실물 출력을 확인했어요/);
+  }
+  for (const screen of ["checkinComplete", "checkoutComplete"]) {
+    screens.push([renderScreen({ ...state, screen }, true), ["completion-check"]]);
   }
   const report = renderScreen({ screen: "webReport" }, false, true);
   screens.push([report, ["checkout-report"]]);

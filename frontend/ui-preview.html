@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MIRRORTING WORKS · UI 화면 목록</title>
+  <link rel="stylesheet" href="/static/styles/tokens.css?v=20261008-touch-ui-r3">
+  <link rel="stylesheet" href="/static/styles/kiosk.css?v=20261008-touch-ui-r3">
+  <link rel="stylesheet" href="/static/styles/web.css?v=20261008-touch-ui-r3">
+  <link rel="stylesheet" href="/static/styles/kiosk-icons.css?v=20261008-touch-ui-r3">
+  <style>
+    body, body[data-runtime="kiosk"], body[data-runtime="web"] { overflow: auto; }
+    .preview-tools { position: sticky; top: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 12px; padding: 16px; background: #fff; border-bottom: 1px solid #ddd; }
+    .preview-tools label { display: grid; gap: 4px; font-size: 14px; }
+    .preview-tools select, .preview-tools button, .preview-tools a { min-height: 48px; padding: 10px; border: 1px solid #ccd3dc; border-radius: 8px; background: #fff; color: #24354b; }
+    .preview-tools a { align-self: end; text-decoration: none; }
+    .preview-tools p { flex-basis: 100%; font-size: 14px; color: #596577; }
+    #stage, body[data-runtime="kiosk"] #stage, body[data-runtime="web"] #stage { position: relative; inset: auto; padding: 16px; min-height: 0; display: block; overflow: auto; }
+    #kiosk, body[data-runtime="web"] #kiosk { margin: auto; }
+    #preview-url { width: 100%; padding: 10px; font-size: 14px; }
+  </style>
+  <script type="module" src="/static/js/ui-preview.js?v=20261008-touch-ui-r3"></script>
+</head>
+<body data-runtime="kiosk">
+  <nav class="preview-tools" aria-label="UI 미리보기 설정">
+    <label>화면<select id="preview-screen"></select></label>
+    <label>팀<select id="preview-team"></select></label>
+    <label>상태<select id="preview-state">
+      <option value="default">기본</option><option value="loading">로딩</option>
+      <option value="error">오류 · 재시도</option><option value="empty">체험 기록 없음</option>
+      <option value="unknown">출력 결과 불확실</option>
+    </select></label>
+    <a href="/?sample=1&controls=1" target="_blank" rel="noopener">클릭 흐름 체험 ↗</a>
+    <p>UI 확인용 고정 화면입니다. 아래 화면의 버튼은 동작하지 않으며, 카메라·AI·카드·출력을 실행하지 않습니다. 키오스크는 800×1280 원본 크기이며 작은 창에서는 스크롤하세요.</p>
+    <label style="width:100%">현재 화면 주소 · 선택 후 복사<input id="preview-url" readonly aria-label="현재 화면 주소"></label>
+  </nav>
+  <div id="stage"><div id="kiosk">
+    <header id="header"></header><main id="screen" tabindex="-1"></main>
+    <footer id="footer"></footer><div id="overlay"></div>
+  </div></div>
+</body>
+</html>

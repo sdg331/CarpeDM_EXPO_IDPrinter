@@ -1,6 +1,6 @@
-import { characters, teams, modes } from "./content.js?v=20261007-portraits8-r1";
+import { characters, teams, modes } from "./content.js?v=20261008-idphoto8-r1";
 import { icon, logo } from "./icons.js";
-import { errorCopy } from "./api-client.js?v=20261007-portraits8-r1";
+import { errorCopy } from "./api-client.js?v=20261008-idphoto8-r1";
 
 export const escape = (value) =>
   String(value ?? "").replace(
@@ -23,13 +23,12 @@ const kioskArtwork = (name) =>
   `<img class="kiosk-artwork" src="/assets/kiosk-icons/${name}.png" alt="" aria-hidden="true" width="1254" height="1254" decoding="async">`;
 
 export function renderHeader(demo, web, showDemoControls, health) {
-  const statusLabel = demo ? "샘플 체험 · 상태" : web ? "웹 미리보기 · 상태" : "장치 상태";
   const notice = demo
     ? `<div class="demo-line"><span><b>샘플</b> 카메라 · 카드 · 출력은 화면 체험입니다</span>${showDemoControls ? '<button class="demo-settings" data-action="settings">시연 설정</button>' : ""}</div>`
     : health === "unavailable"
       ? '<div class="live-notice" role="status">서비스 연결 대기 중 · 현장 스태프에게 문의해주세요.</div>'
       : "";
-  return `<div class="header-row"><div class="brand">${logo()}<span class="brand-word">MIRRORTING<br>WORKS</span></div><button class="connection-button" data-action="connections" aria-label="${statusLabel}" aria-haspopup="dialog">${icon("info")}<span>${statusLabel}</span></button></div>${notice}`;
+  return `<div class="header-row"><div class="brand">${logo()}<span class="brand-word">MIRRORTING<br>WORKS</span></div></div>${notice}`;
 }
 
 export function renderTeamPreview(team) {
@@ -70,12 +69,12 @@ const errorActions = (s, retry) =>
 function home(demo, web) { return webHome(demo, web); }
 
 function webHome(demo = false, web = false) {
-  return `<div class="kiosk-welcome"><div class="welcome-copy"><p class="welcome-eyebrow">WELCOME TO MIRRORTING WORKS</p><h1>입사하신 것을<br>진심으로 축하드립니다.</h1><p class="subtitle">오늘의 직장 생활을 시작해볼까요?</p></div></div>
-  <div class="kiosk-entry-actions"><button class="kiosk-entry checkin-entry" data-action="checkin" aria-label="출근하기"><span class="entry-symbol">${kioskArtwork("checkin-badge")}</span><span class="entry-content"><strong>출근하기</strong><span>나의 팀을 선택하고 사원증을 만들어요.</span></span>${icon("arrow")}</button><button class="kiosk-entry checkout-entry" data-action="checkout" aria-label="퇴근하기"><span class="entry-symbol">${kioskArtwork("checkout-report")}</span><span class="entry-content"><strong>퇴근하기</strong><span>오늘의 기록을 확인하고 기념사진을 남겨요.</span></span>${icon("arrow")}</button></div>`;
+  return `<div class="kiosk-welcome"><div class="welcome-copy"><h1>입사를 진심으로<br>축하합니다.</h1><p class="subtitle">당신과 함께할 오늘을 기대합니다.</p></div></div>
+  <div class="kiosk-entry-actions"><button class="kiosk-entry checkin-entry" data-action="checkin" aria-label="출근하기"><span class="entry-symbol">${kioskArtwork("checkin-badge")}</span><span class="entry-content"><strong>출근하기</strong><span>나의 사원증 만들기</span></span>${icon("arrow")}</button><button class="kiosk-entry checkout-entry" data-action="checkout" aria-label="퇴근하기"><span class="entry-symbol">${kioskArtwork("checkout-report")}</span><span class="entry-content"><strong>퇴근하기</strong><span>오늘의 기록 보기</span></span>${icon("arrow")}</button></div>`;
 }
 
 const cameraOverlay = (demo = false) =>
-  `<div class="camera-toolbar" aria-hidden="true"><span class="camera-caption">${icon("camera")} ${demo ? "샘플 미리보기" : "카메라"}</span><span class="camera-detection" id="camera-detection">준비 중</span></div><p class="camera-instruction" id="camera-instruction" role="status">카메라를 준비하고 있어요.</p>`;
+  `<div class="camera-toolbar" aria-hidden="true"><span class="camera-caption">${icon("camera")} ${demo ? "샘플 미리보기" : "카메라"}</span><span class="camera-detection" id="camera-detection">${demo ? "샘플 준비 완료" : "준비 중"}</span></div><p class="camera-instruction" id="camera-instruction" role="status">${demo ? "이 사진으로 진행할 수 있어요." : "카메라를 준비하고 있어요."}</p>`;
 
 function webCamera(s) {
   return `${step(3, "사진 준비")}${heading("", "내 얼굴을 담아볼까요?", "밝은 곳에서 얼굴 전체가 보이도록 정면을 바라봐주세요.")}
@@ -130,8 +129,8 @@ function webProcessing(s) {
 }
 
 function teamSelection() {
-  return `${step(1, "나의 팀 선택")}${heading("FIND YOUR TEAM", "어느 팀의 합격 문자를<br>받으셨나요?", "합격한 팀을 선택해주세요.")}
-    <div class="team-grid">${teams.map((team) => `<button class="team-card" data-action="team-select" data-id="${team.id}" aria-labelledby="team-${team.id}-name team-${team.id}-action" aria-describedby="team-${team.id}-summary"><span class="team-card-heading"><strong id="team-${team.id}-name">${team.title}</strong>${teamIcon(team)}</span><span class="team-card-summary" id="team-${team.id}-summary">${team.summary}</span><span class="team-card-link"><span id="team-${team.id}-action">선택하기</span>${icon("arrow")}</span></button>`).join("")}</div>${actions(helper("선택한 팀은 사원증에 함께 표시돼요.", "badge"))}`;
+  return `${step(1, "나의 팀 선택")}${heading("FIND YOUR TEAM", "어느 팀과 함께할까요?", "선택한 팀이 사원증에 표시돼요.")}
+    <div class="team-grid">${teams.map((team) => `<button class="team-card" data-action="team-select" data-id="${team.id}" aria-labelledby="team-${team.id}-name team-${team.id}-action" aria-describedby="team-${team.id}-summary"><span class="team-card-heading"><strong id="team-${team.id}-name">${team.title}</strong>${teamIcon(team)}</span><span class="team-card-summary" id="team-${team.id}-summary">${team.summary}</span><span class="team-card-link"><span id="team-${team.id}-action">선택하기</span>${icon("arrow")}</span></button>`).join("")}</div>`;
 }
 function teamDetail(s) {
   const team = s.draftTeam;
@@ -145,21 +144,17 @@ function nameInput(s, web) {
 }
 function modeDetail(s, demo) {
   const mode = modes[s.aiMode];
-  const steps = s.aiMode === "A"
-    ? [["얼굴 확인", "얼굴 위치와 촬영 상태를 확인해요."], ["특징 추출", "얼굴의 특징을 데이터로 변환해요."], ["캐릭터 비교", `${characters.length}명의 캐릭터와 얼굴 특징을 비교해요.`]]
-    : [["얼굴 확인", "얼굴 위치와 사진 선명도를 확인해요."], ["구도 정리", "촬영한 옷 그대로, 얼굴이 크게 보이도록 맞춰요."], ["프로필 생성", "배경과 구도를 정리해 이미지를 만들어요."]];
   const preview = s.aiMode === "A" ? `<section class="matching-preview" aria-label="매칭 캐릭터 미리보기"><div class="matching-preview-heading"><strong>${characters.length}명의 MIRRORTING 캐릭터</strong><span>미리보기</span></div><div class="matching-portraits" aria-hidden="true">${characters.map(({ thumbnail }) => `<img src="${thumbnail}" alt="" width="96" height="128" decoding="async">`).join("")}</div></section>` : "";
-  const stepIcons = s.aiMode === "A" ? ["user", "spark", "people"] : ["user", "camera", "badge"];
-  return `${step(3, "캐릭터 매칭")}${heading("", mode.title, mode.detail)}${preview}<div class="ai-details"><ol class="how-list" aria-label="진행 과정">${steps.map(([title, copy], i) => `<li><span class="num">0${i + 1}</span><div><strong>${title}</strong>${s.aiMode === "A" ? "" : `<p>${copy}</p>`}</div><span class="matching-step-icon">${icon(stepIcons[i])}</span></li>`).join("")}</ol></div>${s.aiMode === "B" ? `<p class="mode-note">${demo ? "준비된 데모 이미지로 전체 과정을 이어서 보여드려요." : "사진은 외부로 보내지 않고 이 기기 안에서만 합성해요."}</p>` : ""}${actions(btn("camera-open", mode.cta) + btn("back", "이름 수정하기", "text", ""))}`;
+  return `${step(3, "캐릭터 매칭")}${heading("", mode.title, s.aiMode === "A" ? "사진 한 장으로 나와 닮은 캐릭터를 찾아요." : mode.detail)}${preview}${s.aiMode === "B" ? `<p class="mode-note">${demo ? "준비된 데모 이미지로 전체 과정을 이어서 보여드려요." : "사진은 외부로 보내지 않고 이 기기 안에서만 합성해요."}</p>` : ""}${actions(btn("camera-open", mode.cta) + btn("back", "이름 수정하기", "text", ""))}`;
 }
 function cameraScreen(s, demo) {
   return `${step(3, "프로필 촬영")}${heading("READY FOR YOUR CLOSE-UP?", demo ? "이 사진으로 시작할게요." : "화면을 바라봐주세요.", demo ? "오늘 시연은 준비된 인물 이미지로 진행해요." : "얼굴이 잘 보이면 촬영 버튼이 활성화돼요.")}<div class="camera-panel${demo ? " ready" : ""}" id="camera-panel">${demo ? `<div class="camera-sample"><img src="${characters[0].image}" alt="데모용 인물 이미지"></div>` : '<video id="camera-video" autoplay muted playsinline aria-label="카메라 프리뷰"></video>'}${cameraOverlay(demo)}</div><p class="camera-state-note">${demo ? "샘플 사진으로 촬영 흐름을 확인해요." : "촬영한 원본 이미지는 분석 후 저장하지 않아요."}</p><div id="camera-error"></div>${actions(btn("capture", demo ? "이 사진으로 계속" : "촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "", "")).replace('data-action="camera-retry"', 'data-action="camera-retry" hidden')}`;
 }
 function processing(s, demo) {
-  return `${step(3, "캐릭터 분석", false)}${heading("A LITTLE MOMENT OF DISCOVERY", s.error ? "사진을 다시<br>확인해주세요." : "닮은 캐릭터를<br>찾고 있어요.")}${s.error ? statusVisual("camera") : `${analysisPhoto(s, demo)}<div class="status-copy" role="status"><h2>${s.aiMode === "A" ? "얼굴 특징을 읽고 캐릭터와 비교해요." : "얼굴 위치를 읽고 프로필 구도를 만들어요."}</h2><p>${demo ? "준비된 샘플 데이터로 결과 화면을 보여드려요." : "외부 전송 없이 이 기기 안에서 분석하고 있어요."}</p></div>`}${errorPanel(s.error)}${s.error ? actions(errorActions(s, "ai-retry")) : ""}`;
+  return `${step(3, "캐릭터 분석", false)}${heading("A LITTLE MOMENT OF DISCOVERY", s.error ? "사진을 다시<br>확인해주세요." : "닮은 캐릭터를<br>찾고 있어요.")}${s.error ? statusVisual("camera") : `${analysisPhoto(s, demo)}<div class="status-copy loading-state" role="status"><h2>${s.aiMode === "A" ? "얼굴 특징을 읽고 캐릭터와 비교해요." : "얼굴 위치를 읽고 프로필 구도를 만들어요."}</h2><p>${demo ? "준비된 샘플 데이터로 결과 화면을 보여드려요." : "외부 전송 없이 이 기기 안에서 분석하고 있어요."}</p></div>`}${errorPanel(s.error)}${s.error ? actions(errorActions(s, "ai-retry")) : ""}`;
 }
 function result(s, demo) {
-  return `${step(3, "나의 AI 프로필", false)}${heading("YOUR NEW IDENTITY", s.aiMode === "A" ? "나의 캐릭터를 찾았어요." : "나만의 프로필이 완성됐어요.", s.aiMode === "A" ? `${characters.length}명의 캐릭터 중 가장 가까운 캐릭터예요.` : "사원증에 들어갈 프로필을 확인해주세요.")}<div class="result-pass"><div class="pass-header">MIRRORTING WORKS ${logo()}</div><div class="pass-photo"><img src="${escape(s.result.image)}" alt="${demo ? "데모용 프로필 예시" : "나의 AI 프로필"}"></div><div class="pass-info"><div><h2>${escape(s.name)}</h2><p>${escape(s.team.title)}</p></div></div><div class="pass-number">MIRRORTING WORKS 사원 프로필</div></div><p class="result-explanation">${demo ? '<span class="demo-chip">샘플</span> 준비된 이미지로 보여드리는 결과예요.' : s.aiMode === "A" ? "캐릭터 간 상대적인 특징을 비교한 결과예요." : "촬영한 얼굴과 옷을 유지하고, 얼굴이 잘 보이도록 배경과 구도를 정리했어요."}</p>${errorPanel(s.error)}${actions(s.error ? errorActions(s, "nfc-open") : btn("nfc-open", s.replacingProfile ? "새 프로필로 출력 다시 준비" : "이 프로필로 사원증 만들기", "", "badge") + btn("retake", "다시 촬영하기", "text", "", s.busy) + helper(s.replacingProfile ? "카드는 이미 등록됐어요. 새 프로필만 현재 세션에 연결합니다." : "다음 단계에서 사원증 카드를 등록해요.", "nfc"))}`;
+  return `${step(3, "나의 AI 프로필", false)}${heading("YOUR NEW IDENTITY", s.aiMode === "A" ? "나의 캐릭터를 찾았어요." : "나만의 프로필이 완성됐어요.", s.aiMode === "A" ? `${characters.length}명의 캐릭터 중 가장 가까운 캐릭터예요.` : "사원증에 들어갈 프로필을 확인해주세요.")}<div class="result-pass"><div class="pass-header">MIRRORTING WORKS ${logo()}</div><div class="pass-photo"><img src="${escape(s.result.image)}" alt="${demo ? "데모용 프로필 예시" : "나의 AI 프로필"}"></div><div class="pass-info"><div><h2>${escape(s.name)}</h2><p>${escape(s.team.title)}</p></div></div><div class="pass-number">MIRRORTING WORKS 사원 프로필</div></div><p class="result-explanation">${demo ? '<span class="demo-chip">샘플</span> 준비된 이미지로 보여드리는 결과예요.' : s.aiMode === "A" ? "캐릭터 간 상대적인 특징을 비교한 결과예요." : "촬영한 얼굴과 옷을 유지하고, 얼굴이 잘 보이도록 배경과 구도를 정리했어요."}</p>${errorPanel(s.error)}${actions(s.error ? errorActions(s, "nfc-open") : btn("nfc-open", s.replacingProfile ? "새 프로필로 출력 다시 준비" : "이 프로필로 사원증 만들기", "", "badge") + btn("retake", "다시 촬영하기", "text", "", s.busy))}`;
 }
 function nfc(s, demo, checkout = false) {
   const busy = s.busy;
@@ -185,10 +180,7 @@ function nfc(s, demo, checkout = false) {
   const demoInstruction = checkout
     ? "버튼을 누르면 사원증 확인 시연이 이어져요."
     : "버튼을 누르면 카드 등록 시연이 이어져요.";
-  const demoSupport = checkout
-    ? "체험 기록 확인 과정을 화면에서 안전하게 확인할 수 있어요."
-    : "등록 과정을 화면에서 안전하게 확인할 수 있어요.";
-  return `${step(checkout ? 1 : 4, checkout ? "사원증 확인" : "사원증 카드 등록", !busy && checkout)}${heading(checkout ? "WELCOME BACK" : "MAKE IT YOURS", s.error ? "카드 확인을<br>마치지 못했어요." : title, s.error ? "아래 안내를 확인해주세요." : demo ? demoInstruction : "화면 아래 오른쪽 카드 리더에 올려주세요.")}${statusVisual("nfc", busy, true)}${s.error ? "" : `<div class="status-copy" role="status"><h2>${busy ? nfcCopy[s.nfc] || nfcCopy.waiting : ready}</h2><p>${busy ? "확인이 끝날 때까지 잠시만 기다려주세요." : demo ? demoSupport : "카드는 한 장만 올려주세요."}</p></div>`}${!checkout ? identity(s) : ""}${errorPanel(s.error)}${actions(s.error ? errorActions(s, checkout ? "checkout-read" : "nfc-write") : btn(checkout ? "checkout-read" : "nfc-write", busy ? "카드를 확인하고 있어요" : demo ? checkout ? "리포트 확인 시연하기" : "카드 등록 시연하기" : "카드 확인하기", "", busy ? "" : "nfc", busy, busy))}`;
+  return `${step(checkout ? 1 : 4, checkout ? "사원증 확인" : "사원증 카드 등록", !busy && checkout)}${heading(checkout ? "WELCOME BACK" : "MAKE IT YOURS", s.error ? "카드 확인을<br>마치지 못했어요." : title, s.error ? "아래 안내를 확인해주세요." : busy ? "확인이 끝날 때까지 잠시만 기다려주세요." : demo ? demoInstruction : "화면 아래 오른쪽 카드 리더에 올려주세요.")}${statusVisual("nfc", busy && !s.error, true)}${s.error ? "" : `<div class="status-copy" role="status"><h2>${busy ? nfcCopy[s.nfc] || nfcCopy.waiting : ready}</h2>${demo ? "" : "<p>카드는 한 장만 올려주세요.</p>"}</div>`}${!checkout ? identity(s) : ""}${errorPanel(s.error)}${actions(s.error ? errorActions(s, checkout ? "checkout-read" : "nfc-write") : btn(checkout ? "checkout-read" : "nfc-write", busy ? "카드를 확인하고 있어요" : demo ? checkout ? "리포트 확인 시연하기" : "카드 등록 시연하기" : "카드 확인하기", "", busy ? "" : "nfc", busy))}`;
 }
 function printing(s, demo, report = false) {
   return `${step(report ? 4 : 5, report ? "퇴근 리포트 출력" : "사원증 출력", false)}${heading("A MOMENT TO TAKE WITH YOU", s.error ? s.error.code === "UNKNOWN_OUTCOME" ? "출력 결과를<br>확인하고 있어요." : "출력을 마치지<br>못했어요." : report ? "리포트를<br>준비하고 있어요." : "사원증을<br>준비하고 있어요.")}${statusVisual("printer", !s.error)}${s.error ? "" : `<div class="status-copy" role="status"><h2>${demo ? "샘플 화면을 준비하고 있어요." : "서버 응답을 기다리고 있어요."}</h2><p>${demo ? "실물 출력은 진행하지 않아요." : "결과를 확인하기 전에는 다시 누르지 마세요."}</p></div>`}${errorPanel(s.error)}${s.error ? actions(errorActions(s, "print-retry")) : ""}`;
@@ -202,16 +194,16 @@ function complete(s, demo, checkout = false) {
   const routeCopy = demo ? "카드 등록과 스마트미러 체험은 현장 스태프의 안내를 따라주세요." : checkout ? "실물 인쇄 여부를 확인한 뒤 전시 운영 안내를 따라주세요." : "등록한 카드를 가지고 스마트미러로 이동해주세요.";
   const preview = status === "preview" && s.printResult?.previewUrl
     ? `<a class="print-preview-link" href="${escape(s.printResult.previewUrl)}" target="_blank" rel="noopener">${item} 이미지 미리보기 열기</a>` : "";
-  return `${step(5, checkout ? "퇴근 결과" : "입사 결과", false)}${heading(checkout ? "UNTIL WE MEET AGAIN" : "YOU’RE ONE OF US NOW", title, `${escape(s.name)}님, ${demo ? "샘플 화면을 모두 확인했어요." : checkout ? "오늘의 기록을 확인해보세요." : "다음 체험으로 이어가세요."}`)}<div class="status-visual complete-visual"><div class="check-mark">${icon("check")}</div></div><div class="status-copy" role="status"><p>${note}</p></div>${preview}<div class="completion-route">${icon(checkout ? "receipt" : "mirror")}<div><strong>${routeTitle}</strong><p>${routeCopy}</p></div></div>${actions(btn("home", "처음 화면으로", "", "arrow") + (demo ? "" : '<p class="countdown"><span id="complete-count">15</span>초 뒤 처음 화면으로 돌아가요.</p>'))}`;
+  return `${step(5, checkout ? "퇴근 결과" : "입사 결과", false)}<div class="completion-hero"><div class="completion-art" aria-hidden="true">${kioskArtwork("completion-check")}</div>${heading(checkout ? "UNTIL WE MEET AGAIN" : "YOU’RE ONE OF US NOW", title, `${escape(s.name)}님, ${demo ? "샘플 화면을 모두 확인했어요." : checkout ? "오늘의 기록을 확인해보세요." : "다음 체험으로 이어가세요."}`)}</div><div class="status-copy completion-note" role="status"><p>${note}</p></div>${preview}<div class="completion-route"><span class="completion-route-icon">${icon(demo ? "info" : checkout ? "receipt" : "mirror")}</span><div><strong>${routeTitle}</strong><p>${routeCopy}</p></div></div>${actions(btn("home", "처음 화면으로", "", "arrow") + (demo ? "" : '<p class="countdown"><span id="complete-count">15</span>초 뒤 처음 화면으로 돌아가요.</p>'))}`;
 }
 function checkoutResult(s, demo) {
-  const available = s.report?.status === "available";
+  const available = !s.busy && !s.error && s.report?.status === "available";
   const headline = demo ? s.report?.scenario : s.report?.headline?.sentence;
   const summary = demo ? s.report?.summary : s.report?.headline?.context;
   return `${step(2, "오늘의 체험 확인", !s.busy)}${heading("LOOK BACK ON YOUR DAY", `${escape(s.name)}님,<br>어떤 하루였나요?`, available ? "사진은 선택이에요. 바로 리포트를 확인해도 좋아요." : "MirrorTing에서 함께한 경험을 확인해보세요.")}${identity(s)}<div class="record-card"><span class="pill">${demo ? "체험용 예시 데이터" : "MirrorTing에서 받은 기록"}</span><h2>${s.busy ? "체험 기록을 불러오고 있어요." : available ? escape(headline || "체험 기록을 받았어요.") : "아직 체험 기록을 찾지 못했어요."}</h2><p>${available ? escape(summary || "아래에서 실제 리포트 항목을 확인할 수 있어요.") : s.busy ? "잠시만 기다려주세요." : "스마트미러 체험을 마쳤다면 잠시 후 다시 확인해주세요."}</p></div>${errorPanel(s.error)}${actions(available ? btn("report-open", "기념사진 남기기", "", "camera") + btn("photo-skip", "사진 없이 리포트 보기", "text", "") : btn("report-fetch", s.busy ? "기록을 확인하고 있어요" : "다시 확인", "", "arrow", s.busy, s.busy))}`;
 }
 function souvenirCamera(s, demo) {
-  return `${step(3, "퇴근 기념사진")}${heading("ONE LAST MEMORY", "오늘의 나를<br>한 장 남겨볼까요?", "사진은 선택이에요. 촬영하지 않아도 리포트를 확인할 수 있어요.")}<div class="camera-panel souvenir-camera" id="camera-panel">${demo ? `<div class="camera-sample"><img src="${characters[0].image}" alt="기념사진 샘플"></div>` : '<video id="camera-video" autoplay muted playsinline aria-label="기념사진 카메라 미리보기"></video>'}${cameraOverlay(demo)}</div><p class="camera-state-note">사진은 이번 리포트 화면에서만 미리 볼 수 있어요.</p><div id="camera-error"></div>${actions(btn("capture", demo ? "샘플 사진으로 계속" : "기념사진 촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "secondary", "").replace('data-action="camera-retry"', 'data-action="camera-retry" hidden') + btn("photo-skip", "사진 없이 계속하기", "text", ""))}`;
+  return `${step(3, "퇴근 기념사진")}${heading("ONE LAST MEMORY", "오늘의 나를<br>한 장 남겨볼까요?", "사진은 선택이에요. 촬영하지 않아도 리포트를 확인할 수 있어요.")}<div class="camera-panel souvenir-camera${demo ? " ready" : ""}" id="camera-panel">${demo ? `<div class="camera-sample"><img src="${characters[0].image}" alt="기념사진 샘플"></div>` : '<video id="camera-video" autoplay muted playsinline aria-label="기념사진 카메라 미리보기"></video>'}${cameraOverlay(demo)}</div><p class="camera-state-note">사진은 이번 리포트 화면에서만 미리 볼 수 있어요.</p><div id="camera-error"></div>${actions(btn("capture", demo ? "샘플 사진으로 계속" : "기념사진 촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "secondary", "").replace('data-action="camera-retry"', 'data-action="camera-retry" hidden') + btn("photo-skip", "사진 없이 계속하기", "text", ""))}`;
 }
 function souvenirReview(s, demo) {
   return `${step(3, "기념사진 확인", false)}${heading("KEEP THIS MOMENT", "이 사진으로<br>기억할까요?", demo ? "실제 촬영 결과가 아닌 샘플 사진이에요." : "마음에 들지 않으면 다시 찍을 수 있어요.")}<figure class="souvenir-review"><img src="${escape(s.souvenirPhoto)}" alt="이번 방문자의 퇴근 기념사진"><figcaption>${escape(s.name)} · ${escape(s.team?.title)}</figcaption></figure><p class="photo-print-note">현재 사진은 화면 미리보기에만 들어가요. 종이 리포트에는 체험 기록만 출력돼요.</p>${actions(btn("photo-confirm", "사진과 함께 리포트 보기", "", "receipt") + btn("photo-retake", "다시 찍기", "secondary", "camera") + btn("photo-skip", "사진 없이 계속하기", "text", ""))}`;

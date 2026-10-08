@@ -1,5 +1,5 @@
 import { createState, validateName } from "./state.js?v=20261006-analysis-photo";
-import { characters, teams, scenarios, screenIds } from "./content.js?v=20261007-portraits8-r1";
+import { characters, teams, scenarios, screenIds } from "./content.js?v=20261008-idphoto8-r1";
 import {
   createDemoApi,
   createLiveApi,
@@ -7,11 +7,11 @@ import {
   KioskError,
   errorCopy,
   wait,
-} from "./api-client.js?v=20261007-portraits8-r1";
+} from "./api-client.js?v=20261008-idphoto8-r1";
 import { Camera } from "./camera.js?v=20261005-audit-fixes";
-import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261007-portraits8-r1";
+import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261008-touch-ui-r3";
 import { icon } from "./icons.js";
-import { createMotion } from "./motion.js";
+import { createMotion } from "./motion.js?v=20261008-touch-ui-r3";
 import { resolveRuntime } from "./runtime.js";
 import { createDigitalBadge } from "./digital-badge.js";
 
@@ -44,7 +44,6 @@ let health = "unknown";
 let healthDetail = null;
 let healthRequest = null;
 let returnFocus = null;
-let renderedScreen = null;
 let badgeUrl = null;
 const motion = createMotion();
 const MIN_AI_SCREEN_MS = 6000;
@@ -66,13 +65,8 @@ function render(direction = "forward") {
   header.innerHTML = renderHeader(demo, web, showDemoControls, health);
   screen.dataset.screen = screenIds[s.screen];
   screen.innerHTML = renderScreen(s, demo, web);
-  footer.innerHTML = `<span class="footer-brand">CarpeDM <span class="footer-partner">× 동양미래대학교</span></span><span class="footer-index">MIRRORTING WORKS / ${screenIds[s.screen].replace("SCR-", "")}</span>`;
-  if (web) footer.innerHTML = `<span>CarpeDM · 2026 EXPO</span><span>로컬 웹 미리보기 · 실물 장치 미사용</span>`;
+  footer.innerHTML = `<span class="footer-partner">동양미래대학교 컴퓨터공학부 전공동아리 <span class="footer-brand">CarpeDM</span></span><span class="footer-index">MIRRORTING WORKS / ${screenIds[s.screen].replace("SCR-", "")}</span>`;
   lockHeader();
-  if (renderedScreen !== s.screen) {
-    motion.navigate(screen, direction);
-    renderedScreen = s.screen;
-  }
 }
 function lockHeader() {
   header.querySelectorAll(".demo-settings, .connection-button").forEach((button) => {
@@ -635,11 +629,7 @@ const handlers = {
   },
   "team-select": (el) => {
     const team = teams.find((t) => t.id === el.dataset.id);
-    if (team) {
-      state.patch({ draftTeam: team, screen: "team" });
-      screen.dataset.screen = screenIds.team;
-      openModal("team");
-    }
+    if (team) go("name", { team });
   },
   "team-confirm": () => {
     const team = state.data.draftTeam;

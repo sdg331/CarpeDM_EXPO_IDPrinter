@@ -3,9 +3,8 @@
 .kiosk-entry .entry-symbol { display: grid; place-items: center; width: 88px; height: 88px; flex-shrink: 0; }
 .kiosk-entry .entry-content { flex: 1; min-width: 0; }
 .view:has(.kiosk-welcome) .kiosk-entry { gap: 20px; }
-.status-visual.status-art { width: 220px; height: 220px; background: radial-gradient(ellipse, #e9f2ff, transparent 72%); box-shadow: none; }
+.status-visual.status-art { width: 220px; height: 220px; background: transparent; box-shadow: none; }
 .view:has(.error-box) .status-visual.status-art { width: 112px; height: 112px; }
-.status-art.working::after { inset: auto; right: 8px; bottom: 12px; width: 28px; height: 28px; border: 3px solid #dbe9ff; border-top-color: var(--brand); }
 .reader-visual:has(.kiosk-artwork) { width: 184px; height: 184px; flex-shrink: 0; background: transparent; }
 .report-placeholder > .kiosk-artwork { width: 96px; height: 96px; margin-bottom: 16px; }
 @media (max-width: 640px) {
