@@ -1,0 +1,29 @@
+/* Decorative motion stays separate from immediate touch-control feedback. */
+.team-image img,
+.matching-portraits img,
+.status-visual.status-art > .kiosk-artwork {
+  animation: kiosk-art-arrive 480ms var(--ease) backwards;
+}
+.team-card:nth-child(n+3) .team-image img { animation-delay: 60ms; }
+.team-card:nth-child(n+5) .team-image img { animation-delay: 120ms; }
+.matching-portraits img:nth-child(n+5) { animation-delay: 80ms; }
+.kiosk-entry .kiosk-artwork { animation: kiosk-art-float 6s ease-in-out infinite; }
+.checkout-entry .kiosk-artwork { animation-delay: -2s; animation-duration: 6.8s; }
+.status-visual.status-art.working > .kiosk-artwork { animation: kiosk-art-float 4.8s ease-in-out infinite; }
+.completion-art img { animation: kiosk-complete-arrive 520ms var(--ease) backwards; }
+
+@keyframes kiosk-art-arrive {
+  from { transform: translateY(8px) scale(.97); }
+  to { transform: translateY(0) scale(1); }
+}
+@keyframes kiosk-art-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes kiosk-complete-arrive {
+  from { transform: translateY(8px) scale(.94); }
+  to { transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .team-image img, .matching-portraits img, .kiosk-artwork, .completion-art img { animation: none !important; }
+}
