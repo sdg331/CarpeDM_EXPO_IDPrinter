@@ -49,6 +49,7 @@ from backend.face import (
 from backend.nfc import NfcError, nfc_status, read_card_uid
 from backend.printing import PREVIEWS, PrintError, print_badge, printer_status
 from backend.profile import ProfileComposer, ProfileQualityError, ProfileStore
+from backend.photo_lab import router as photo_lab_router
 from backend.reports import ReportError, fetch_mirrorting_report, render_report
 from backend.store import (
     TEAM_LABELS,
@@ -765,6 +766,7 @@ def issue(req: IssueRequest) -> dict:
     return {"ok": True, **_print_result(result, "legacy")}
 
 
+app.include_router(photo_lab_router)
 app.mount("/assets", StaticFiles(directory=ASSETS), name="assets")
 if FRONTEND.is_dir():
     app.mount("/static", StaticFiles(directory=FRONTEND), name="static")

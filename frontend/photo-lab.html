@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>사진 프레이밍 실험 · MIRRORTING WORKS</title>
+  <link rel="stylesheet" href="/static/styles/photo-lab.css">
+  <script type="module" src="/static/js/photo-lab.js"></script>
+</head>
+<body>
+  <main>
+    <header><span class="brand">MIRRORTING WORKS</span><span class="tag">사진 실험 · 발급과 별도</span></header>
+    <h1>내 사진으로<br>구도를 시험해요.</h1>
+    <p class="lead">얼굴과 옷을 새로 만들지 않고, 사진 비율과 배경만 정리해 봅니다.</p>
+    <section class="input-panel" aria-label="사진 선택">
+      <div class="buttons">
+        <label class="button primary">사진 선택<input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp"></label>
+        <label class="button">휴대폰으로 촬영<input id="phone-file" type="file" accept="image/jpeg,image/png,image/webp" capture="user"></label>
+        <button id="camera-open">카메라 켜기</button>
+        <button id="sample">캐릭터 + 여백 예시</button>
+      </div>
+      <p class="note">JPEG·PNG·WebP, 최대 8 MiB·1,200만 픽셀. 본인 또는 사용에 동의한 사진만 선택해주세요. HEIC는 JPEG로 변환해주세요.</p>
+      <p class="note">예시는 기존의 작은 캐릭터에 시험용 여백을 더한 이미지예요. 실제 방문자 사진·품질 검증 자료가 아닙니다.</p>
+      <div id="camera-panel" hidden>
+        <video id="camera" playsinline muted autoplay aria-label="촬영 미리보기"></video>
+        <div class="buttons"><button id="capture" disabled>이 화면 촬영</button><button id="camera-cancel">촬영 취소</button></div>
+      </div>
+    </section>
+    <p id="message" role="status" aria-live="polite">사진은 브라우저 메모리에만 둡니다.</p>
+    <section id="editor" hidden aria-label="사진 구도 조절">
+      <div class="previews">
+        <figure><figcaption>1. 원본 프레이밍 <span>3:4 · 얼굴·옷 그대로</span></figcaption><canvas id="framed" width="720" height="960" aria-label="프레이밍 결과"></canvas></figure>
+        <figure><figcaption>2. 로컬 배경·구도 정리 <span id="result-label">아직 실행하지 않았어요</span></figcaption><div class="result-box"><img id="result" alt="로컬 처리 결과" hidden><p id="result-empty">외부 AI 없이 로컬 CV로 처리해요.<br>머리카락·어깨 경계가 부정확할 수 있어요.</p></div></figure>
+      </div>
+      <div class="controls">
+        <label>확대 <input id="zoom" type="range" min="1" max="2.5" step="0.05" value="1"></label>
+        <label>좌우 위치 <input id="offset-x" type="range" min="0" max="100" value="50"></label>
+        <label>상하 위치 <input id="offset-y" type="range" min="0" max="100" value="50"></label>
+      </div>
+      <p class="note">슬라이더는 브라우저 안에서 처리합니다. 아래 버튼을 누르면 프레이밍 사진 한 장을 현재 로컬 서버에 보내고 결과를 바로 돌려받습니다. 서버에 원본·결과를 저장하지 않습니다.</p>
+      <div class="buttons">
+        <button id="compose" class="primary" disabled>로컬 배경·구도 정리</button>
+        <button id="cancel-process" hidden>처리 취소</button>
+        <button id="download">프레이밍 PNG 저장</button>
+        <button id="download-result" disabled>정리 결과 PNG 저장</button>
+        <button id="retake">재촬영</button>
+        <button id="clear">사진 지우기</button>
+      </div>
+      <p id="engine-status" class="note">로컬 처리 준비 상태를 확인하고 있어요.</p>
+    </section>
+    <aside><strong>정장 생성은 미구현입니다.</strong><p>현재는 기존 옷을 유지합니다. 정장 생성 버튼이나 가짜 생성 결과를 제공하지 않습니다. 실제 생성은 제공자·요금·사진 전송과 보관 동의를 별도로 정해야 합니다.</p></aside>
+    <footer>이 실험은 사원증 발급·NFC·프린터와 연결하지 않습니다. 사진을 지우거나 페이지를 닫으면 메모리 참조를 해제합니다.</footer>
+  </main>
+</body>
+</html>
