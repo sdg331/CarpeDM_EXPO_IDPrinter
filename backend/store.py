@@ -338,6 +338,12 @@ class KioskStore:
             ).fetchone()
         return self.get_operation(row['operation_id']) if row else None
 
+    def unresolved_souvenir_print(self) -> bool:
+        with closing(self._connect()) as con:
+            return con.execute(
+                "SELECT 1 FROM operations WHERE kind='souvenir_print' AND status IN ('running','unknown') LIMIT 1"
+            ).fetchone() is not None
+
     def restart_operation(self, operation_id: str, *, kind: str) -> dict[str, Any]:
         op = self.get_operation(operation_id, kind)
         if not op:
@@ -506,7 +512,7 @@ class KioskStore:
             con.execute("BEGIN IMMEDIATE")
             con.execute(
                 "UPDATE operations SET status='unknown',error_code='UNKNOWN_OUTCOME',retryable=0,updated_at=? "
-                "WHERE status='running' AND kind IN ('badge_print','report_print')", (_now(),),
+                "WHERE status='running' AND kind IN ('badge_print','report_print','souvenir_print')", (_now(),),
             )
             con.execute(
                 "UPDATE operations SET status='retryable_error',error_code='NFC_INTERRUPTED',retryable=1,updated_at=? "
@@ -522,14 +528,14 @@ class KioskStore:
         with closing(self._connect()) as con:
             con.execute('BEGIN IMMEDIATE')
             row = con.execute('SELECT * FROM operations WHERE operation_id=?', (operation_id,)).fetchone()
-            if not row or row['kind'] not in {'badge_print', 'report_print'} or row['status'] != 'unknown':
+            if not row or row['kind'] not in {'badge_print', 'report_print', 'souvenir_print'} or row['status'] != 'unknown':
                 raise OperationConflict('only unknown print operations can be resolved')
             session = con.execute('SELECT * FROM sessions WHERE session_id=?', (row['session_id'],)).fetchone()
-            if not session or session['status'] == 'expired':
+            if row['kind'] != 'souvenir_print' and (not session or session['status'] == 'expired'):
                 raise OperationConflict('expired session cannot be resumed')
             if outcome == 'not_printed':
                 binding = con.execute('SELECT 1 FROM card_bindings WHERE session_id=? AND active=1', (row['session_id'],)).fetchone()
-                if not binding:
+                if row['kind'] != 'souvenir_print' and not binding:
                     raise OperationConflict('card was released or assigned to another visitor')
                 con.execute(
                     "UPDATE operations SET status='retryable_error',error_code='PRINT_RETRY_AUTHORIZED',retryable=1,updated_at=? WHERE operation_id=?",

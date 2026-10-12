@@ -2,6 +2,8 @@
 
 ## 2026-10-08 Visitor UI update
 
+2026-10-12 사진 포함 리포트: 전체 구도를 유지하는 흑백 사진에 직각 테두리와 짧은 기념사진 캡션을 사용한다. 사진이 있을 때 MY DAY / MY RECORD 제목은 36px로 줄여 첫 화면에서 얼굴이 읽히도록 한다. 내부 스크롤과 하단 출력 버튼은 유지한다. 센터 팁은 별도 번호 박스에 센터명·제목·조언·첨삭 요약 표기를 담는다. 실제 감열지에는 480×640 이내의 전체 사진과 번호 섹션을 배치하고 사진에만 디더링한다.
+
 현재 구현 화면은 HOME의 화이트·블루·연한 회색을 공통 기준으로 사용한다. 본문은 네이비, 보조 안내는 회색이며 주 행동에만 블루를 집중한다. 모서리는 18~24px, 그림자는 최소화한다. 제목과 핵심 이미지는 가운데 배치하고 입력·리포트 본문은 읽기 좋은 정렬을 유지한다. 팀은 152px 아이콘과 이름, 프로필은 280×360px 이미지, 장치 대기는 340px 아이콘을 중심으로 구성한다. HOME은 좌우 선택 카드, 팀은 2×3 선택 카드, 이름은 입력칸, 촬영은 사진, 결과는 사원 프로필, NFC·출력은 상태와 큰 아이콘, 리포트는 내부 스크롤을 유지한다. 아래 이전 시안 설명보다 이 갱신과 현재 `SCREEN_DEFINITION.md`를 우선한다.
 
 캐릭터 매칭 안내는 8개 큰 사진과 짧은 부제로 구성하며 토글과 단계별 기술 설명을 표시하지 않는다. 그림은 480ms에 8px 이내로 등장하며 화면 전체의 투명도 전환은 사용하지 않는다. HOME 그림은 서로 다른 6/6.8초 주기로 5px 안에서 움직인다. 장치 그림은 실제 처리 상태에서만 4.8초 주기로 움직이고 오류에서는 반복하지 않는다. 완료 그림은 520ms에 한 번 자리 잡으며 촬영·결과·기념사진은 반복해서 움직이지 않는다. 동작 줄이기 설정에서는 모든 장식 애니메이션을 끈다. 촬영 안내판은 블러 없이 반투명 배경을 사용한다. 오류·재시도·샘플·실물 출력 여부는 계속 읽을 수 있게 표시한다. 제작 풋터는 모든 화면에서 `동양미래대학교 컴퓨터공학부 전공동아리 CarpeDM`을 사용한다.
@@ -325,3 +327,11 @@ Error copy formula:
 - Team, entry, identity, record, error and report cards use pale neutral surfaces without decorative outer borders. Primary buttons share the brand blue and the 22px radius; header/footer decorative separators are removed. Internal report separators remain.
 - Name input retains a stable 2px border space: blue on focus, red for invalid input, without a second shadow ring. Keyboard focus indicators remain available for accessibility.
 - SCR-14/SCR-19 reuse `assets/kiosk-icons/completion-check.png`, generated with the development team and check-in badge artwork as style references. The previous vector imitation was removed. The replacement uses a frosted white slab, blue acrylic check and matching perspective, with genuine alpha transparency.
+
+## Analysis presentation · 2026-10-12
+
+SCR-09 keeps the photograph stationary. A restrained cyan scan, connected point graphic and corner markers sit over the photo. Mode A shows 8 thumbnail portraits with a repeating comparison highlight. These are labelled visual effects and never imply detected coordinates, rank or numerical progress. No stage completion is invented. Existing reduced-motion rules stop every decorative animation; errors and results remove the processing scene.
+
+## Report and photo memory · 2026-10-12
+
+리포트는 이전 공통 카드 스타일의 예외로 직각 3px 검정 테두리, 크림 배경, 하드 섀도, 큰 MY DAY / MY RECORD 제목과 번호 섹션을 사용한다. 감열지에는 검정 섹션 띠·굵은 선으로 번역한다. 사진 확인은 큰 흑백 사진과 소개 QR을 좌우로 배치하고, 실제 종이에는 전체 프레임과 QR을 세로로 담는다. QR/사진에는 장식 모션을 쓰지 않는다.

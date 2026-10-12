@@ -6,6 +6,8 @@
 
 ## Session
 
+2026-10-12 체험 리포트: `souvenirFrame`/`souvenirPhoto`를 사진 확인부터 출력 성공까지 유지해 명시적 안전 재시도에서도 같은 사진을 보낸다. 사진 없이 진행·완료·초기화·페이지 종료에 해제한다. `report.careerTip`은 서버가 선택하며 UI에서 다시 뽑거나 분석값으로 표시하지 않는다. 출력 결과 불명은 기존 `reportPrint` ID로 상태를 조회한다.
+
 ```text
 idle
 checkin_in_progress
@@ -71,7 +73,7 @@ Rules:
 
 2026-10-06: 분석 화면은 최소 6초 표시한 후 성공 결과로 이동한다. 실제 요청이 6초보다 길면 추가 대기 없이 완료 시 이동한다. 최소 시간은 화면 연출 기준이며 모델 처리시간이나 진행률이 아니다. 실패는 지연 없이 안내하고 초기화/페이지 종료 시 남은 대기를 취소한다.
 
-2026-10-06: 촬영 Blob의 임시 URL을 분석 화면에서만 사용한다. 카메라 미리보기와 같은 좌우 방향으로 표시하며 실제 분석에는 원본 Blob을 전달한다. 결과 이동·오류·초기화·페이지 종료 시 URL을 해제하고 촬영 참조를 지운다. 빛 포인트는 감지 랜드마크를 나타내지 않는 장식이며 reduced-motion 설정에서는 움직이지 않는다. 샘플 모드는 명시된 예시 사진을 사용한다.
+2026-10-12: 촬영 Blob의 임시 URL을 분석 화면에서만 사용한다. 카메라 미리보기와 같은 좌우 방향으로 표시하며 실제 분석에는 원본 Blob을 전달한다. 결과 이동·오류·초기화·페이지 종료 시 URL을 해제하고 촬영 참조를 지운다. 스캔 라인·고정 포인트 연결망·8명 비교 하이라이트는 반복 연출이며 감지 좌표·순위·진행률을 나타내지 않는다. 화면에 연출임을 표시하고 reduced-motion에서는 움직이지 않는다. 샘플 모드는 명시된 예시 사진을 사용한다. 최소 대기 시간 및 API 계약은 유지한다.
 
 ## NFC Registration
 
@@ -194,3 +196,7 @@ Backend owns:
 Camera preview exception:
 - browser MediaDevices may own preview stream in current architecture
 - backend remains source of AI detection/matching result
+
+## 사진 전용 상태 · 2026-10-12
+
+`flow:souvenir`, `photoGrant:{photoPass,printJobId,qrPreviewUrl}`, `souvenirFrame:Blob`, `souvenirPhoto:blob URL`을 사용한다. NFC 승인 후 촬영하며 고정 출력 ID를 재사용한다. 완료 시 Blob/URL을 해제하고 HOME/취소/페이지 종료 시 승인·화면 출력 미리보기 삭제를 요청한다. 늦은 응답은 기존 epoch 검사로 무시한다. 결과 불명 작업은 `souvenirPrint` ID로 조회하며 자동 재출력·idle 초기화를 하지 않는다.

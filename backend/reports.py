@@ -13,9 +13,10 @@ from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 import httpx
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageEnhance, ImageOps
 
 from backend.badge import BadgeError, _font
+from backend.career_tips import career_tip
 
 REPORT_WIDTH = 576
 _FITS = ("response", "voice", "expression", "posture", "eye")
@@ -223,22 +224,36 @@ def _wrapped(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list
         for char in paragraph:
             candidate = line + char
             if line and draw.textlength(candidate, font=font) > max_width:
-                lines.append(line)
-                line = char
+                split = line.rfind(" ") + 1
+                remainder = line[split:] + char
+                if split and draw.textlength(remainder, font=font) <= max_width:
+                    lines.append(line[:split])
+                    line = remainder
+                else:
+                    lines.append(line)
+                    line = char
             else:
                 line = candidate
         lines.append(line)
     return lines
 
 
-def render_report(report: Mapping[str, object], *, name: str, team: str) -> Image.Image:
+def thermal_photo(photo: Image.Image, size: tuple[int, int]) -> Image.Image:
+    """Fit the whole frame and dither only the photograph, keeping text crisp."""
+    photo = ImageOps.contain(ImageOps.exif_transpose(photo).convert("L"), size)
+    photo = ImageEnhance.Brightness(ImageOps.autocontrast(photo, cutoff=1)).enhance(1.08)
+    return photo.convert("1", dither=Image.Dither.FLOYDSTEINBERG)
+
+
+def render_report(report: Mapping[str, object], *, name: str, team: str,
+                  photo: Image.Image | None = None) -> Image.Image:
     """Render a 576-dot 1-bit receipt from verified normalized source fields."""
     if report.get("status") != "available" or report.get("source") != "mirrorting":
         raise ReportError("REPORT_NOT_FOUND")
     if not report.get("sessionId") or not report.get("reportId"):
         raise ReportError("INVALID_RESPONSE")
     try:
-        title_font, section_font, body_font, small_font = _font(34), _font(26), _font(22), _font(18)
+        title_font, section_font, body_font, small_font = _font(38), _font(26), _font(22), _font(18)
     except BadgeError as exc:
         raise ReportError("REPORT_RENDER_FAILED") from exc
 
@@ -252,9 +267,16 @@ def render_report(report: Mapping[str, object], *, name: str, team: str) -> Imag
     def text(position, value, font, fill=0):
         text_runs.append((position, value, font, fill))
 
-    text((margin, 20), "MIRRORTING WORKS", section_font, 255)
-    text((margin, 60), "오늘의 퇴근 리포트", body_font, 255)
-    y = 135
+    text((margin, 25), "MIRRORTING", title_font)
+    text((margin, 78), "오늘의 나를, 한 장에. / MY RECORD", body_font)
+    y = 154
+    photo_position = None
+    if photo is not None:
+        photo = thermal_photo(photo, (480, 640))
+        photo_position = ((width - photo.width) // 2, y)
+        y += photo.height + 16
+        text((margin, y), "KEEP THIS MOMENT / 오늘의 기념사진", small_font)
+        y += 48
 
     def line(label: str, value: str) -> None:
         nonlocal y
@@ -271,11 +293,10 @@ def render_report(report: Mapping[str, object], *, name: str, team: str) -> Imag
         nonlocal y
         if not values:
             return
-        y += 12
-        rules.append(y)
-        y += 22
-        text((margin, y), label, section_font)
-        y += 44
+        y += 16
+        rules.append((y, 44))
+        text((margin + 12, y + 5), f"{len(rules):02d} / {label}", section_font, 255)
+        y += 60
         for value in values:
             for part in _wrapped(draw, value, body_font, width - 2 * margin):
                 text((margin, y), part, body_font)
@@ -283,8 +304,8 @@ def render_report(report: Mapping[str, object], *, name: str, team: str) -> Imag
             y += 12
 
     line("이름 / 팀", f"{_text(name, limit=30)} / {_text(team, limit=40)}")
-    line("사원번호", str(report["sessionId"]))
-    line("MirrorTing 세션", str(report["reportId"]))
+    text((margin, y), "RECORD / " + str(report["sessionId"]), small_font)
+    y += 38
     score = report.get("totalScore")
     score_label = "미측정" if score is None else f"{float(score):g}점"
     if report.get("grade"):
@@ -328,13 +349,22 @@ def render_report(report: Mapping[str, object], *, name: str, team: str) -> Imag
     ending = report.get("dayEnding") or {}
     if isinstance(ending, Mapping):
         section(_text(ending.get("label"), limit=80) or "하루의 결말", [_text(ending.get("text"))] if ending.get("text") else [])
-    rules.append(y + 10)
+    tip = career_tip(str(report["sessionId"]))
+    section("오늘의 직장생활 꿀팁", [tip["source"], tip["title"], tip["body"]])
+    for part in _wrapped(draw, tip["note"], small_font, width - 2 * margin):
+        text((margin, y), part, small_font)
+        y += 26
+    rules.append((y + 10, 4))
     text((margin, y + 26), "출처: MirrorTing 세션 분석 결과", small_font)
     canvas = Image.new("L", (width, y + 74), 255)
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle((0, 0, width, 108), fill=0)
-    for rule_y in rules:
-        draw.line((margin, rule_y, width - margin, rule_y), fill=0, width=2)
+    draw.rectangle((18, 12, width - 19, 124), outline=0, width=4)
+    if photo_position is not None:
+        x, photo_y = photo_position
+        canvas.paste(photo, photo_position)
+        draw.rectangle((x - 3, photo_y - 3, x + photo.width + 2, photo_y + photo.height + 2), outline=0, width=3)
+    for rule_y, rule_h in rules:
+        draw.rectangle((margin, rule_y, width - margin, rule_y + rule_h), fill=0)
     for position, value, font, fill in text_runs:
         draw.text(position, value, font=font, fill=fill)
     return canvas.point(lambda pixel: 255 if pixel > 127 else 0).convert("1")

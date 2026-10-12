@@ -1,5 +1,5 @@
-import { createState, validateName } from "./state.js?v=20261006-analysis-photo";
-import { characters, teams, scenarios, screenIds } from "./content.js?v=20261008-idphoto8-r1";
+import { createState, validateName } from "./state.js?v=20261012-report-photo-r3";
+import { characters, teams, scenarios, screenIds } from "./content.js?v=20261012-report-photo-r3";
 import {
   createDemoApi,
   createLiveApi,
@@ -7,9 +7,9 @@ import {
   KioskError,
   errorCopy,
   wait,
-} from "./api-client.js?v=20261008-idphoto8-r1";
+} from "./api-client.js?v=20261012-report-photo-r3";
 import { Camera } from "./camera.js?v=20261005-audit-fixes";
-import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261008-touch-ui-r3";
+import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, escape } from "./views.js?v=20261012-report-photo-r3";
 import { icon } from "./icons.js";
 import { createMotion } from "./motion.js?v=20261008-touch-ui-r3";
 import { resolveRuntime } from "./runtime.js";
@@ -262,7 +262,7 @@ function updateCamera(status, code) {
     : demo ? "샘플 사진으로 촬영 흐름을 확인해요."
     : "촬영한 원본 이미지는 분석 후 저장하지 않아요.";
   if (state.data.screen === "photoCamera" && status !== "error")
-    screen.querySelector(".camera-state-note").textContent = demo ? "샘플 사진으로 화면 흐름을 확인해요." : "사진은 이 화면의 미리보기에만 사용하고, 처음으로 돌아가면 지워요.";
+    screen.querySelector(".camera-state-note").textContent = demo ? "샘플 사진으로 화면 흐름을 확인해요." : state.data.flow === "souvenir" ? "사진은 감열 인화에만 사용해요. 파일로 저장하거나 외부로 보내지 않아요." : "사진은 이 화면의 미리보기에만 사용하고, 처음으로 돌아가면 지워요.";
   if (web && state.data.screen !== "photoCamera" && status !== "error")
     screen.querySelector(".camera-state-note").textContent = "사진은 이 컴퓨터의 AI 서버에서 처리해요. 원본은 디스크에 저장하지 않아요.";
   if (status === "error") camera.stop();
@@ -314,7 +314,7 @@ async function capture() {
 function clearSouvenirPhoto() {
   const photo = state.data.souvenirPhoto;
   if (photo?.startsWith("blob:")) URL.revokeObjectURL(photo);
-  state.patch({ souvenirPhoto: null });
+  state.patch({ souvenirPhoto: null, souvenirFrame: null });
 }
 async function captureSouvenir() {
   const token = state.begin();
@@ -328,7 +328,7 @@ async function captureSouvenir() {
     if (!state.isCurrent(token)) return;
     state.finish(token);
     clearSouvenirPhoto();
-    go("photoReview", { souvenirPhoto: demo ? characters[0].image : URL.createObjectURL(frame) });
+    go("photoReview", { souvenirPhoto: demo ? characters[0].image : URL.createObjectURL(frame), souvenirFrame: frame });
   } catch {
     if (!state.isCurrent(token)) return;
     state.finish(token);
@@ -352,7 +352,17 @@ function retake() {
   badgeUrl = null;
   operationIds.delete("ai");
   operationIds.delete("digital-card");
-  go("camera", { result: null, capture: null, digitalCard: null, printResult: null });
+  go("camera", { result: null, characterChosen: false, capture: null, digitalCard: null, printResult: null });
+}
+function chooseCharacter(id) {
+  const s = state.data;
+  if (modal !== "characters" || s.screen !== "resultA" || s.aiMode !== "A" || !s.result || s.busy || s.error || s.sessionId) return;
+  const character = characters.find((item) => item.id === id);
+  if (!character) return;
+  closeModal();
+  state.patch({ result: { kind: "A", characterId: character.id, image: character.image }, characterChosen: true });
+  render();
+  screen.querySelector('[data-action="nfc-open"], [data-action="card-connect"]')?.focus({ preventScroll: true });
 }
 function analyze() {
   const s = state.data;
@@ -374,7 +384,7 @@ function analyze() {
         !isSameOriginImage(result.image, location.href)
       )
         throw new KioskError("INVALID_RESPONSE", false);
-      go(s.aiMode === "A" ? "resultA" : "resultB", { result, capture: null });
+      go(s.aiMode === "A" ? "resultA" : "resultB", { result, characterChosen: false, capture: null });
     },
   );
 }
@@ -423,7 +433,8 @@ function finishPrint(report, result) {
     throw new KioskError("INVALID_RESPONSE", false);
   if (result.previewUrl && !isSameOriginImage(result.previewUrl, location.href))
     throw new KioskError("INVALID_RESPONSE", false);
-  if (report) clearSouvenirPhoto();
+  const souvenir = state.data.flow === "souvenir";
+  if (report || souvenir) clearSouvenirPhoto();
   go(report ? "checkoutComplete" : "checkinComplete", {
     printer: result.status,
     printResult: result,
@@ -431,11 +442,12 @@ function finishPrint(report, result) {
 }
 function print(report) {
   const s = state.data;
+  const souvenir = s.flow === "souvenir";
   run(
-    report ? "reportPrint" : "badge",
+    souvenir ? "souvenirPrint" : report ? "reportPrint" : "badge",
     (ctx) =>
-      report
-        ? api.printReport(s.report, ctx)
+      souvenir ? api.printSouvenir(s.photoGrant.photoPass, s.souvenirFrame, ctx) : report
+        ? api.printReport(s.report, ctx, s.souvenirFrame)
         : api.issueBadge(s.sessionId, ctx),
     (result) => finishPrint(report, result),
     { sideEffect: true, statusField: "printer" },
@@ -443,7 +455,7 @@ function print(report) {
 }
 async function reconcileOperation() {
   const screenName = state.data.screen;
-  const operationName = { nfc: "nfc", badge: "badge", reportPrint: "reportPrint" }[screenName];
+  const operationName = state.data.flow === "souvenir" ? "souvenirPrint" : { nfc: "nfc", badge: "badge", reportPrint: "reportPrint" }[screenName];
   const operationId = operationIds.get(operationName);
   if (!operationId || state.data.error?.code !== "UNKNOWN_OUTCOME") return;
   const token = state.begin();
@@ -482,8 +494,15 @@ async function reconcileOperation() {
 function readCheckout() {
   run(
     "checkout",
-    (ctx) => api.resolveCheckout(ctx),
+    (ctx) => api.resolveCheckout({ ...ctx, purpose: state.data.flow === "souvenir" ? "souvenir" : "checkout" }),
     (result) => {
+      if (result?.kind === "souvenir") {
+        if (!demo && (!/^p_[A-Za-z0-9_-]{24}$/.test(result.photoPass) || result.printJobId !== `souvenir-${result.photoPass}` || result.qrPreviewUrl !== `/api/souvenirs/${result.photoPass}/qr`))
+          throw new KioskError("INVALID_RESPONSE", false);
+        operationIds.set("souvenirPrint", result.printJobId);
+        go("photoCamera", { flow: "souvenir", photoGrant: result, nfc: "success" });
+        return;
+      }
       const team = teams.find((t) => t.id === result?.teamId);
       if (!team || !validateName(result?.name || "").valid || !result.sessionId)
         throw new KioskError("INVALID_RESPONSE", false);
@@ -558,7 +577,7 @@ function back() {
     camera: s.aiMode === "A" ? "detailA" : "detailB",
     checkout: "home",
     checkoutResult: "home",
-    photoCamera: "checkoutResult",
+    photoCamera: s.flow === "souvenir" ? "home" : "checkoutResult",
     photoReview: "photoCamera",
     report: "checkoutResult",
     webIssue: s.aiMode === "A" ? "resultA" : "resultB",
@@ -571,6 +590,7 @@ function back() {
 
 function openModal(kind) {
   if (state.data.busy) return;
+  if (kind === "characters" && (state.data.screen !== "resultA" || state.data.aiMode !== "A" || !state.data.result || state.data.error || state.data.sessionId)) return;
   modal = kind;
   returnFocus = document.activeElement;
   document.body.classList.add("modal-open");
@@ -595,6 +615,8 @@ function openModal(kind) {
     overlay.innerHTML = `<div class="overlay-backdrop"><section class="dialog system-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><button class="system-dialog-close" data-action="modal-close" aria-label="상태 닫기">${icon("close")}</button><span class="pi-dialog-badge"><i></i> ${demo ? "SAMPLE" : web ? "WEB PREVIEW" : "DEVICE MODE"}</span><h2 id="dialog-title">현재 체험 상태</h2><p>${demo ? "준비된 데이터로 화면 흐름만 체험합니다." : web ? "카메라와 로컬 AI를 사용하며 카드 등록과 실물 출력은 진행하지 않습니다." : "기기 체험 · 장치 연결은 진행 중 확인합니다. 아래 정보는 설정 상태이며 실제 작동은 각 단계에서 확인합니다."}</p>
       <section class="system-status-group current-system" aria-labelledby="current-system-title"><div class="system-status-heading"><div><span>현재 모드</span><h3 id="current-system-title">${demo ? "샘플 체험" : web ? "로컬 웹 미리보기" : "실제 서비스 흐름"}</h3></div><strong class="status-chip ${health === "healthy" || demo ? "active" : "pending"}">${demo ? "샘플" : checking ? "확인 중" : health === "healthy" ? "서버 응답" : "확인 필요"}</strong></div><dl class="connection-list"><div><dt>로컬 AI 서버</dt><dd>${demo ? "사용 안 함" : checking ? "상태 확인 중" : health === "healthy" ? "응답 확인" : "연결 확인 필요"}</dd></div><div><dt>카메라</dt><dd>${demo ? "준비된 이미지" : cameraLabel}</dd></div><div><dt>NFC</dt><dd>${nfcLabel}</dd></div><div><dt>프린터</dt><dd>${printerLabel}</dd></div><div><dt>MirrorTing 기록</dt><dd>${demo ? "샘플 데이터" : web ? "미리보기에서 조회 안 함" : checking ? "상태 확인 중" : healthDetail?.mirrorting?.configured === false ? "스마트미러 연결 설정 필요" : "퇴근 카드 확인 후 조회"}</dd></div></dl></section>
       <p class="connection-footnote">${demo ? "이 모드에서는 촬영·AI·NFC·출력이 실제로 실행되지 않습니다." : "서버 응답이나 출력 명령 전송은 실물 출력 완료를 뜻하지 않습니다."}</p><div class="dialog-actions"><button class="button" data-action="modal-close">확인</button></div></section></div>`;
+  } else if (kind === "characters") {
+    overlay.innerHTML = renderCharacterPicker(state.data);
   } else if (kind === "team") {
     overlay.innerHTML = renderTeamPreview(state.data.draftTeam);
   } else if (kind === "settings") {
@@ -628,6 +650,11 @@ const handlers = {
     reset();
     go(web ? "webCheckout" : "checkout", { flow: "checkout" });
   },
+  souvenir: () => {
+    reset();
+    go("checkout", { flow: "souvenir" });
+    readCheckout();
+  },
   "team-select": (el) => {
     const team = teams.find((t) => t.id === el.dataset.id);
     if (team) go("name", { team });
@@ -647,6 +674,8 @@ const handlers = {
   "report-preview": () => go("webReport"),
   connections: () => { refreshHealth(); openModal("connections"); },
   retake,
+  "character-open": () => openModal("characters"),
+  "character-select": (el) => chooseCharacter(el.dataset.id),
   capture,
   "ai-retry": () => {
     operationIds.delete("ai");
@@ -667,8 +696,11 @@ const handlers = {
     if (state.data.report?.status === "available") go("photoCamera");
   },
   "photo-retake": () => { clearSouvenirPhoto(); go("photoCamera"); },
-  "photo-confirm": () => go("report"),
-  "photo-skip": () => { clearSouvenirPhoto(); go("report"); },
+  "photo-confirm": () => {
+    if (state.data.flow === "souvenir") { go("reportPrint"); print(true); }
+    else go("report");
+  },
+  "photo-skip": () => { if (state.data.flow === "souvenir") return reset(); clearSouvenirPhoto(); go("report"); },
   "report-print": () => {
     go("reportPrint");
     print(true);
@@ -730,7 +762,7 @@ document.addEventListener("keydown", (event) => {
       first.focus();
     }
   }
-  if (event.key === "Escape" && ["settings", "team", "connections"].includes(modal)) closeModal();
+  if (event.key === "Escape" && ["settings", "team", "connections", "characters"].includes(modal)) closeModal();
   if (event.key === "Enter" && event.target.id === "visitor-name") {
     event.preventDefault();
     submitName();

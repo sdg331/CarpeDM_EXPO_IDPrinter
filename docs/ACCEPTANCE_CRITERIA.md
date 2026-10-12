@@ -59,6 +59,7 @@ Every screen passes when:
 
 ## SCR-09 AI_PROCESSING
 - [ ] no fake percentage
+- [ ] scan/network/comparison effects are labelled as illustrative, stop on error/result, and respect reduced motion
 - [ ] random fallback removed
 - [ ] duplicate processing prevented
 - [ ] A success → SCR-10
@@ -68,6 +69,9 @@ Every screen passes when:
 ## SCR-10 RESULT A
 - [ ] result belongs to current session
 - [ ] wording does not misrepresent score as probability
+- [ ] eight-character picker preserves name/team and updates the issued character
+- [ ] manual choice is labelled and cancel keeps current result
+- [ ] busy/error/registered sessions cannot change characters; reset clears choice
 - [ ] continue → NFC
 
 ## SCR-11 RESULT B
@@ -128,3 +132,15 @@ Release blocked if:
 - [ ] camera disconnected has no UX
 - [ ] Mode B sends user photo to unapproved external service
 - [ ] current backend tests regress
+
+## 전용 카드 사진·리포트 · 2026-10-12
+
+추가 소프트웨어 확인: 퇴근 동반 사진 전체 프레임 인쇄·사진 없이 출력, 첨삭 팁 1개/동일 세션 유지, JSON/사진 출력 간 중복 방지, 잘못된 사진은 장치 접근 전 차단. 실물 얼굴 명암·가독성·용지 배출·절단은 현장 확인 대상이다. [사진 포함 리포트](REPORT_PHOTO_TIPS.md).
+
+- [ ] 전용 카드/일반 카드 분기와 입사 등록 차단
+- [ ] 촬영/재촬영/취소, 이전 사진·이름 누출 없음
+- [ ] 사진·QR 감열 인화 및 휴대폰의 실제 소개 주소 스캔
+- [ ] 결과 불명/재시작/동시 요청에서 중복 인화 차단 및 운영자 복구
+- [ ] 브루탈리즘 리포트 내부 스크롤·출력 CTA·출처/미측정 유지
+
+소프트웨어 증거는 [사진/리포트 QA](qa/SOUVENIR_REPORT_2026-10-12.md), 현장 설정은 [운영](SOUVENIR.md). 위 실물 항목은 자동 테스트 통과로 완료 처리하지 않는다.

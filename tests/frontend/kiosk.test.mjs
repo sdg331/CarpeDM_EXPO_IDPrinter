@@ -16,7 +16,7 @@ import {
 } from "../../frontend/js/api-client.js";
 import { Camera } from "../../frontend/js/camera.js";
 import { characters } from "../../frontend/js/content.js";
-import { renderScreen, renderHeader, renderTeamPreview } from "../../frontend/js/views.js";
+import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker } from "../../frontend/js/views.js";
 import { resolveRuntime } from "../../frontend/js/runtime.js";
 import { createLiveIntegrations } from "../../frontend/js/live-integrations.js";
 
@@ -29,6 +29,52 @@ test("Default uses the device flow; web preview and fixtures require explicit UR
   assert.equal(resolveRuntime(new URLSearchParams("demo=1&scenario=ai_error")), "web");
   assert.equal(resolveRuntime(new URLSearchParams("sample=1")), "sample");
   assert.equal(resolveRuntime(new URLSearchParams("demo=1&controls=1")), "sample");
+});
+
+test("Character choice preserves the selected profile through registration and reset", async () => {
+  const state = createState();
+  state.patch({ screen: "resultA", aiMode: "A", name: "김미래", team: { id: "design", title: "디자인팀" }, result: { kind: "A", characterId: "char_01", image: characters[0].image } });
+  const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
+  let modal = "characters", closed = 0;
+  const context = { state, characters, modal, render() {}, closeModal() { closed++; context.modal = null; }, screen: { querySelector: () => ({ focus() {} }) } };
+  runInNewContext(source.slice(source.indexOf("function chooseCharacter("), source.indexOf("function analyze()")), context);
+  context.chooseCharacter("unknown");
+  assert.equal(closed, 0);
+  state.patch({ busy: true }); context.chooseCharacter("char_05");
+  assert.equal(closed, 0);
+  state.patch({ busy: false, sessionId: "already-registered" }); context.chooseCharacter("char_05");
+  assert.equal(closed, 0);
+  state.patch({ sessionId: null }); context.chooseCharacter("char_05");
+  assert.equal(closed, 1);
+  assert.equal(state.data.characterChosen, true);
+  assert.equal(state.data.result.characterId, "char_05");
+  assert.equal(state.data.name, "김미래");
+  let payload;
+  const live = createLiveIntegrations(async (_, options) => {
+    payload = JSON.parse(options.body);
+    return { ok: true, json: async () => ({ ok: true, status: "verified", sessionId: "test-selected" }) };
+  });
+  await live.registerNfc({ name: state.data.name, teamId: "design", aiMode: "A", result: state.data.result }, { operationId: "chosen-character-test" });
+  assert.equal(payload.result.characterId, "char_05");
+  state.reset();
+  assert.equal(state.data.characterChosen, false);
+  assert.equal(state.data.result, null);
+});
+
+test("Character picker labels eight portraits and distinguishes selection from AI recommendation", () => {
+  const state = { screen: "resultA", aiMode: "A", name: "김미래", team: { title: "디자인팀" }, result: { kind: "A", characterId: "char_05", image: characters[4].image }, characterChosen: true };
+  const picker = renderCharacterPicker(state);
+  assert.equal((picker.match(/data-action="character-select"/g) || []).length, 8);
+  assert.match(picker, /aria-label="캐릭터 05 선택" aria-pressed="true"/);
+  assert.doesNotMatch(picker, /undefined/);
+  for (const web of [false, true]) {
+    const html = renderScreen(state, false, web);
+    assert.match(html, /내가 고른 캐릭터/);
+    assert.match(html, /data-action="character-open"/);
+    assert.doesNotMatch(html, /가장 가까운|% 닮/);
+    assert.doesNotMatch(renderScreen({ ...state, sessionId: "registered" }, false, web), /data-action="character-open"/);
+    assert.doesNotMatch(renderScreen({ ...state, aiMode: "B", screen: "resultB" }, false, web), /data-action="character-open"/);
+  }
 });
 
 test("Kiosk browser presentation keeps hardware stages explicit without inventing success", () => {
@@ -150,7 +196,7 @@ test("Camera status reflects detection and only a ready face enables capture", (
   assert.equal(elements['[data-action="capture"]'].disabled, true);
 });
 
-test("Checkout photo is optional and a preview never claims photo printing", () => {
+test("Checkout photo is optional and live review offers printing with the report", () => {
   const camera = renderScreen({ screen: "photoCamera" }, false);
   assert.match(camera, /data-action="capture"/);
   assert.match(camera, /data-action="photo-skip"/);
@@ -158,15 +204,154 @@ test("Checkout photo is optional and a preview never claims photo printing", () 
   state.patch({ screen: "photoReview", name: "김민수", team: { title: "개발팀" }, souvenirPhoto: "blob:http://localhost/photo" });
   const review = renderScreen(state.data, false);
   assert.match(review, /data-action="photo-retake"/);
-  assert.match(review, /체험 기록만 출력/);
+  assert.match(review, /사진을 체험 리포트에 함께 인쇄/);
   const report = renderScreen({ ...state.data, screen: "report", report: { fitScores: {} } }, false);
   assert.match(report, /퇴근 기념사진 미리보기/);
-  assert.match(report, /사진 인쇄는 아직 연결되지/);
-  assert.match(report, /체험 기록만 출력 요청/);
+  assert.match(report, /사진과 체험 기록을 함께 인쇄/);
+  assert.match(report, /사진과 기록 함께 출력 요청/);
+  assert.doesNotMatch(report, /인쇄는 아직|화면 미리보기 전용/);
+  const sample = renderScreen({ ...state.data, screen: "report", report: {} }, true);
+  assert.match(sample, /실제 촬영·인쇄는 하지 않아요/);
   const withoutPhoto = renderScreen({ ...state.data, screen: "report", souvenirPhoto: null, report: {} }, false);
   assert.doesNotMatch(withoutPhoto, /receipt-photo|퇴근 기념사진 미리보기/);
   state.reset();
   assert.equal(state.data.souvenirPhoto, null);
+});
+
+test("Teacher advice is separated from analysis and escaped before rendering", () => {
+  const tip = { title: '<script>alert(1)</script>', body: '메모하세요.', source: '동양미래대학교 취업지원센터', note: '첨삭 내용 요약' };
+  const html = renderScreen({ screen: "report", report: { careerTip: tip, fitScores: {} } }, false);
+  assert.match(html, /class="report-section career-tip"/);
+  assert.match(html, /동양미래대학교 취업지원센터/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<script>/);
+});
+
+test("Report print keeps the captured photo through a safe retry and clears it on success", async () => {
+  const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
+  const state = createState();
+  const frame = new Blob(["report camera frame"], { type: "image/jpeg" });
+  const report = { status: "available", sessionId: "MW-TEST", reportId: "42" };
+  state.patch({ screen: "reportPrint", flow: "checkout", report, souvenirPhoto: "blob:report-photo", souvenirFrame: frame });
+  const calls = [], revoked = [];
+  const context = {
+    state, demo: false, operationIds: new Map([["reportPrint", "same-print-job"]]), KioskError,
+    api: { printReport: async (report, ctx, photo) => {
+      calls.push({ report, photo, operationId: ctx.operationId });
+      if (calls.length === 1) throw new KioskError("PRINT_UNAVAILABLE", true);
+      return { status: "submitted", physicalOutput: true, completionConfirmed: false };
+    } },
+    URL: { revokeObjectURL: value => revoked.push(value) },
+    go(next, patch = {}) { state.invalidate(); state.patch({ screen: next, ...patch }); },
+    isSameOriginImage,
+  };
+  context.run = async (name, task, success) => {
+    try { success(await task({ operationId: context.operationIds.get(name) })); }
+    catch (error) { state.patch({ error }); }
+  };
+  runInNewContext(source.slice(source.indexOf("function clearSouvenirPhoto()"), source.indexOf("function prepareBadge()")) +
+    source.slice(source.indexOf("function finishPrint("), source.indexOf("async function reconcileOperation()")), context);
+  context.print(true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(state.data.souvenirFrame, frame);
+  assert.equal(state.data.error.code, "PRINT_UNAVAILABLE");
+  context.print(true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.length, 2);
+  for (const call of calls) assert.deepEqual(call, { report, photo: frame, operationId: "same-print-job" });
+  assert.equal(state.data.screen, "checkoutComplete");
+  assert.equal(state.data.souvenirFrame, null);
+  assert.deepEqual(revoked, ["blob:report-photo"]);
+});
+
+test("Photo-only review uses a real QR path, keeps cancellation, and has no visitor name", () => {
+  const state = createState();
+  state.patch({ flow: "souvenir", souvenirPhoto: "blob:photo", photoGrant: { qrPreviewUrl: "/api/souvenirs/p_test/qr" } });
+  const card = renderScreen({ ...state.data, screen: "checkout", busy: true, nfc: "resolving" }, false);
+  assert.match(card, /기념사진 카드를 확인하고 있어요/);
+  assert.doesNotMatch(card, /사원 정보를 확인/);
+  const camera = renderScreen({ ...state.data, screen: "photoCamera" }, false);
+  assert.match(camera, /전체 3단계 중 2단계/);
+  assert.match(camera, /촬영 취소하기/);
+  const review = renderScreen({ ...state.data, screen: "photoReview" }, false);
+  assert.match(review, /src="\/api\/souvenirs\/p_test\/qr"/);
+  assert.match(review, /이 사진으로 인화하기/);
+  assert.doesNotMatch(review, /화면 미리보기에만|사진과 함께 리포트 보기|undefined/);
+  const complete = renderScreen({ ...state.data, screen: "checkoutComplete", printResult: { status: "submitted" } }, false);
+  assert.match(complete, /출력 명령을 보냈어요/);
+  assert.doesNotMatch(complete, /님,|실물 출력을 확인했어요/);
+  state.patch({ souvenirFrame: new Blob(["photo"]) });
+  state.reset();
+  assert.equal(state.data.photoGrant, null);
+  assert.equal(state.data.souvenirFrame, null);
+  assert.equal(state.data.souvenirPhoto, null);
+});
+
+test("Dedicated card goes straight to the camera and its print uses the captured frame", async () => {
+  const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
+  const state = createState();
+  state.patch({ screen: "checkout", flow: "souvenir" });
+  const pass = "p_" + "a".repeat(24);
+  const permission = { kind: "souvenir", photoPass: pass, printJobId: `souvenir-${pass}`, qrPreviewUrl: `/api/souvenirs/${pass}/qr` };
+  const frame = new Blob(["actual camera frame"], { type: "image/jpeg" });
+  const calls = [], revoked = [];
+  const context = {
+    state, demo: false, operationIds: new Map(), KioskError, teams: [], validateName,
+    api: {
+      resolveCheckout: async ctx => { assert.equal(ctx.purpose, "souvenir"); return permission; },
+      printSouvenir: async (photoPass, photo, ctx) => {
+        calls.push({ photoPass, photo, operationId: ctx.operationId });
+        return { status: "submitted", physicalOutput: true, completionConfirmed: false };
+      },
+      getMirrorTingReport: () => assert.fail("Photo-only cards cannot fetch a report"),
+      issueBadge: () => assert.fail("Photo-only cards cannot print an employee badge"),
+    },
+    camera: { capture: async () => frame }, screen: { querySelector: () => ({}) }, lockHeader() {},
+    URL: { createObjectURL: () => "blob:photo", revokeObjectURL: value => revoked.push(value) },
+    go(next, patch = {}) { state.invalidate(); state.patch({ screen: next, ...patch }); },
+    isSameOriginImage,
+  };
+  context.run = async (name, task, success) => {
+    const result = await task({ operationId: context.operationIds.get(name) || "card-read-test" });
+    success(result);
+  };
+  runInNewContext(source.slice(source.indexOf("function clearSouvenirPhoto()"), source.indexOf("function prepareBadge()")) +
+    source.slice(source.indexOf("function finishPrint("), source.indexOf("async function reconcileOperation()")) +
+    source.slice(source.indexOf("function readCheckout()"), source.indexOf("function fetchReport()")), context);
+  await context.readCheckout();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(state.data.screen, "photoCamera");
+  assert.equal(state.data.name, "");
+  await context.captureSouvenir();
+  assert.equal(state.data.screen, "photoReview");
+  assert.equal(state.data.souvenirFrame, frame);
+  context.print(true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, [{ photoPass: pass, photo: frame, operationId: permission.printJobId }]);
+  assert.equal(state.data.screen, "checkoutComplete");
+  assert.equal(state.data.souvenirFrame, null);
+  assert.deepEqual(revoked, ["blob:photo"]);
+});
+
+test("Photo print adapter sends multipart and reset deletes the temporary photo permission", async () => {
+  const calls = [];
+  const pass = "p_" + "b".repeat(24);
+  const fetcher = async (path, options = {}) => {
+    calls.push({ path, options });
+    return { ok: true, json: async () => path === "/api/nfc/resolve"
+      ? { ok: true, kind: "souvenir", photoPass: pass }
+      : { ok: true, status: "preview" } };
+  };
+  const api = createLiveApi(createLiveIntegrations(fetcher), fetcher);
+  await api.resolveCheckout({ operationId: "photo-read", purpose: "souvenir" });
+  await api.printSouvenir(pass, new Blob(["frame"]), { operationId: `souvenir-${pass}` });
+  assert.equal(JSON.parse(calls[0].options.body).purpose, "souvenir");
+  assert.equal(calls[1].path, `/api/souvenirs/${pass}/print`);
+  assert.ok(calls[1].options.body instanceof FormData);
+  assert.equal(await calls[1].options.body.get("frame").text(), "frame");
+  api.reset();
+  assert.equal(calls[2].path, `/api/souvenirs/${pass}`);
+  assert.equal(calls[2].options.method, "DELETE");
 });
 
 test("AI processing uses an indeterminate visual without invented progress stages", () => {
@@ -174,6 +359,11 @@ test("AI processing uses an indeterminate visual without invented progress stage
   assert.match(modeA, /src="blob:captured-photo"/);
   assert.match(modeA, /analysis-light" aria-hidden="true"/);
   assert.equal((modeA.match(/class="analysis-point"/g) || []).length, 12);
+  assert.match(modeA, /class="analysis-scan"/);
+  assert.match(modeA, /class="analysis-network"/);
+  assert.match(modeA, /스캔·연결망은 분석 과정을 표현한 연출/);
+  assert.equal((modeA.match(/class="analysis-corner /g) || []).length, 4);
+  for (const { thumbnail } of characters) assert.ok(modeA.includes(thumbnail));
   assert.doesNotMatch(modeA, /facemap|FACE MAP/);
   assert.match(modeA, /role="status"/);
   assert.match(modeA, /얼굴 특징을 읽고 캐릭터와 비교/);
@@ -184,10 +374,17 @@ test("AI processing uses an indeterminate visual without invented progress stage
   assert.match(modeB, /얼굴 위치를 읽고 프로필 구도/);
   assert.doesNotMatch(modeB, /analysis-pipeline/);
   assert.doesNotMatch(modeB, /SFace|\d+%|정확도/);
+  const capturedB = renderScreen({ screen: "processing", aiMode: "B", capturePreview: "blob:captured-photo" }, false, true);
+  assert.match(capturedB, /analysis-scan/);
+  assert.doesNotMatch(capturedB, /analysis-candidates|캐릭터와 비교 중/);
   const sample = renderScreen({ screen: "processing", aiMode: "B", capturePreview: "/assets/characters/char_01.png" }, true);
   assert.match(sample, /샘플 분석 화면/);
+  const webSample = renderScreen({ screen: "processing", aiMode: "A", capturePreview: characters[0].image }, true, true);
+  assert.match(webSample, /샘플 분석 화면/);
+  assert.match(webSample, /준비된 샘플 데이터/);
+  assert.doesNotMatch(webSample, /외부 전송 없이 이 기기/);
   const error = renderScreen({ screen: "processing", aiMode: "A", capturePreview: "blob:captured-photo", error: { code: "AI_ERROR", retryable: true } }, false);
-  assert.doesNotMatch(error, /blob:captured-photo|analysis-point/);
+  assert.doesNotMatch(error, /blob:captured-photo|analysis-point|analysis-scan|analysis-network|analysis-candidates/);
 });
 
 test("AI preview uses the captured Blob and releases it after success, failure or cancellation", async () => {
@@ -629,6 +826,15 @@ test("Live adapters preserve backend operation IDs and report identity", async (
   assert.equal(JSON.parse(calls[1].options.body).operationId, "badge-op");
   assert.equal(calls[2].path, "/api/reports/MW2609300001");
   assert.deepEqual(JSON.parse(calls[3].options.body), { operationId: "report-op", sessionId: "MW2609300001", reportId: "42" });
+  const api = createLiveApi(integrations, fetcher);
+  await api.printReport({ sessionId: "MW2609300001", reportId: "42" }, { operationId: "report-photo-op" }, new Blob(["camera photo"]));
+  assert.equal(calls[4].path, "/api/reports/print-photo");
+  const form = calls[4].options.body;
+  assert.ok(form instanceof FormData);
+  assert.equal(form.get("operationId"), "report-photo-op");
+  assert.equal(form.get("sessionId"), "MW2609300001");
+  assert.equal(form.get("reportId"), "42");
+  assert.equal(await form.get("frame").text(), "camera photo");
 });
 
 test("Ambiguous write failures stay locked; report reads remain retryable", async () => {

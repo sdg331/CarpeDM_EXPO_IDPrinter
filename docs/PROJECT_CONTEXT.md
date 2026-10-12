@@ -120,3 +120,11 @@ The product succeeds when the visitor understands:
 6. printer basket/cradle
 7. power/cable management
 8. full hardware integration and soak test
+
+## 사진만 남기는 방문자 · 2026-10-12
+
+체험에 참여하지 않는 방문자는 전용 NFC 운영 카드로 기념사진을 촬영하고 감열 인화할 수 있다. 소개 QR은 MirrorTing/팀 사이트로 연결하며 사진 다운로드나 외부 사진 전송을 제공하지 않는다. 이름·팀·체험 세션 없이 처리한다. [설정 및 운영](SOUVENIR.md).
+
+## 사진을 함께 가져가는 체험 리포트 · 2026-10-12
+
+퇴근 사진은 확인 후 체험 기록과 함께 감열 인쇄한다. 사진 없이 진행도 가능하다. 센터 선생님 첨삭을 요약한 팁 7개 중 방문자마다 하나를 선택하며 같은 리포트·재시도에서는 유지한다. [구현·출처](REPORT_PHOTO_TIPS.md).

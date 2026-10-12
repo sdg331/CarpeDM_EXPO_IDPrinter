@@ -39,6 +39,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend.badge import BadgeError, render_badge
+from backend.career_tips import career_tip
 from backend.face import (
     FaceEngine,
     MultipleFacesError,
@@ -51,6 +52,7 @@ from backend.printing import PREVIEWS, PrintError, print_badge, printer_status
 from backend.profile import ProfileComposer, ProfileQualityError, ProfileStore
 from backend.photo_lab import router as photo_lab_router
 from backend.reports import ReportError, fetch_mirrorting_report, render_report
+from backend.souvenir import introduction_url, qr_image, render_souvenir
 from backend.store import (
     TEAM_LABELS,
     KioskStore,
@@ -95,6 +97,7 @@ async def lifespan(app: FastAPI):
         max_items=int(os.getenv("KIOSK_PROFILE_MAX_ITEMS", "8")),
     )
     STATE["profile_composer"] = ProfileComposer()
+    STATE["souvenirs"] = ProfileStore(ttl_seconds=600, max_items=8)
     STATE["mu_real"] = None
     STATE["mu_real_n"] = 0
     if DOMAIN_PATH.exists():
@@ -106,6 +109,7 @@ async def lifespan(app: FastAPI):
         while True:
             await asyncio.sleep(15)
             STATE["profiles"].prune()
+            STATE["souvenirs"].prune()
             PREVIEWS.prune()
             await run_in_threadpool(STORE.purge_expired, retention_hours)
 
@@ -117,6 +121,7 @@ async def lifespan(app: FastAPI):
         with suppress(asyncio.CancelledError):
             await task
         STATE["profiles"].clear()
+        STATE["souvenirs"].clear()
         PREVIEWS.clear()
         STATE.clear()
 
@@ -142,7 +147,8 @@ async def same_origin_and_privacy(request: Request, call_next):
         if urlsplit(origin).netloc != request.url.netloc:
             return _error("ORIGIN_NOT_ALLOWED", retryable=False, status_code=403)
     response = await call_next(request)
-    if request.url.path.startswith("/api/"):
+    # Always load the current HTML entrypoint; its versioned assets may change.
+    if request.url.path.startswith("/api/") or request.url.path == "/" or request.url.path.endswith(".html"):
         response.headers["Cache-Control"] = "no-store, max-age=0"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "same-origin"
@@ -210,6 +216,7 @@ def health() -> dict:
         "max_pair": float(_max_pair()) if p and len(p.ids) > 1 else None,
         "profile": {"engine": "local_cv", "changesClothes": False, "externalUpload": False},
         "mirrorting": {"configured": bool(os.getenv('KIOSK_MIRRORTING_URL')) and len(os.getenv('KIOSK_BRIDGE_TOKEN', '')) >= 32},
+        "souvenir": {"configured": _souvenir_configured(), "externalUpload": False},
     }
 
 
@@ -395,6 +402,25 @@ class NfcRegisterRequest(BaseModel):
 
 class OperationRequest(BaseModel):
     operationId: str = Field(min_length=8, max_length=128)
+    purpose: Literal["checkout", "souvenir"] = "checkout"
+
+
+def _souvenir_card() -> str:
+    uid = re.sub(r"[\s:-]", "", os.getenv("KIOSK_SOUVENIR_CARD_UID", "")).upper()
+    return uid if re.fullmatch(r"(?:[0-9A-F]{2}){4,10}", uid) else ""
+
+
+def _souvenir_configured() -> bool:
+    try:
+        introduction_url(os.getenv("KIOSK_SOUVENIR_QR_URL", ""))
+        return bool(_souvenir_card())
+    except ValueError:
+        return False
+
+
+def _souvenir_pass(photo_pass: str) -> dict:
+    return {"ok": True, "kind": "souvenir", "photoPass": photo_pass,
+            "printJobId": f"souvenir-{photo_pass}", "qrPreviewUrl": f"/api/souvenirs/{photo_pass}/qr"}
 
 
 class BadgePrintRequest(BaseModel):
@@ -477,6 +503,9 @@ def register_nfc(req: NfcRegisterRequest):
             status="retryable_error" if exc.retryable else "error", error_code=exc.code, retryable=exc.retryable)
         return _error(exc.code, retryable=exc.retryable, status_code=408 if exc.code == 'NFC_TIMEOUT' else 503)
     try:
+        if uid == _souvenir_card():
+            STORE.finish_operation(req.operationId, kind="nfc_register", status="retryable_error", error_code="SOUVENIR_CARD", retryable=True)
+            return _error("SOUVENIR_CARD", retryable=True, status_code=409)
         STORE.bind_card(session_id=session_id, card_uid=uid, operation_id=req.operationId)
     except Exception:
         STORE.finish_operation(req.operationId, kind="nfc_register", status="unknown", error_code="UNKNOWN_OUTCOME")
@@ -489,6 +518,10 @@ def register_nfc(req: NfcRegisterRequest):
 @app.post("/api/nfc/resolve")
 def resolve_checkout(req: OperationRequest):
     """Read a card and resolve its currently active visitor session."""
+    souvenirs = STATE.get("souvenirs")
+    previous = souvenirs.find_operation(req.operationId) if souvenirs else None
+    if previous:
+        return _souvenir_pass(previous)
     try:
         with NFC_LOCK:
             uid = read_card_uid(NFC_TIMEOUT_SECONDS)
@@ -501,6 +534,19 @@ def resolve_checkout(req: OperationRequest):
             detail=str(exc),
         )
 
+    if uid == _souvenir_card():
+        if STORE.unresolved_souvenir_print():
+            return _error("SOUVENIR_PRINT_PENDING", retryable=False, status_code=409)
+        if not _souvenir_configured() or souvenirs is None:
+            return _error("SOUVENIR_NOT_CONFIGURED", retryable=False, status_code=503)
+        url = os.getenv("KIOSK_SOUVENIR_QR_URL", "")
+        try:
+            qr_image(url)  # Fail before offering a photo if the configured QR cannot render.
+        except (ValueError, cv2.error):
+            return _error("SOUVENIR_NOT_CONFIGURED", retryable=False, status_code=503)
+        return _souvenir_pass(souvenirs.put(url.encode("utf-8"), req.operationId))
+    if req.purpose == "souvenir":
+        return _error("SOUVENIR_CARD_REQUIRED", retryable=True, status_code=403)
     session = STORE.resolve_card(uid)
     if not session:
         return _error("UNKNOWN_CARD", retryable=True, status_code=404)
@@ -511,6 +557,71 @@ def resolve_checkout(req: OperationRequest):
         "name": session["name"],
         "teamId": session["team_id"],
     }
+
+
+@app.get("/api/souvenirs/{photo_pass}/qr")
+def souvenir_qr(photo_pass: str):
+    grants = STATE.get("souvenirs")
+    url = grants.get(photo_pass) if grants else None
+    if url is None:
+        return _error("SOUVENIR_PASS_EXPIRED", retryable=False, status_code=410)
+    data = BytesIO()
+    qr_image(url.decode("utf-8")).save(data, format="PNG")
+    return Response(data.getvalue(), media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.delete("/api/souvenirs/{photo_pass}")
+def delete_souvenir(photo_pass: str):
+    grants = STATE.get("souvenirs")
+    if grants:
+        grants.delete(photo_pass)
+    operation = STORE.get_operation(f"souvenir-{photo_pass}", "souvenir_print")
+    preview = (operation or {}).get("result") or {}
+    if preview.get("previewUrl", "").startswith("/api/print/previews/"):
+        PREVIEWS.delete(preview["previewUrl"].rsplit("/", 1)[-1])
+    return {"ok": True}
+
+
+def _print_souvenir(photo_pass: str, raw: bytes):
+    operation_id = f"souvenir-{photo_pass}"
+    try:
+        previous = STORE.get_operation(operation_id, "souvenir_print")
+        if previous and previous["status"] != "retryable_error":
+            return _previous_operation(previous)
+        grants = STATE.get("souvenirs")
+        url = grants.get(photo_pass) if grants else None
+        if url is None:
+            return _error("SOUVENIR_PASS_EXPIRED", retryable=False, status_code=410)
+        bgr = _decode_frame(raw)
+        photo = Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+        try:
+            image = render_souvenir(photo, url.decode("utf-8"))
+        except (BadgeError, OSError, ValueError, cv2.error):
+            return _error("SOUVENIR_RENDER_FAILED", retryable=True, status_code=500)
+        with STORE.card_access():
+            if STORE.unresolved_souvenir_print():
+                return _error("SOUVENIR_PRINT_PENDING", retryable=False, status_code=409)
+            op = STORE.claim_operation(operation_id, kind="souvenir_print", session_id=None)
+            if not op["claimed"]:
+                return _previous_operation(op)
+            try:
+                printed = print_badge(image)
+            except PrintError as exc:
+                code = "PRINT_UNAVAILABLE" if exc.retryable else "UNKNOWN_OUTCOME"
+                STORE.finish_operation(operation_id, kind="souvenir_print", status="retryable_error" if exc.retryable else "unknown", error_code=code, retryable=exc.retryable)
+                return _error(code, retryable=exc.retryable, status_code=503)
+            result = _print_result(printed, operation_id)
+            STORE.finish_operation(operation_id, kind="souvenir_print", status="success", result=result)
+            return {"ok": True, **result}
+    except OperationConflict:
+        return _error("OPERATION_CONFLICT", retryable=False, status_code=409)
+
+
+@app.post("/api/souvenirs/{photo_pass}/print")
+async def print_souvenir(photo_pass: str, frame: UploadFile = File(...)):
+    if not re.fullmatch(r"p_[A-Za-z0-9_-]{24}", photo_pass):
+        return _error("SOUVENIR_PASS_EXPIRED", retryable=False, status_code=410)
+    return await run_in_threadpool(_print_souvenir, photo_pass, await _frame_bytes(frame))
 
 
 class SessionProfileRequest(BaseModel):
@@ -666,7 +777,7 @@ def _linked_report(session_id: str):
     with STORE.card_access():
         if not STORE.active_card(session_id):
             raise ReportError('SESSION_REPLACED')
-    return session, report
+    return session, {**report, 'careerTip': career_tip(session_id)}
 
 
 @app.get('/api/reports/{session_id}')
@@ -686,6 +797,21 @@ class ReportPrintRequest(BadgePrintRequest):
 
 @app.post('/api/reports/print')
 def print_session_report(req: ReportPrintRequest):
+    return _print_session_report(req)
+
+
+@app.post('/api/reports/print-photo')
+async def print_report_photo(
+    operationId: str = Form(min_length=8, max_length=128),
+    sessionId: str = Form(min_length=1, max_length=32),
+    reportId: str = Form(min_length=1, max_length=64),
+    frame: UploadFile = File(...),
+):
+    req = ReportPrintRequest(operationId=operationId, sessionId=sessionId, reportId=reportId)
+    return await run_in_threadpool(_print_session_report, req, await _frame_bytes(frame))
+
+
+def _print_session_report(req: ReportPrintRequest, raw_photo: bytes | None = None):
     try:
         original = STORE.get_operation(req.operationId, 'report_print')
         if original and original['session_id'] != req.sessionId:
@@ -698,8 +824,13 @@ def print_session_report(req: ReportPrintRequest):
             return _previous_operation(previous)
         session, report = _linked_report(req.sessionId)
         # Fetch/render before the irreversible claim: failures here cannot print.
+        photo = None
+        if raw_photo is not None:
+            bgr = _decode_frame(raw_photo)
+            photo = Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
         try:
-            image = render_report(report, name=session['name'], team=TEAM_LABELS[session['team_id']])
+            image = render_report(report, name=session['name'], team=TEAM_LABELS[session['team_id']],
+                                  **({'photo': photo} if photo is not None else {}))
         except ReportError as exc:
             if exc.code != 'REPORT_RENDER_FAILED':
                 raise

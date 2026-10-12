@@ -88,3 +88,7 @@ NFC write/print should prefer explicit retry with idempotency/job identity.
 ## Fatal Home Reset
 
 Before clearing session, ensure side-effect state is known enough to avoid duplicate write/print on restart.
+
+## 사진 전용 오류 · 2026-10-12
+
+`SOUVENIR_NOT_CONFIGURED`는 소개 URL/전용 UID 미설정, `SOUVENIR_CARD_REQUIRED`는 일반 카드, `SOUVENIR_CARD`는 전용 카드의 입사 등록 차단이다. `SOUVENIR_PASS_EXPIRED`는 HOME에서 다시 카드 확인, `SOUVENIR_RENDER_FAILED`는 장치 접근 전 안전한 명시적 재시도다. 사진 출력의 `UNKNOWN_OUTCOME`은 기존 상태 조회/운영자 실물 확인만 허용한다. `SOUVENIR_PRINT_PENDING`이면 기존 결과 불명 또는 실행 중 인화를 먼저 확인해야 새 승인/인화를 진행할 수 있다.

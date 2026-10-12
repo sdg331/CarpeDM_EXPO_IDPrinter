@@ -85,6 +85,7 @@ B는 `aiMode:"B"`, `result:{"kind":"B","profileId":"서버가 반환한 ID"}`를
 - `POST /api/integrations/mirrorting/link` → `{sessionId,cardUid,mirrorSessionId,accessToken}`. 스냅샷과 현재 카드 연결이 다르면 409다.
 - `GET /api/reports/{sessionId}` → 연결된 실제 MirrorTing `/progress`를 확인한 후 `/report` 조회. `X-Session-Token`은 키오스크 서버에서만 사용한다.
 - `POST /api/reports/print` → `{operationId,sessionId,reportId}`. 원본 보고서 세션 ID와 일치할 때만 출력한다.
+- `POST /api/reports/print-photo` → multipart `operationId,sessionId,reportId,frame`. 확인한 사진을 같은 리포트에 포함하며 기존 JSON 경로와 세션당 1회 출력 방지를 공유한다.
 
 조회 결과:
 
@@ -94,9 +95,21 @@ sessionId, mirrorSessionId, reportId,
 totalScore, grade, modeMinutes,
 fitScores.{response,voice,expression,posture,eye}.{score,label,summary,provisional,observation},
 strengths[], improvements[], headline.{sentence,context},
-dayEnding.{label,text}, coaching[].{issue,suggestion}
+dayEnding.{label,text}, coaching[].{issue,suggestion},
+careerTip.{id,title,body,source,note}
 ```
 
 누락 점수는 0으로 만들지 않는다. eye 관측값과 잠정 평가 표기를 유지한다. 미완료는 `REPORT_PENDING`, 기록 없음은 `REPORT_NOT_FOUND`, 미설정은 `INTEGRATION_PENDING`이며 샘플 피드백으로 대체하지 않는다. 키오스크 팀과 MirrorTing 체험 직무는 별개다.
 
 리포트 출력 이미지는 기존 576도트·1비트 규격을 유지하고, 받아들인 강점/개선 항목의 줄바꿈을 계산해 높이를 정한다. 긴 유효 리포트도 마지막 결말과 출처까지 포함한다.
+
+`careerTip`은 MirrorTing 분석과 별도로 키오스크가 선택하는 센터 첨삭 요약이다. 방문자마다 7개 중 하나이며 같은 세션에서는 미리보기·출력·재시도에 동일하다. 사진은 8 MiB/1,200만 픽셀·JPEG/PNG/WebP 검증 후 전체 프레임을 인쇄하며 원본을 DB에 넣지 않는다. [문구·인쇄 기준](REPORT_PHOTO_TIPS.md).
+
+## 전용 NFC 카드 사진 · 2026-10-12
+
+- `POST /api/nfc/resolve`: 기존 `{operationId}`에 선택적 `purpose:checkout|souvenir` 추가. 전용 카드면 `{ok,kind:souvenir,photoPass,printJobId,qrPreviewUrl}`를 반환한다. 사원 세션/UID는 반환하지 않는다.
+- `GET /api/souvenirs/{photoPass}/qr`: 승인된 소개 주소 QR PNG, no-store.
+- `POST /api/souvenirs/{photoPass}/print`: multipart `frame`, 기존 8 MiB/1,200만 픽셀·JPEG/PNG/WebP 검증. 서버가 승인에 고정한 `souvenir-{photoPass}` ID로 1회 인화한다. 기존 preview/submitted/confirmed 계약을 사용한다.
+- `DELETE /api/souvenirs/{photoPass}`: 메모리 승인·관련 화면 출력 미리보기 제거. DB의 출력 중복 방지 기록은 유지한다.
+
+모든 경로는 기존 loopback/same-origin 제한을 따른다. 승인은 10분/최대 8개, 사진 DB·다운로드 서버·외부 업로드는 없다. 소개 주소는 서버 설정에서 고정하고 QR에 개인정보를 포함하지 않는다. [설정](SOUVENIR.md).

@@ -39,6 +39,33 @@ def test_nfc_registration_retry_returns_same_session(monkeypatch, tmp_path):
     assert first["sessionId"] == second["sessionId"]
 
 
+def test_chosen_character_reaches_real_badge_preview(monkeypatch, tmp_path):
+    from io import BytesIO
+    from backend.face import Prototypes
+    from backend.printing import PREVIEWS
+    from backend.badge import render_badge
+
+    store = configure(monkeypatch, tmp_path)
+    monkeypatch.setenv('KIOSK_PRINT', 'screen')
+    monkeypatch.setitem(backend_app.STATE, 'proto', Prototypes.load(backend_app.PROTO_PATH))
+    req = register_request('chosen-character-operation')
+    req.result.characterId = 'char_05'
+    registered = backend_app.register_nfc(req)
+    session_id = registered['sessionId']
+    session = store.get_session(session_id)
+    assert session['char_id'] == 'char_05'
+    printed = backend_app.print_session_badge(backend_app.BadgePrintRequest(
+        operationId='chosen-character-print', sessionId=session_id))
+    assert printed['status'] == 'preview'
+    assert printed['physicalOutput'] is False
+    png = PREVIEWS.get(printed['previewUrl'].rsplit('/', 1)[-1])
+    with Image.open(BytesIO(png)) as image:
+        expected = render_badge(req.name, 'AI팀', 'char_05', session_id)
+        assert image.size == expected.size
+        assert image.mode == '1'
+        assert image.tobytes() == expected.tobytes()
+
+
 def test_badge_print_same_operation_runs_printer_once(monkeypatch, tmp_path):
     configure(monkeypatch, tmp_path)
     registered = backend_app.register_nfc(register_request())
@@ -248,6 +275,10 @@ def test_http_rejects_cross_origin_side_effects_and_disables_legacy():
     legacy = client.post('/api/issue', json={'name': '테스트', 'dept': 'AI팀', 'char_id': 'char_01', 'emp_no': 'MW2601010001'})
     assert legacy.status_code == 410
     assert legacy.headers['cache-control'] == 'no-store, max-age=0'
+    for path in ('/', '/static/ui-preview.html'):
+        page = client.get(path)
+        assert page.status_code == 200
+        assert page.headers['cache-control'] == 'no-store, max-age=0'
 
 
 def test_bridge_http_auth_link_and_report_print_use_server_identity(monkeypatch, tmp_path):
@@ -476,3 +507,80 @@ def test_verbose_source_report_prints_once_with_real_renderer(monkeypatch, tmp_p
     assert len(images) == 1
     assert images[0].mode == '1' and images[0].width == 576 and images[0].height > 4300
     assert store.get_operation(request.operationId)['status'] == 'success'
+
+
+def photo_report_setup(monkeypatch, tmp_path):
+    import backend.reports as reports
+    store = configure(monkeypatch, tmp_path)
+    monkeypatch.setenv('KIOSK_MIRRORTING_URL', 'http://127.0.0.1:8001')
+    session_id = backend_app.register_nfc(register_request())['sessionId']
+    store.link_mirrorting(session_id=session_id, card_uid='04AABBCC', mirror_session_id=42, access_token='private-token')
+    source = reports.normalize_report(session_id, 42, {
+        'session_id': 42, 'mode': 5, 'fit_scores': {}, 'strengths': [],
+        'improvements': [], 'headline': {}, 'day_ending': {},
+    })
+    monkeypatch.setattr(backend_app, 'fetch_mirrorting_report', lambda *a, **kw: source)
+    return store, session_id
+
+
+def test_report_photo_http_prints_once_and_json_cannot_print_a_second_copy(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from io import BytesIO
+    from backend.career_tips import career_tip
+
+    store, session_id = photo_report_setup(monkeypatch, tmp_path)
+    rendered, images = [], []
+    def renderer(report, **kwargs):
+        rendered.append(kwargs['photo'].copy())
+        assert report['careerTip'] == career_tip(session_id)
+        return Image.new('1', (576, 900), 1)
+    monkeypatch.setattr(backend_app, 'render_report', renderer)
+    monkeypatch.setattr(backend_app, 'print_badge', lambda image: images.append(image) or {'backend': 'screen'})
+    frame = BytesIO()
+    Image.new('RGB', (32, 48), (12, 34, 56)).save(frame, format='PNG')
+    data = {'operationId': 'report-photo-http', 'sessionId': session_id, 'reportId': '42'}
+    client = TestClient(backend_app.app, client=('127.0.0.1', 12345))
+    result = client.post('/api/reports/print-photo', data=data, files={'frame': ('photo.png', frame.getvalue(), 'image/png')})
+    assert result.status_code == 200
+    assert rendered[0].size == (32, 48) and rendered[0].getpixel((0, 0)) == (12, 34, 56)
+    assert client.get(f'/api/reports/{session_id}').json()['careerTip'] == career_tip(session_id)
+    repeated = client.post('/api/reports/print-photo', data=data, files={'frame': ('photo.png', frame.getvalue(), 'image/png')})
+    without_photo = client.post('/api/reports/print', json={**data, 'operationId': 'report-json-after-photo'})
+    assert repeated.json()['printJobId'] == without_photo.json()['printJobId'] == data['operationId']
+    assert len(rendered) == len(images) == 1
+    assert 'photo' not in store.get_operation(data['operationId'])['result']
+
+
+def test_invalid_report_photo_and_wrong_identity_never_claim_a_print(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    store, session_id = photo_report_setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(backend_app, 'print_badge', lambda _: (_ for _ in ()).throw(AssertionError('must not print')))
+    client = TestClient(backend_app.app, client=('127.0.0.1', 12345))
+    data = {'operationId': 'invalid-report-photo', 'sessionId': session_id, 'reportId': '42'}
+    for raw, code in [(b'bad photo', 'INVALID_IMAGE'), (b'', 'EMPTY_IMAGE'), (b'x' * (backend_app.MAX_UPLOAD + 1), 'IMAGE_TOO_LARGE')]:
+        response = client.post('/api/reports/print-photo', data=data, files={'frame': ('frame.jpg', raw, 'image/jpeg')})
+        assert response.json()['error']['code'] == code
+        assert store.get_operation(data['operationId']) is None
+    response = client.post('/api/reports/print-photo', data={**data, 'reportId': '43'}, files={'frame': ('frame.jpg', b'bad photo', 'image/jpeg')})
+    assert response.json()['error']['code'] == 'REPORT_NOT_FOUND'
+    assert store.get_operation(data['operationId']) is None
+
+
+def test_report_photo_safe_retry_keeps_the_tip_and_unknown_output_stays_locked(monkeypatch, tmp_path):
+    from io import BytesIO
+    store, session_id = photo_report_setup(monkeypatch, tmp_path)
+    frame = BytesIO()
+    Image.new('RGB', (32, 48), 'white').save(frame, format='PNG')
+    tips = []
+    def render(report, **kwargs):
+        tips.append(report['careerTip'])
+        return Image.new('1', (576, 600), 1)
+    monkeypatch.setattr(backend_app, 'render_report', render)
+    monkeypatch.setattr(backend_app, 'print_badge', lambda _: (_ for _ in ()).throw(PrintError('offline', retryable=True)))
+    req = backend_app.ReportPrintRequest(operationId='report-photo-retry', sessionId=session_id, reportId='42')
+    assert backend_app._print_session_report(req, frame.getvalue()).status_code == 503
+    monkeypatch.setattr(backend_app, 'print_badge', lambda _: (_ for _ in ()).throw(PrintError('uncertain', retryable=False)))
+    assert backend_app._print_session_report(req, frame.getvalue()).status_code == 503
+    assert store.get_operation(req.operationId)['status'] == 'unknown'
+    assert backend_app._print_session_report(req, frame.getvalue()).status_code == 409
+    assert len(tips) == 2 and tips[0] == tips[1]
