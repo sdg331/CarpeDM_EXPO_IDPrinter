@@ -47,18 +47,41 @@ def test_컬러_미리보기_감열_자산은_같은_8명이다(proto):
 @pytest.mark.skipif(not (YUNET.is_file() and SFACE.is_file()), reason="로컬 얼굴 모델 없음")
 def test_증명사진_눈높이와_얼굴크기가_통일되어_있다(proto):
     import cv2
+    from scripts.prepare_character_assets import HEAD_MARGIN, FACE_HEIGHT, head_top
 
     engine = FaceEngine()
+    records = json.loads((ROOT / "assets/characters/framing.json").read_text())
+    assert [r["id"] for r in records] == proto.ids
+    for record in records:
+        matrix = np.array(record["transform"])
+        # Eye asymmetry must not be corrected by tilting the jacket or stretching the face.
+        assert not record["rotation"]
+        assert matrix[0, 1] == matrix[1, 0] == 0
+        assert matrix[0, 0] == matrix[1, 1] > 0
     for cid in proto.ids:
         image = cv2.imread(str(ROOT / "assets" / "characters" / f"{cid}.png"))
         detections = engine.detect(image)
         assert len(detections) == 1, cid
         eyes = detections[0].row[4:8].reshape(2, 2)
         height, width = image.shape[:2]
-        assert abs(eyes[0, 1] - eyes[1, 1]) / height < .006, cid
-        assert abs(eyes[:, 1].mean() / height - .40) < .008, cid
-        assert abs(eyes[:, 0].mean() / width - .50) < .008, cid
-        assert abs((eyes[1, 0] - eyes[0, 0]) / width - .20) < .008, cid
+        assert abs(head_top(image) / height - HEAD_MARGIN) < .01, cid
+        assert .35 < eyes[:, 1].mean() / height < .46, cid
+        assert abs(eyes[:, 0].mean() / width - .50) < .015, cid
+        assert abs(detections[0].row[3] / height - FACE_HEIGHT) < .03, cid
+
+
+def test_구도_정규화는_잘못된_얼굴좌표를_거부한다():
+    from scripts.prepare_character_assets import framing_transform
+
+    with pytest.raises(ValueError, match="Invalid face geometry"):
+        framing_transform(np.zeros(15), 1086, 1448, 0)
+
+
+def test_머리_검출은_빈_배경을_거부한다():
+    from scripts.prepare_character_assets import head_top
+
+    with pytest.raises(ValueError, match="Cannot locate hair"):
+        head_top(np.full((1448, 1086, 3), 250, np.uint8))
 
 
 @pytest.mark.skipif(not (YUNET.is_file() and SFACE.is_file()), reason="로컬 얼굴 모델 없음")
