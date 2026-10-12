@@ -23,6 +23,7 @@ export function createState() {
     nfc: "idle",
     printer: "idle",
     report: null,
+    digitalCard: null,
     error: null,
     busy: false,
   });

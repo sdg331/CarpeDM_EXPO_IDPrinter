@@ -54,6 +54,38 @@ Failure may include:
 
 Production frontend must not replace request failure with random result.
 
+### POST `/api/profile` — CURRENT
+
+Mode B local profile generation. Input is multipart `frame` and optional
+`operation_id`. Processing stays on the kiosk backend: YuNet face/landmark
+checks, local OpenCV background separation, and a close-up crop preserving the original face and clothing. No suit overlay or neck stretching is applied.
+
+Success:
+
+```json
+{
+  "ok": true,
+  "profileId": "p_opaque_random_id",
+  "previewUrl": "/api/profile/p_opaque_random_id/image",
+  "expiresIn": 600,
+  "reused": false
+}
+```
+
+User-correctable failure remains a domain response so the UI can show retake
+guidance: `no_face`, `multiple_faces`, `bad_position`, or `low_quality`.
+There is no sample/random fallback.
+
+### GET `/api/profile/{profile_id}/image` — CURRENT
+
+Returns the generated PNG from the process-local temporary store with
+`Cache-Control: no-store`. Missing and expired IDs return 404.
+
+### DELETE `/api/profile/{profile_id}` — CURRENT
+
+Idempotently removes the generated result when the browser session resets.
+Expiry is the fallback when the browser closes before cleanup.
+
 ### POST `/api/issue` — CURRENT
 
 Current request:
@@ -67,7 +99,8 @@ Current request:
 }
 ```
 
-CURRENT backend accepts character-based badge only. Mode B requires extension.
+CURRENT backend accepts character-based badge only. Mode B preview is
+implemented, while Mode B physical badge rendering still requires extension.
 
 ---
 
@@ -108,21 +141,12 @@ Recommended domain shape:
 
 Backend should own stable employee/session ID. Browser random number should be removed.
 
-## Mode B Generation — PROPOSED
+## Mode B Generation — CURRENT PREVIEW / PRINT LINK TBD
 
-Could be one endpoint receiving captured frame or a capture/session reference.
-
-Return only fields frontend needs, for example:
-
-```json
-{
-  "ok": true,
-  "profileId": "profile_001",
-  "previewUrl": "/api/profile/profile_001/image"
-}
-```
-
-Do not place base64 image blobs in global state if avoidable.
+The CURRENT `/api/profile` contract above supplies the generated preview and a
+temporary `profileId`. The image is not placed in frontend state as base64.
+Linking that `profileId` to the future server session and physical badge print
+job remains TBD with the NFC/print contract.
 
 ## NFC Registration — PROPOSED
 

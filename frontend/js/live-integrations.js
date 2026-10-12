@@ -4,7 +4,7 @@
 // operationId; the server must deduplicate writes/prints and report final truth.
 // registerNfc: ({ name, teamId, aiMode, result }, context)
 //   -> { status: 'verified', sessionId }
-// generateProfile: (frame, context) -> { image, kind: 'B' }
+// Mode B profile generation is the implemented local /api/profile read path.
 // issueBadge: (sessionId, context) -> { status: 'success' }
 // resolveCheckout: (context) -> { sessionId, name, teamId }
 // getMirrorTingReport: (sessionId, context) -> { status: 'available', ...report }

@@ -39,7 +39,9 @@ Target pipeline includes person detection/face tracking/quality checks when Pi p
 Status: CONFIRMED
 
 No external generative image API.
-Local computer vision + transparent formal-suit PNG + OpenCV composite.
+Local computer vision + OpenCV background separation + face-centred close-up.
+Updated by user request on 2026-09-22: preserve original face, neck, and clothing;
+remove suit overlays and neck stretching. Home example returns to original char_01.
 
 ## D-007 AI Selection Timing
 Status: CONFIRMED

@@ -31,7 +31,7 @@
 ## NEXT — Backend Contract
 
 - [ ] Session/employee ID ownership
-- [ ] Mode B endpoint/service
+- [x] Mode B local composite endpoint and preview (physical badge print remains)
 - [ ] NFC write/read/verify
 - [ ] local DB schema
 - [ ] MirrorTing result contract

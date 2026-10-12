@@ -1,5 +1,14 @@
 # User Flow
 
+## Browser kiosk presentation · 2026-09-22
+
+The default browser route demonstrates the Raspberry Pi exhibition kiosk on the current computer.
+Check-in: home → team/name → actual AI → card connection preview (reader disconnected)
+→ actual badge image / print preview (printer disconnected) → MirrorTing guide → reset.
+Checkout: home → card connection preview → empty report layout → reset.
+The visual home/style is shared with the device mode; the hardware-dependent steps never
+claim registration/printing success in the browser. `?kiosk=1` retains the live device flow below.
+
 ## Screen Registry
 
 - SCR-01 HOME
@@ -31,7 +40,7 @@ SCR-01 HOME
   ↓ 입사하기
 SCR-02 TEAM_SELECT
   ↓ 팀 선택
-SCR-03 TEAM_DETAIL
+SCR-03 TEAM_DETAIL (팀 목록 위 모달 카드)
   ├─ 다른 팀 보기 → SCR-02
   ↓ 이 팀으로 입사하기
 SCR-04 NAME_INPUT

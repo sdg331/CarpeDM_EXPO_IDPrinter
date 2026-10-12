@@ -3,16 +3,25 @@ import { teams, scenarios, screenIds } from "./content.js";
 import {
   createDemoApi,
   createLiveApi,
+  isSameOriginImage,
   KioskError,
   errorCopy,
 } from "./api-client.js";
 import { Camera } from "./camera.js";
-import { renderScreen, escape } from "./views.js";
-import { logo, icon } from "./icons.js";
+import { renderScreen, renderTeamPreview, escape } from "./views.js?v=20261005-glass-ui";
+import { logo, icon } from "./icons.js?v=20260922-system-status";
 import { createMotion } from "./motion.js";
+import { resolveRuntime } from "./runtime.js";
+import { createDigitalBadge } from "./digital-badge.js";
 
 const query = new URLSearchParams(location.search);
-const demo = query.get("demo") === "1";
+const runtime = resolveRuntime(query);
+const demo = runtime === "sample";
+const web = runtime === "web";
+const presentation = demo || web;
+document.body.dataset.runtime = runtime;
+const showDemoControls = demo && query.get("controls") === "1";
+const MIN_AI_SCREEN_MS = 4200;
 let scenario = scenarios.some(([id]) => id === query.get("scenario"))
   ? query.get("scenario")
   : "success";
@@ -34,10 +43,17 @@ let modal = null;
 let health = "unknown";
 let returnFocus = null;
 let renderedScreen = null;
+let badgeUrl = null;
+let cameraPermissionRequest = null;
 const motion = createMotion();
 
 function resize() {
   const kiosk = document.querySelector("#kiosk");
+  if (!demo) {
+    kiosk.style.transform = "none";
+    document.querySelector("#stage").style.height = "";
+    return;
+  }
   const mobile = innerWidth / innerHeight < 800 / 1280;
   const scale = mobile
     ? innerWidth / 800
@@ -52,23 +68,33 @@ resize();
 
 function render(direction = "forward") {
   const s = state.data;
-  header.innerHTML = `<div class="header-row"><div class="brand">${logo()}<span class="brand-word">MIRRORTING<br>WORKS</span></div><div class="edition"><strong>2026 EXPO</strong></div></div>${demo ? '<div class="demo-line"><span>화면 체험 · 실제 장치 작동 없음</span><button class="demo-settings" data-action="settings">체험 설정 ↗</button></div>' : `<div class="live-notice">${health === "unavailable" ? "서비스 연결 대기 중 · 현장 스태프에게 문의해주세요." : "나의 가능성을 발견하는 하루"}</div>`}`;
+  header.innerHTML = `<div class="header-row"><div class="brand">${logo()}<span class="brand-word">MIRRORTING<br>WORKS</span></div><div class="edition"><strong>2026 EXPO</strong></div></div>${demo ? `<div class="demo-line"><span><b>DEMO</b> 카메라 · 카드 · 출력은 화면으로 시연합니다</span>${showDemoControls ? '<button class="demo-settings" data-action="settings">시연 설정</button>' : ""}</div>` : `<div class="live-notice">${health === "unavailable" ? "서비스 연결 대기 중 · 현장 스태프에게 문의해주세요." : "나의 가능성을 발견하는 하루"}</div>`}`;
   screen.dataset.screen = screenIds[s.screen];
-  screen.innerHTML = renderScreen(s, demo);
+  if (web) {
+    header.innerHTML = `<div class="header-row"><div class="brand">${logo()}<span class="brand-word">MIRRORTING<br>WORKS</span></div><button class="connection-button" data-action="connections">${icon("info")}<span>시연·장치 상태</span></button></div>`;
+  }
+  screen.innerHTML = renderScreen(s, demo, web);
   footer.innerHTML = `<span class="footer-brand">CarpeDM <span style="font-weight:400">× 동양미래대학교</span></span><span class="footer-index">MIRRORTING WORKS / ${screenIds[s.screen].replace("SCR-", "")}</span>`;
-  header.querySelector(".demo-settings")?.toggleAttribute("disabled", s.busy);
+  if (web) footer.innerHTML = `<span>CarpeDM · 2026 EXPO</span><span>Raspberry Pi 5 기반 · 로컬 AI 키오스크 웹 시연</span>`;
+  header.querySelector(".demo-settings, .connection-button")?.toggleAttribute("disabled", s.busy);
   if (renderedScreen !== s.screen) {
     motion.navigate(screen, direction);
     renderedScreen = s.screen;
   }
+}
+function resetViewport() {
+  window.scrollTo(0, 0);
+  document.scrollingElement?.scrollTo(0, 0);
+  screen.scrollTop = 0;
 }
 function go(next, patch = {}, direction = "forward") {
   if (state.data.screen === "camera") camera.stop();
   state.invalidate();
   state.patch({ screen: next, error: null, ...patch });
   lastActivity = Date.now();
-  completionAt = next.endsWith("Complete") ? Date.now() + 15000 : 0;
+  completionAt = !presentation && next.endsWith("Complete") ? Date.now() + 15000 : 0;
   render(direction);
+  resetViewport();
   screen.focus({ preventScroll: true });
   if (next === "name") {
     composing = false;
@@ -84,6 +110,8 @@ function reset() {
   camera.stop();
   state.reset();
   api.reset();
+  if (badgeUrl) URL.revokeObjectURL(badgeUrl);
+  badgeUrl = null;
   operationIds.clear();
   cameraAttempts = 0;
   cameraState = "uninitialized";
@@ -92,6 +120,7 @@ function reset() {
   closeModal();
   lastActivity = Date.now();
   render("reset");
+  resetViewport();
   screen.focus({ preventScroll: true });
 }
 
@@ -196,11 +225,37 @@ function updateCamera(status, code) {
   retry.hidden = status !== "error";
   screen.querySelector(".camera-state-note").textContent = status === "error"
     ? (errorCopy[code]?.[1] || errorCopy.CAMERA_UNAVAILABLE[1])
-    : demo ? "샘플 화면이에요. 실제 카메라는 사용하지 않아요."
+    : demo ? "실제 현장에서는 얼굴 위치와 선명도를 자동으로 확인해요."
     : "촬영한 원본 이미지는 분석 후 저장하지 않아요.";
+  if (web && status !== "error")
+    screen.querySelector(".camera-state-note").textContent = "사진은 이 컴퓨터의 AI 서버에서 처리해요. 원본은 디스크에 저장하지 않아요.";
   if (status === "error") camera.stop();
 }
-function initializeCamera() {
+function requestInitialCameraPermission(retry = false) {
+  if (!web) return Promise.resolve(true);
+  if (retry) cameraPermissionRequest = null;
+  if (cameraPermissionRequest) return cameraPermissionRequest;
+  cameraPermissionRequest = navigator.mediaDevices
+    ?.getUserMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 960 },
+        facingMode: "user",
+      },
+      audio: false,
+    })
+    .then((stream) => {
+      stream.getTracks().forEach((track) => track.stop());
+      if (state.data.screen !== "camera") cameraState = "authorized";
+      return true;
+    })
+    .catch(() => {
+      if (state.data.screen !== "camera") cameraState = "error";
+      return false;
+    }) || Promise.resolve(false);
+  return cameraPermissionRequest;
+}
+async function initializeCamera(retryPermission = false) {
   if (demo) {
     cameraAttempts++;
     updateCamera(
@@ -212,9 +267,15 @@ function initializeCamera() {
             ? "multiple_people"
             : "ready",
     );
-  } else {
-    camera.start(screen.querySelector("#camera-video"), api, updateCamera);
+    return;
   }
+  if (web) {
+    updateCamera("initializing");
+    const allowed = await requestInitialCameraPermission(retryPermission);
+    if (state.data.screen !== "camera") return;
+    if (!allowed) return updateCamera("error", "CAMERA_UNAVAILABLE");
+  }
+  camera.start(screen.querySelector("#camera-video"), api, updateCamera);
 }
 async function capture() {
   if (cameraState !== "ready" || state.data.busy) return;
@@ -222,7 +283,7 @@ async function capture() {
   cameraState = "capturing";
   screen.querySelector('[data-action="capture"]').disabled = true;
   screen.querySelector(".back").disabled = true;
-  header.querySelector(".demo-settings")?.setAttribute("disabled", "");
+  header.querySelector(".demo-settings, .connection-button")?.setAttribute("disabled", "");
   screen.querySelector("#camera-instruction").textContent =
     cameraCopy.capturing;
   try {
@@ -240,30 +301,62 @@ async function capture() {
     updateCamera("error");
   }
 }
+function prepareBadge() {
+  if (!web || !state.data.result) return;
+  run("digital-card", ctx => createDigitalBadge(state.data, ctx), blob => {
+    if (badgeUrl) URL.revokeObjectURL(badgeUrl);
+    badgeUrl = URL.createObjectURL(blob);
+    go("webCard", { digitalCard: badgeUrl });
+  });
+}
+function retake() {
+  if (!web) return;
+  api.reset();
+  if (badgeUrl) URL.revokeObjectURL(badgeUrl);
+  badgeUrl = null;
+  operationIds.delete("ai");
+  operationIds.delete("digital-card");
+  go("camera", { result: null, capture: null, digitalCard: null });
+}
+function waitForUi(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (ms <= 0) return resolve();
+    const abort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
 function analyze() {
   const s = state.data;
   run(
     "ai",
-    (ctx) =>
-      s.aiMode === "A"
+    async (ctx) => {
+      const startedAt = performance.now();
+      const result = await (s.aiMode === "A"
         ? api.matchCharacter(s.capture, ctx)
-        : api.generateProfile(s.capture, ctx),
+        : api.generateProfile(s.capture, ctx));
+      await waitForUi(
+        MIN_AI_SCREEN_MS - (performance.now() - startedAt),
+        ctx.signal,
+      );
+      return result;
+    },
     (result) => {
-      if (!result || result.kind !== s.aiMode || !safeImage(result.image))
+      if (
+        !result ||
+        result.kind !== s.aiMode ||
+        !isSameOriginImage(result.image, location.href)
+      )
         throw new KioskError("INVALID_RESPONSE", false);
       go(s.aiMode === "A" ? "resultA" : "resultB", { result, capture: null });
     },
   );
-}
-function safeImage(value) {
-  // Only same-origin image references; no external photo transmission or JS URLs.
-  if (typeof value !== "string") return false;
-  try {
-    const url = new URL(value, location.origin);
-    return url.origin === location.origin && url.protocol === location.protocol;
-  } catch {
-    return false;
-  }
 }
 function registerNfc() {
   const s = state.data;
@@ -375,17 +468,21 @@ function submitName() {
 function back() {
   const s = state.data;
   if (s.busy) return;
+  if (web && ["resultA", "resultB"].includes(s.screen)) return retake();
   const previous = {
     teams: "home",
     team: "teams",
-    name: "team",
+    name: presentation ? "teams" : "team",
     modes: "name",
     detailA: "modes",
     detailB: "modes",
-    camera: s.aiMode === "A" ? "detailA" : "detailB",
+    camera: presentation ? "modes" : s.aiMode === "A" ? "detailA" : "detailB",
     checkout: "home",
     checkoutResult: "home",
     report: "checkoutResult",
+    webIssue: s.aiMode === "A" ? "resultA" : "resultB",
+    webCheckout: "home",
+    webReport: "webCheckout",
   }[s.screen];
   if (previous === "home") return reset();
   if (previous) go(previous, {}, "back");
@@ -395,7 +492,25 @@ function openModal(kind) {
   if (state.data.busy) return;
   modal = kind;
   returnFocus = document.activeElement;
-  if (kind === "settings") {
+  document.body.classList.add("modal-open");
+  if (kind === "connections") {
+    const cameraLabel = {
+      uninitialized: "권한 요청 전",
+      authorized: "권한 허용됨 · 촬영 대기",
+      initializing: "연결 확인 중",
+      ready: "촬영 준비됨",
+      no_person: "얼굴 확인 중",
+      multiple_people: "한 사람만 필요",
+      capturing: "촬영 중",
+      error: "연결 확인 필요",
+    }[cameraState] || "권한 요청 전";
+    overlay.innerHTML = `<div class="overlay-backdrop"><section class="dialog system-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><button class="system-dialog-close" data-action="modal-close" aria-label="시스템 상태 닫기">${icon("close")}</button><span class="pi-dialog-badge"><i></i> WEB DEMO · HARDWARE TARGET</span><h2 id="dialog-title">시연 환경과 현장 장치</h2><p>현재 동작하는 웹 시연과 향후 Raspberry Pi에 연결할 현장 장비를 구분해 표시합니다.</p>
+      <section class="system-status-group current-system" aria-labelledby="current-system-title"><div class="system-status-heading"><div><span>현재</span><h3 id="current-system-title">웹 시연 환경</h3></div><strong class="status-chip active">실행 중</strong></div><dl class="connection-list"><div><dt>실행 위치</dt><dd>현재 컴퓨터</dd></div><div><dt>로컬 AI 서버</dt><dd>${health === "healthy" ? "연결됨" : "연결 확인 필요"}</dd></div><div><dt>웹 카메라</dt><dd>${cameraLabel}</dd></div></dl></section>
+      <section class="system-status-group target-system" aria-labelledby="target-system-title"><div class="system-status-heading"><div><span>현장 목표</span><h3 id="target-system-title">Raspberry Pi 키오스크</h3></div><strong class="status-chip pending">연동 전</strong></div><dl class="connection-list"><div><dt>Raspberry Pi 5</dt><dd>배포·현장 검증 전</dd></div><div><dt>Camera Module 3</dt><dd>현장 검증 전</dd></div><div><dt>ACR1252U NFC</dt><dd>연동 전</dd></div><div><dt>ZTP-80USL2 프린터</dt><dd>연동 전</dd></div><div><dt>MirrorTing 기록</dt><dd>연동 전</dd></div></dl></section>
+      <p class="connection-footnote">현재 웹에서 실제 동작하는 범위는 카메라 촬영, 로컬 AI 처리, 사원증 이미지 생성입니다. NFC·실물 출력·MirrorTing 기록은 성공으로 표시하지 않습니다.</p><div class="dialog-actions"><button class="button" data-action="modal-close">확인</button></div></section></div>`;
+  } else if (kind === "team") {
+    overlay.innerHTML = renderTeamPreview(state.data.draftTeam);
+  } else if (kind === "settings") {
     overlay.innerHTML = `<div class="overlay-backdrop"><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><span class="eyebrow">FRONTEND PREVIEW</span><h2 id="dialog-title">어떤 상황을 확인할까요?</h2><p>실제 장치에 요청하지 않는 화면 체험입니다.<br>상황을 바꾸면 현재 입력 정보가 초기화돼요.</p><label for="scenario">체험 시나리오</label><select id="scenario">${scenarios.map(([value, text]) => `<option value="${value}" ${scenario === value ? "selected" : ""}>${text}</option>`).join("")}</select><div class="dialog-actions"><button class="button" data-action="scenario-apply">이 상황으로 시작하기</button><button class="button secondary" data-action="modal-close">돌아가기</button></div></section></div>`;
   } else {
     overlay.innerHTML =
@@ -407,6 +522,7 @@ function openModal(kind) {
 function closeModal() {
   motion.dismiss(overlay.querySelector(".overlay-backdrop"));
   modal = null;
+  document.body.classList.remove("modal-open");
   header.inert = screen.inert = footer.inert = false;
   if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
   returnFocus = null;
@@ -419,20 +535,39 @@ const handlers = {
   },
   checkout: () => {
     reset();
-    go("checkout", { flow: "checkout" });
+    go(web ? "webCheckout" : "checkout", { flow: "checkout" });
   },
   "team-select": (el) => {
     const team = teams.find((t) => t.id === el.dataset.id);
-    if (team) go("team", { draftTeam: team });
+    if (team) {
+      state.patch({ draftTeam: team });
+      openModal("team");
+    }
   },
-  "team-confirm": () => go("name", { team: state.data.draftTeam }),
+  "team-confirm": () => {
+    const team = state.data.draftTeam;
+    if (!team) return;
+    closeModal();
+    go("name", { team });
+  },
   "name-next": submitName,
   "mode-select": (el) => {
     if (["A", "B"].includes(el.dataset.mode))
-      go(`detail${el.dataset.mode}`, { aiMode: el.dataset.mode, result: null });
+      presentation
+        ? go("camera", { aiMode: el.dataset.mode, result: null })
+        : go(`detail${el.dataset.mode}`, {
+            aiMode: el.dataset.mode,
+            result: null,
+          });
   },
   "camera-open": () => go("camera"),
-  "camera-retry": initializeCamera,
+  "camera-retry": () => initializeCamera(true),
+  "digital-card": prepareBadge,
+  "card-connect": () => { if (web && state.data.result) go("webIssue"); },
+  "visit-guide": () => go("webComplete"),
+  "report-preview": () => go("webReport"),
+  connections: () => openModal("connections"),
+  retake,
   capture,
   "ai-retry": () => {
     operationIds.delete("ai");
@@ -505,7 +640,7 @@ document.addEventListener("keydown", (event) => {
       first.focus();
     }
   }
-  if (event.key === "Escape" && modal === "settings") closeModal();
+  if (event.key === "Escape" && ["settings", "team", "connections"].includes(modal)) closeModal();
   if (event.key === "Enter" && event.target.id === "visitor-name") {
     event.preventDefault();
     submitName();
@@ -520,6 +655,7 @@ document.addEventListener("pointerdown", activity);
 document.addEventListener("keydown", activity);
 setInterval(() => {
   if (
+    presentation ||
     state.data.busy ||
     state.data.error?.code === "UNKNOWN_OUTCOME" ||
     ["home", "fatal"].includes(state.data.screen) ||
@@ -545,12 +681,15 @@ setInterval(() => {
       );
   }
 }, 500);
-addEventListener("pagehide", () => {
+addEventListener("pagehide", (event) => {
   currentController?.abort();
   camera.stop();
+  if (!event.persisted) api.reset();
+  if (!event.persisted && badgeUrl) URL.revokeObjectURL(badgeUrl);
   motion.destroy();
 });
 render("reset");
+if (web) requestInitialCameraPermission();
 if (!demo)
   api
     .getHealth()

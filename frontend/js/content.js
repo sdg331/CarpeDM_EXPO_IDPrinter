@@ -1,6 +1,7 @@
 export const teams = [
   {
     id: "development",
+    iconImage: "/assets/teams/development.png",
     title: "개발팀",
     summary: "아이디어를 서비스로 만드는 팀",
     english: "Development",
@@ -12,6 +13,7 @@ export const teams = [
   },
   {
     id: "ai",
+    iconImage: "/assets/teams/ai.png",
     title: "AI팀",
     summary: "데이터로 새로운 기능을 만드는 팀",
     english: "Artificial Intelligence",
@@ -23,6 +25,7 @@ export const teams = [
   },
   {
     id: "design",
+    iconImage: "/assets/teams/design.png",
     title: "디자인팀",
     summary: "화면과 사용자 경험을 설계하는 팀",
     english: "Design",
@@ -34,6 +37,7 @@ export const teams = [
   },
   {
     id: "planning",
+    iconImage: "/assets/teams/planning.png",
     title: "기획팀",
     summary: "문제를 찾고 서비스를 기획하는 팀",
     english: "Product Planning",
@@ -45,6 +49,7 @@ export const teams = [
   },
   {
     id: "marketing",
+    iconImage: "/assets/teams/marketing.png",
     title: "마케팅팀",
     summary: "서비스를 알리고 사람과 연결하는 팀",
     english: "Marketing",
@@ -55,6 +60,7 @@ export const teams = [
   },
   {
     id: "hr",
+    iconImage: "/assets/teams/hr.png",
     title: "인사팀",
     summary: "채용과 조직문화를 만드는 팀",
     english: "People & Culture",
@@ -68,7 +74,7 @@ export const teams = [
 export const modes = {
   A: {
     title: "AI 캐릭터 매칭",
-    summary: "얼굴 특징을 분석해 가장 가까운 캐릭터를 찾아요.",
+    summary: "나와 가장 닮은 MIRRORTING 캐릭터를 찾아요.",
     detail:
       "AI가 얼굴의 특징을 분석해 8명의 MIRRORTING WORKS 캐릭터 중 가장 가까운 캐릭터를 찾아드립니다.",
     cta: "캐릭터 매칭 시작하기",
@@ -82,15 +88,15 @@ export const modes = {
   },
   B: {
     title: "AI 프로필 생성",
-    summary: "나만의 사원증 프로필을 만들어요.",
+    summary: "얼굴과 옷은 그대로, 얼굴이 크게 보이는 자연스러운 프로필을 만들어요.",
     detail:
       "촬영한 얼굴은 그대로 유지하면서 컴퓨터 비전 기술로 사원증용 프로필 사진을 만들어드립니다.",
     cta: "AI 프로필 만들기",
     steps: [
       ["사람·얼굴 탐지", "카메라 속 인물과 얼굴을 찾습니다."],
-      ["자세 분석", "얼굴과 어깨의 위치를 확인합니다."],
+      ["촬영 상태 확인", "얼굴의 위치와 기울기, 선명도를 확인합니다."],
       ["인물 분리", "인물과 배경을 구분합니다."],
-      ["정장 합성", "포멀한 정장 이미지를 위치에 맞게 합성합니다."],
+      ["얼굴 중심 구도", "얼굴과 어깨가 자연스럽게 보이도록 구도를 맞춥니다."],
       ["프로필 완성", "배경과 구도를 정리하고 품질을 확인합니다."],
     ],
   },
@@ -111,6 +117,11 @@ export const scenarios = [
   ["fatal", "서비스 점검 화면"],
 ];
 export const screenIds = {
+  webIssue: "SCR-22",
+  webComplete: "SCR-23",
+  webCheckout: "SCR-24",
+  webReport: "SCR-25",
+  webCard: "SCR-21",
   home: "SCR-01",
   teams: "SCR-02",
   team: "SCR-03",

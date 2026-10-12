@@ -8,6 +8,9 @@ export class KioskError extends Error {
   }
 }
 export const errorCopy = {
+  PROFILE_EXPIRED: ["프로필을 다시 만들어주세요.", "임시 보관 시간이 지났어요. 다시 촬영하면 새 사원증을 만들 수 있어요."],
+  DOWNLOAD_FAILED: ["사원증 이미지를 준비하지 못했어요.", "프로필은 그대로예요. 다시 시도해주세요."],
+  INVALID_PHOTO: ["촬영 화면을 확인해주세요.", "카메라에 한 사람의 얼굴 전체가 선명하게 보이도록 다시 촬영해주세요."],
   BACKEND_UNAVAILABLE: [
     "서비스에 연결하지 못했어요.",
     "잠시 후 다시 시도해주세요. 계속 연결되지 않으면 현장 스태프에게 알려주세요.",
@@ -27,6 +30,14 @@ export const errorCopy = {
   MULTIPLE_PEOPLE: [
     "여러 명의 얼굴이 보여요.",
     "한 분만 화면 안에 들어와 다시 촬영해주세요.",
+  ],
+  BAD_POSITION: [
+    "얼굴 위치를 확인해주세요.",
+    "화면 중앙을 바라보고 얼굴 전체가 보이도록 다시 촬영해주세요.",
+  ],
+  LOW_QUALITY: [
+    "사진이 선명하지 않아요.",
+    "얼굴에 빛이 잘 닿는 곳에서 흔들리지 않게 다시 촬영해주세요.",
   ],
   AI_ERROR: [
     "분석하지 못했어요.",
@@ -105,9 +116,52 @@ export function normalizeMatch(data) {
   };
 }
 
-const multipart = (frame) => {
+export function normalizeProfile(data) {
+  if (!data?.ok) {
+    const mapped = {
+      no_face: "NO_PERSON",
+      multiple_faces: "MULTIPLE_PEOPLE",
+      bad_position: "BAD_POSITION",
+      low_quality: "LOW_QUALITY",
+    }[data?.error];
+    if (data?.error === "profile_unavailable")
+      throw new KioskError("INTEGRATION_PENDING", false);
+    if (data?.error === "invalid_request")
+      throw new KioskError("INVALID_RESPONSE", false);
+    throw new KioskError(mapped || "AI_ERROR");
+  }
+  if (
+    typeof data.profileId !== "string" ||
+    !/^p_[A-Za-z0-9_-]{20,80}$/.test(data.profileId) ||
+    data.previewUrl !== `/api/profile/${data.profileId}/image`
+  )
+    throw new KioskError("INVALID_RESPONSE", false);
+  return {
+    kind: "B",
+    profileId: data.profileId,
+    image: data.previewUrl,
+  };
+}
+
+export function isSameOriginImage(value, baseHref) {
+  if (typeof value !== "string" || !baseHref) return false;
+  try {
+    const base = new URL(baseHref);
+    const image = new URL(value, base);
+    return (
+      ["http:", "https:"].includes(base.protocol) &&
+      image.protocol === base.protocol &&
+      image.origin === base.origin
+    );
+  } catch {
+    return false;
+  }
+}
+
+const multipart = (frame, operationId) => {
   const form = new FormData();
   form.append("frame", frame, "capture.jpg");
+  if (operationId) form.append("operation_id", operationId);
   return form;
 };
 function wait(ms, signal) {
@@ -126,7 +180,7 @@ function wait(ms, signal) {
   });
 }
 
-// Deterministic fixtures are available ONLY through explicit ?demo=1.
+// Deterministic fixtures require ?sample=1 (or legacy ?demo=1&controls=1).
 // They never activate in response to a failed real service request.
 export function createDemoApi(scenario = "success") {
   const attempts = new Set();
@@ -183,7 +237,7 @@ export function createDemoApi(scenario = "success") {
       operation(
         "ai",
         ctx,
-        { kind: "B", image: "/assets/characters/char_02.png", sample: true },
+        { kind: "B", image: "/assets/characters/char_01.png", sample: true },
         scenario === "ai_error"
           ? "AI_ERROR"
           : scenario === "ai_timeout"
@@ -254,6 +308,7 @@ export function createLiveApi(
   integrations = liveIntegrations,
   fetcher = fetch,
 ) {
+  const profileIds = new Set();
   const call = async (name, ...args) => {
     if (typeof integrations[name] !== "function")
       throw new KioskError("INTEGRATION_PENDING", false);
@@ -268,7 +323,17 @@ export function createLiveApi(
   };
   return {
     demo: false,
-    reset() {},
+    reset() {
+      for (const profileId of profileIds) {
+        Promise.resolve(
+          fetcher(`/api/profile/${encodeURIComponent(profileId)}`, {
+            method: "DELETE",
+            keepalive: true,
+          }),
+        ).catch(() => {});
+      }
+      profileIds.clear();
+    },
     getHealth: (signal) =>
       request("/api/health", { signal, timeout: 4000 }, fetcher),
     detectPreview: (frame, { signal } = {}) =>
@@ -285,7 +350,22 @@ export function createLiveApi(
           fetcher,
         ),
       ),
-    generateProfile: (...args) => call("generateProfile", ...args),
+    generateProfile: async (frame, { signal, operationId } = {}) => {
+      const result = normalizeProfile(
+        await request(
+          "/api/profile",
+          {
+            method: "POST",
+            body: multipart(frame, operationId),
+            signal,
+            timeout: 20000,
+          },
+          fetcher,
+        ),
+      );
+      profileIds.add(result.profileId);
+      return result;
+    },
     registerNfc: (...args) => call("registerNfc", ...args),
     issueBadge: (...args) => call("issueBadge", ...args),
     resolveCheckout: (...args) => call("resolveCheckout", ...args),

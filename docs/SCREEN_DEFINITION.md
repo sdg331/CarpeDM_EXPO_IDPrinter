@@ -1,5 +1,18 @@
 # Screen Definition
 
+## Web checkpoint · 2026-09-22
+
+Default `/` and `?demo=1` now provide a real local browser flow:
+home → team → name → mode → camera → processing → result → `SCR-22 CARD_CONNECTION_PREVIEW`
+→ `SCR-21 PRINT_PREVIEW` → `SCR-23 MIRRORTING_GUIDE` → home.
+The first screen presents check-in and checkout, sharing the device UI's visual style.
+`SCR-22` explicitly shows the disconnected NFC reader and offers print preview only.
+`SCR-21` previews the real 900×1200 PNG; downloading is a secondary action.
+`SCR-23` explains the next smart mirror experience without claiming hardware completion.
+Checkout uses `SCR-24 CHECKOUT_PREVIEW` → `SCR-25 REPORT_EMPTY_PREVIEW`: no fabricated records or print action.
+Upload/camera errors remain recoverable. Reset clears the visitor state and profile.
+`?kiosk=1` retains the device flow documented below; `?sample=1` explicitly uses fixtures.
+
 ## Naming Rule
 
 Document/Figma/QA shared ID:
@@ -64,7 +77,7 @@ Example:
 5. 마케팅팀
 6. 인사팀
 
-**Action**: card tap → store temporary selected team → SCR-03.
+**Action**: card tap → 같은 화면 위에 SCR-03 팀 상세 카드를 표시하고 임시 선택을 유지.
 
 **API**: none required if team content is local config.
 
@@ -299,7 +312,8 @@ detect → pose/landmark → segmentation → suit composite → final quality
 - optional retake only if product owner approves/retry contract exists
 - continue → SCR-12
 
-**API**: PROPOSED Mode B generation contract.
+**API**: CURRENT `POST /api/profile` → temporary same-origin preview URL.
+Physical badge printing with `profileId` remains a separate contract.
 
 ---
 

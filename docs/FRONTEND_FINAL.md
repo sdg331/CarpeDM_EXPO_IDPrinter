@@ -2,9 +2,9 @@
 
 ## 완료 범위
 
-800×1280 세로, 10.1인치 키오스크용 입사·퇴근 프론트엔드를 마무리했다. 기존 FastAPI와 연결되는 순수 HTML/CSS/JavaScript 구조를 유지한다. NFC·프린터·AI B·MirrorTing 리포트의 실제 서비스 구현은 다음 연동 단계다.
+800×1280 세로, 10.1인치 키오스크용 입사·퇴근 프론트엔드를 마무리했다. 기존 FastAPI와 연결되는 순수 HTML/CSS/JavaScript 구조를 유지한다. 이 문서는 2026-09-15 프론트엔드 인수인계 기록이다. AI B 로컬 합성은 2026-09-22에 후속 구현됐으며 최신 범위는 [구현 상태](IMPLEMENTATION_STATUS.md)를 따른다.
 
-실행은 Node.js 20 이상에서 `npm start`, 확인 주소는 `http://localhost:4173/?demo=1`이다. 설치나 빌드 과정 없이 동작한다. 체험 모드는 실제 장치를 작동시키지 않으며 고정 샘플임을 화면에 표시한다.
+고정 샘플 실행은 Node.js 20 이상에서 `npm start`, 확인 주소는 `http://localhost:4173/?sample=1`이다. 설치나 빌드 과정 없이 동작한다. 고정 샘플 모드는 실제 장치를 작동시키지 않으며 샘플임을 화면에 표시한다. 2026-09-22 이후 `/`와 `?demo=1`은 FastAPI가 필요한 실제 웹 체험이므로 최신 실행 방법은 README를 따른다.
 
 ## 최종 디자인
 
@@ -52,7 +52,7 @@
 
 ## 다음 연동 단계
 
-`frontend/js/live-integrations.js`에 AI B, 카드 등록/조회, 사원증/리포트 출력, 체험 기록 조회를 연결한다. 필수 반환값과 작업 ID 정책은 [구현 상태](IMPLEMENTATION_STATUS.md)의 실제 연결 계약을 따른다.
+AI B 로컬 합성 미리보기는 `/api/profile`에 연결됐다. `frontend/js/live-integrations.js`에는 카드 등록/조회, 사원증/리포트 출력, 체험 기록 조회를 연결한다. 필수 반환값과 작업 ID 정책은 [구현 상태](IMPLEMENTATION_STATUS.md)의 실제 연결 계약을 따른다.
 
 현장에서는 Pi Chromium의 물리 키보드 IME·터치·카메라와 ACR1252U·ZTP-80USL2, 실제 패널 배율과 시청 거리, 용지·중복 출력·통신 단절을 확인한다. 화면 체험 성공을 하드웨어 운영 검증 완료로 취급하지 않는다.
 

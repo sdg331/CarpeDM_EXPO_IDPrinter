@@ -14,6 +14,15 @@ Retention: final policy must be set by project owner/backend. Do not keep indefi
 
 ## Face Image
 
+Web upload accepts JPEG/PNG/WebP up to 8 MB and 12 megapixels. The browser
+decodes and resizes the selected image to at most 1280 pixels before sending it
+to the same local FastAPI server. Camera permission is requested only after
+the visitor chooses to turn the camera on.
+
+Web badge PNGs are composed in browser memory. Returning home revokes the
+object URL and clears name/photo state. An explicitly downloaded PNG remains
+in the user's chosen download location and is not removed by session reset.
+
 CURRENT `/api/match` decodes image in memory and deletes references; it does not persist capture to disk.
 
 Target direction:
@@ -27,8 +36,15 @@ Mode A uses SFace embedding for matching. Treat feature data carefully; do not e
 
 ## Mode B Profile
 
-Generated composite may need temporary session storage for badge printing.
-Target: delete or expire after session/report retention purpose unless approved otherwise.
+The original capture is decoded and processed in memory and is not written to
+disk. The generated PNG alone is held in a process-local store for 10 minutes
+by default, capped at 8 entries. Browser reset requests immediate deletion;
+expiry and process shutdown provide fallback cleanup. Image responses use
+`Cache-Control: no-store`.
+
+`KIOSK_PROFILE_TTL_SECONDS` and `KIOSK_PROFILE_MAX_ITEMS` can lower or raise
+those operational limits. A future badge-print session may refer to the opaque
+`profileId`; it must not put the photo itself on NFC.
 
 ## NFC
 

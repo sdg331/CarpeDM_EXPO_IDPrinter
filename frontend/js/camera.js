@@ -4,6 +4,7 @@ export class Camera {
   stream = null;
   generation = 0;
   timer = null;
+  startupTimer = null;
   controller = null;
   video = null;
   async start(video, api, onState) {
@@ -13,6 +14,11 @@ export class Camera {
     this.controller = new AbortController();
     const signal = this.controller.signal;
     onState("initializing");
+    this.startupTimer = setTimeout(() => {
+      if (generation !== this.generation) return;
+      this.stop();
+      onState("error", "CAMERA_UNAVAILABLE");
+    }, 15000);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -30,6 +36,7 @@ export class Camera {
       video.srcObject = stream;
       await video.play();
       if (generation !== this.generation) return;
+      clearTimeout(this.startupTimer);
       const detect = async () => {
         if (generation !== this.generation) return;
         try {
@@ -55,8 +62,10 @@ export class Camera {
       };
       await detect();
     } catch {
-      if (generation === this.generation)
+      if (generation === this.generation) {
+        this.stop();
         onState("error", "CAMERA_UNAVAILABLE");
+      }
     }
   }
   async capture(maxSide = 1280) {
@@ -86,6 +95,7 @@ export class Camera {
   stop() {
     this.generation++;
     clearTimeout(this.timer);
+    clearTimeout(this.startupTimer);
     this.controller?.abort();
     this.stream?.getTracks().forEach((t) => t.stop());
     if (this.video) this.video.srcObject = null;

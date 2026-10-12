@@ -58,6 +58,6 @@ http
     }
   })
   .listen(port, "127.0.0.1", () => {
-    console.log(`Frontend demo: http://localhost:${port}/?demo=1`);
+    console.log(`Sample screens: http://localhost:${port}/?sample=1`);
     console.log(`Live UI (requires FastAPI): http://localhost:${port}/`);
   });
