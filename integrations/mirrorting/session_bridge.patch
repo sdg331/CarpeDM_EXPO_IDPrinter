@@ -1,6 +1,6 @@
 --- a/poc/backend/app/core/config.py
 +++ b/poc/backend/app/core/config.py
-@@ -26,6 +26,9 @@
+@@ -28,6 +28,9 @@
      require_secure: bool = False
      # 익명/계정 저장 동의 시 음성 파일 보관 일수 (S-CBYKOH). '미저장' 동의는 분석 직후 삭제.
      media_retention_days: int = 7
@@ -43,7 +43,7 @@
  
  
  class TurnOut(BaseModel):
-@@ -236,6 +240,7 @@
+@@ -237,6 +241,7 @@
      current_turn: TurnOut | None = None
      # 세션 접근 능력 토큰 — 이후 세션 조회 시 X-Session-Token 헤더로 되돌려준다 (생성 응답에만 값)
      access_token: str = ""
@@ -86,7 +86,7 @@
          raise HTTPException(status_code=404, detail="등록되지 않았거나 폐기된 카드입니다")
 --- a/poc/backend/app/main.py
 +++ b/poc/backend/app/main.py
-@@ -52,8 +52,19 @@
+@@ -62,8 +62,19 @@
              report.headline = {}
              report.deep_analysis = {}
              report.coaching = []  # Before→After 카드도 발화 인용을 담는다 (S-B2B-COACH)
@@ -109,7 +109,7 @@
          db.close()
 --- a/poc/backend/app/api/sessions.py
 +++ b/poc/backend/app/api/sessions.py
-@@ -44,6 +44,7 @@
+@@ -49,6 +49,7 @@
  from app.services.dialogue import DialogueGenerationError, QuestionSpec, get_dialogue_provider
  from app.services.dialogue import emotion, reactions
  from app.services.session_fsm import InvalidTransition, transition
@@ -117,7 +117,7 @@
  from app.services.workplace import WORKPLACE_SLUG, CONTINUOUS_MODE, act_bridge_line, continuous_fallback_line
  from app.services.dialogue import stats as dialogue_stats
  
-@@ -112,6 +113,55 @@
+@@ -117,6 +118,55 @@
      return out
  
  
@@ -173,7 +173,7 @@
  @router.post("", response_model=SessionOut)
  def create_session(
      body: SessionCreateIn,
-@@ -128,6 +178,7 @@
+@@ -133,6 +183,7 @@
      # 등록되지 않은 카드는 404 — 프론트가 수동 카드 선택 폴백을 띄운다.
      card = None
      card_org_id = None
@@ -181,7 +181,7 @@
      scenario_slug = body.scenario_slug
      job_role = body.job_role
      if body.nfc_uid:
-@@ -135,20 +186,36 @@
+@@ -140,22 +191,38 @@
          from app.models import NfcCard
          from app.services import nfc_bridge
  
@@ -192,6 +192,8 @@
 -        job_role = card.job_role or job_role
 -        if not scenario_slug:
 -            scenario_slug = card.scenario_slug or DEFAULT_PACK_BY_ROLE.get(card.job_role, "")
+-        if card.job_role == "cafe_crew" and scenario_slug == "ondo-cafe-crew":
+-            scenario_slug = "cafe-order-taking"
 -        # 기관 스탬프는 '최근 실물 태그 증거'가 있을 때만 인정한다. 카드 UID는
 -        # 비밀이 아니라(휴대폰으로 읽힘) UID 지식만으로 기관 귀속을 허용하면
 -        # 익명 공격자가 타 기관 대시보드·KPI에 세션을 무한 주입할 수 있다.
@@ -209,6 +211,8 @@
 +            job_role = card.job_role or job_role
 +            if not scenario_slug:
 +                scenario_slug = card.scenario_slug or DEFAULT_PACK_BY_ROLE.get(card.job_role, "")
++            if card.job_role == "cafe_crew" and scenario_slug == "ondo-cafe-crew":
++                scenario_slug = "cafe-order-taking"
 +            if nfc_bridge.recent_tap_matches(body.nfc_uid):
 +                card_org_id = card.institution_id
 +        else:
@@ -232,7 +236,7 @@
  
      # 직무 검증 — 다른 모든 job_role 입력 경로(signup·/orgs/join·PATCH /me·nfc/issue)와
      # 같은 화이트리스트를 쓴다. 무검증 스탬프는 기관 대시보드의 직무 필터·KPI 집계에서
-@@ -199,6 +266,9 @@
+@@ -216,6 +283,9 @@
          user_id=user.id if user else None,
          client_key=client_key,
          access_token=secrets.token_urlsafe(24),
@@ -242,7 +246,7 @@
          # 영수증 QR 클레임 토큰 (S-B2B-CLAIM) — 계정 귀속 전용 능력 토큰.
          # access_token(데이터 열람권)과 분리해 QR 노출 반경을 귀속 행위로 한정한다.
          claim_token=secrets.token_urlsafe(24),
-@@ -231,6 +301,8 @@
+@@ -249,6 +319,8 @@
      # 첫 대사는 시나리오가 정한 역할·상황을 방문객에게 정확히 전달해야 한다.
      # 따라서 LLM은 첫 응답을 받은 다음 질문부터만 문장을 개인화한다.
      turn = _create_turn(db, session, spec, order=1)
@@ -250,8 +254,8 @@
 +    kiosk_link_status = _link_kiosk_session(db, session) if kiosk_snapshot else "not_requested"
  
      return SessionOut(
-         interaction=interaction.public_state(session),
-@@ -242,7 +314,19 @@
+         voice_analysis=voice_analysis.public_state(session),
+@@ -261,7 +333,19 @@
          scenario=to_scenario_out(scenario),
          current_turn=_turn_out(db, turn),
          access_token=session.access_token,
@@ -272,7 +276,7 @@
  
  
  @router.get("/mine")
-@@ -384,6 +468,7 @@
+@@ -404,6 +488,7 @@
          current_turn=_turn_out(db, current) if current else None,
          history=history,
          elapsed_sec=elapsed,
@@ -282,7 +286,7 @@
  
 --- a/mvp/src/lib/pocApi.js
 +++ b/mvp/src/lib/pocApi.js
-@@ -86,7 +86,7 @@
+@@ -85,7 +85,7 @@
  
  const SESSION_DIFFICULTIES = new Set(["basic", "pressure", "ultra_pressure"]);
  
@@ -291,7 +295,7 @@
    return request("/sessions", {
      method: "POST",
      body: JSON.stringify({
-@@ -99,6 +99,7 @@
+@@ -98,6 +98,7 @@
        // nfc_uid를 주면 서버가 카드의 직무·시나리오를 세션에 스탬프한다 (미등록 카드 404).
        ...(jobRole ? { job_role: jobRole } : {}),
        ...(nfcUid ? { nfc_uid: nfcUid } : {}),
@@ -301,7 +305,7 @@
      }),
 --- a/mvp/src/lib/useServiceEntryRoute.js
 +++ b/mvp/src/lib/useServiceEntryRoute.js
-@@ -164,11 +164,20 @@
+@@ -169,11 +169,20 @@
      nfcResolvingRef.current = true;
      try {
        const card = await resolveNfcCard(tap.uid);
@@ -326,7 +330,7 @@
        setNfcFallback(true);
      } finally {
        nfcResolvingRef.current = false;
-@@ -182,7 +191,10 @@
+@@ -187,7 +196,10 @@
    });
  
    const startFromJobRole = (role) => {
@@ -340,7 +344,7 @@
      navigate("preview");
 --- a/mvp/src/App.jsx
 +++ b/mvp/src/App.jsx
-@@ -196,6 +196,7 @@
+@@ -197,6 +197,7 @@
          selectedEpisodeId: workplace || nfcCard ? null : selectedEpisodeId,
          jobRole: nfcCard?.jobRole,
          nfcUid: nfcCard?.uid || "",
@@ -350,30 +354,30 @@
        saveActiveSession(nextSession);
 --- a/mvp/src/pages/ServiceEntryShell.jsx
 +++ b/mvp/src/pages/ServiceEntryShell.jsx
-@@ -66,7 +66,7 @@
+@@ -74,6 +74,6 @@
        {active === "result" && <ResultPage onPrev={() => go(-1)} onPractice={() => navigate("preview")} report={report} history={history} onIssueCode={issueCode} selectedDifficulty={difficulty} progress={analysisProgress} error={apiError} />}
-     </div>
+     </main>
      <span className="screen-reader-note" aria-live="polite">현재 화면: {current.label}</span>
--    {active === "home" && nfcFallback && <NfcStartFallback onPick={startFromJobRole} onClose={() => setNfcFallback(false)} />}
-+    {active === "home" && nfcFallback && <NfcStartFallback cardConfirmed={Boolean(entry.state.nfcCard?.kioskSessionId)} onPick={startFromJobRole} onClose={() => setNfcFallback(false)} />}
-     {active === "home" && <AttractLoop active onStart={() => navigate(startView)} />}
-   </main>;
+-    {active === "home" && nfcFallback && <NfcStartFallback serviceMode={serviceMode?.id} onPick={startFromJobRole} onClose={() => setNfcFallback(false)} />}
++    {active === "home" && nfcFallback && <NfcStartFallback serviceMode={serviceMode?.id} cardConfirmed={Boolean(entry.state.nfcCard?.kioskSessionId)} onPick={startFromJobRole} onClose={() => setNfcFallback(false)} />}
+   </div>;
  }
 --- a/mvp/src/components/nfc/NfcStartFallback.jsx
 +++ b/mvp/src/components/nfc/NfcStartFallback.jsx
-@@ -6,9 +6,9 @@
+@@ -6,10 +6,10 @@
  /** 미러 NFC 수동 폴백 (E-20 / S-B2B-106) — resolve 404(미등록·폐기 카드) 때 홈 위에 뜬다.
   *  카드 미인식이 체험 중단이 되면 안 된다: 직무 3버튼으로 같은 흐름(동의 → 연습)을 잇는다.
   */
--export function NfcStartFallback({ onPick, onClose }) {
-+export function NfcStartFallback({ cardConfirmed = false, onPick, onClose }) {
+-export function NfcStartFallback({ onPick, onClose, serviceMode = "workplace" }) {
++export function NfcStartFallback({ cardConfirmed = false, onPick, onClose, serviceMode = "workplace" }) {
+   const roles = JOB_ROLES.filter(role => serviceMode === "training" ? role.id === "cafe_crew" : serviceMode === "workplace" && role.id === "office_admin");
    return (
 -    <div className="nfc-fallback-overlay" role="dialog" aria-label="카드 미인식 — 직무 선택으로 시작">
 +    <div className="nfc-fallback-overlay" role="dialog" aria-label={cardConfirmed ? "사원증 확인 완료 — 체험 역할 선택" : "카드 미인식 — 직무 선택으로 시작"}>
        <motion.div
          className="nfc-fallback-card"
          initial={{ opacity: 0, y: 22, scale: 0.97 }}
-@@ -16,8 +16,8 @@
+@@ -17,8 +17,8 @@
          transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
        >
          <img className="nfc-fallback-mark" src={cafeOndoMark} alt="" aria-hidden="true" />
@@ -382,7 +386,7 @@
 +        <h2>{cardConfirmed ? "사원증을 확인했어요" : "카드가 인식되지 않아요"}</h2>
 +        <p>{cardConfirmed ? "이번에 체험할 역할을 선택하세요. 사원증의 팀 소속과는 별개의 선택이에요." : "직무를 선택해 시작하세요 — 발급 카드 없이도 같은 연습을 바로 진행할 수 있어요."}</p>
          <div className="nfc-fallback-roles">
-           {JOB_ROLES.map((role) => (
+           {roles.map((role) => (
              <button key={role.id} type="button" onClick={() => onPick(role)}>
 --- /dev/null
 +++ b/poc/backend/app/services/idprinter_bridge.py
@@ -593,7 +597,7 @@
 +                bridge.resolve("04AABBCC")
 --- /dev/null
 +++ b/poc/backend/tests/test_idprinter_kiosk_flow.py
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,118 @@
 +"""Companion endpoint tests, copied into MirrorTing by the prepared patch."""
 +
 +from fastapi.testclient import TestClient
@@ -654,8 +658,8 @@
 +
 +
 +def _body(kiosk_id=KIOSK_ID):
-+    return {"mode": 5, "service_mode": "workplace", "job_role": "cafe_crew",
-+            "scenario_slug": "ondo-cafe-crew", "nfc_uid": CARD_UID,
++    return {"mode": 5, "service_mode": "workplace", "job_role": "office_admin",
++            "scenario_slug": "release-schedule-alignment", "nfc_uid": CARD_UID,
 +            "kiosk_session_id": kiosk_id, "consent": CONSENT}
 +
 +
@@ -674,7 +678,7 @@
 +    assert FakeBridge.links == [(CardSnapshot(CARD_UID, KIOSK_ID), payload["id"], payload["access_token"])]
 +    with SessionLocal() as db:
 +        session = db.get(RoleplaySession, payload["id"])
-+        assert session.job_role == "cafe_crew"
++        assert session.job_role == "office_admin"
 +        assert session.kiosk_session_id == KIOSK_ID
 +        assert session.kiosk_card_uid == CARD_UID
 +
@@ -691,6 +695,14 @@
 +    assert FakeBridge.links == []
 +
 +
++def test_kiosk_session_requires_recent_reader_tap(monkeypatch):
++    client = _configured(monkeypatch)
++    monkeypatch.setattr(nfc_bridge, "recent_tap_matches", lambda *_args, **_kwargs: False)
++    response = client.post("/api/sessions", json=_body())
++    assert response.status_code == 409
++    assert FakeBridge.links == []
++
++
 +def test_bridge_outage_retries_original_session_without_creating_another(monkeypatch):
 +    client = _configured(monkeypatch)
 +    FakeBridge.fail_link = True
@@ -704,3 +716,29 @@
 +    assert retried.status_code == 200
 +    assert retried.json()["status"] == "linked"
 +    assert FakeBridge.links == [(CardSnapshot(CARD_UID, KIOSK_ID), payload["id"], payload["access_token"])]
+--- /dev/null
++++ b/mvp/src/lib/idprinterBridge.test.js
+@@ -0,0 +1,23 @@
++import assert from "node:assert/strict";
++import test from "node:test";
++import { createSession } from "./pocApi.js";
++
++test("kiosk card snapshot accompanies the selected MirrorTing role", async () => {
++  const originalFetch = globalThis.fetch;
++  const originalStorage = globalThis.localStorage;
++  globalThis.localStorage = { getItem: () => "test-client", setItem: () => {} };
++  let payload;
++  globalThis.fetch = async (_url, options) => {
++    payload = JSON.parse(options.body);
++    return new Response(JSON.stringify({ id: 1 }), { status: 200 });
++  };
++  try {
++    await createSession({ consent: true, jobRole: "office_admin", nfcUid: "04AABBCC", kioskSessionId: "MW2610030001" });
++    assert.equal(payload.kiosk_session_id, "MW2610030001");
++    assert.equal(payload.nfc_uid, "04AABBCC");
++    assert.equal(payload.job_role, "office_admin");
++  } finally {
++    globalThis.fetch = originalFetch;
++    globalThis.localStorage = originalStorage;
++  }
++});
