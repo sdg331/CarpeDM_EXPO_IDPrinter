@@ -58,8 +58,8 @@ def _configured(monkeypatch):
 
 
 def _body(kiosk_id=KIOSK_ID):
-    return {"mode": 5, "service_mode": "workplace", "job_role": "cafe_crew",
-            "scenario_slug": "ondo-cafe-crew", "nfc_uid": CARD_UID,
+    return {"mode": 5, "service_mode": "workplace", "job_role": "office_admin",
+            "scenario_slug": "release-schedule-alignment", "nfc_uid": CARD_UID,
             "kiosk_session_id": kiosk_id, "consent": CONSENT}
 
 
@@ -78,7 +78,7 @@ def test_kiosk_card_without_local_mirror_card_keeps_uid_and_chosen_role(monkeypa
     assert FakeBridge.links == [(CardSnapshot(CARD_UID, KIOSK_ID), payload["id"], payload["access_token"])]
     with SessionLocal() as db:
         session = db.get(RoleplaySession, payload["id"])
-        assert session.job_role == "cafe_crew"
+        assert session.job_role == "office_admin"
         assert session.kiosk_session_id == KIOSK_ID
         assert session.kiosk_card_uid == CARD_UID
 
@@ -92,6 +92,14 @@ def test_reissued_card_snapshot_is_rejected_before_session_creation(monkeypatch)
     assert response.status_code == 409
     with SessionLocal() as db:
         assert db.query(RoleplaySession).count() == before
+    assert FakeBridge.links == []
+
+
+def test_kiosk_session_requires_recent_reader_tap(monkeypatch):
+    client = _configured(monkeypatch)
+    monkeypatch.setattr(nfc_bridge, "recent_tap_matches", lambda *_args, **_kwargs: False)
+    response = client.post("/api/sessions", json=_body())
+    assert response.status_code == 409
     assert FakeBridge.links == []
 
 

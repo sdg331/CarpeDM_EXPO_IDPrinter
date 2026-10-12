@@ -1,6 +1,31 @@
 # MirrorTing 서버 연결 준비
 
-이 폴더는 IDPrinter 키오스크와 **실제 MirrorTing 결과 API**를 연결하기 위한 동반 패치입니다. 현재 IDPrinter 작업용 worktree에만 존재하며 MirrorTing 원본에는 적용하지 않았습니다. 패치 기준은 2026-10-03에 확인한 `2026CarpeDM_EXPO-main/poc/backend`와 같은 저장소의 `mvp/src` 스냅샷입니다(확인 당시 기준 커밋 `98c17ad`, 로컬 수정 포함). 별도의 `2026CarpeDM_EXPO-smart-mirror` sparse checkout에는 백엔드가 없어 이 패치를 적용할 수 없습니다. 실제 배포 대상 저장소가 정해지면 그 코드에 대한 앵커 검사와 재검증이 필요합니다.
+이 폴더는 IDPrinter 키오스크와 **실제 MirrorTing 결과 API**를 연결하는 동반 패치입니다. 2026-10-12에 실행 중인 `/Users/do_not_delay/Desktop/EXPO`의 현재 코드에 맞춰 생성·검증하고 `codex/nfc-smart-mirror-link` 브랜치에 적용했습니다. 기존 서비스별 역할 필터를 유지합니다. 별도의 `2026CarpeDM_EXPO-smart-mirror` sparse checkout에는 백엔드가 없어 이 패치를 적용할 수 없습니다. 다른 배포 대상에는 앵커 검사와 재검증이 필요합니다.
+
+## 현재 로컬 연결 · 2026-10-12
+
+- 스마트 미러: `http://127.0.0.1:5173/?service=workplace&mirror=1`, API `127.0.0.1:8001`.
+- IDPrinter: `http://127.0.0.1:8012`, `KIOSK_NFC=pcsc`. 기존 실행 포트를 유지했습니다.
+- 양쪽 `.env`에 서버 간 주소와 같은 공유 비밀을 설정했습니다. 비밀은 Git 제외·파일 권한 600이며 브라우저에 전달하지 않습니다. 키오스크의 기존 출력 설정은 화면 미리보기입니다.
+- 두 가상환경에 `pyscard==2.3.1` 설치. PC/SC 조회는 `readers=[]`, 키오스크 health는 `nfc.ready=false`: **실물 리더 연결과 카드 태그는 미검증**입니다.
+- 격리 DB의 브리지 테스트 8개, 프런트엔드 NFC/API 테스트 20개, 키오스크 NFC/리포트/브리지 테스트 20개와 Vite 빌드 통과. 실제 서버 간 인증 거부·미등록 카드 404도 확인했습니다. 스마트 미러 홈은 800×1280에서 가로 넘침과 콘솔 오류가 없었습니다. 샘플 카드를 실제 운영 DB에 등록하지 않았습니다.
+- DB·기존 환경 설정은 `completion-backups/nfc-link-*`에 비공개 백업했습니다. 이 디렉터리는 Git에서 제외합니다.
+
+서버 재실행:
+
+```sh
+cd /Users/do_not_delay/Desktop/EXPO/poc/backend
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001
+```
+
+다른 터미널:
+
+```sh
+cd '/Users/do_not_delay/Desktop/CarpeDM_EXPO_ID Printer/CarpeDM_EXPO_IDPrinter-complete'
+.venv/bin/python scripts/run_kiosk.py --port 8012
+```
+
+Mac 리더 확인은 스마트 미러 백엔드 폴더에서 `.venv/bin/python -c 'from smartcard.System import readers; print(readers())'`로 합니다. 리더를 연결한 뒤 스마트 미러 홈에서 카드를 태그하고, 사원증 확인 안내 → 체험 역할 선택 → 세션 생성을 확인합니다. Pi에서 실행한다면 현재 Mac의 loopback 주소를 그대로 사용하지 말고, 실제 양쪽 장비의 LAN 주소로 위 환경 변수를 설정해야 합니다.
 
 ## 확인한 기존 계약
 

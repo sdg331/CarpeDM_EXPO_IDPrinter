@@ -194,6 +194,8 @@ new_nfc_block = '''    if body.nfc_uid:
             job_role = card.job_role or job_role
             if not scenario_slug:
                 scenario_slug = card.scenario_slug or DEFAULT_PACK_BY_ROLE.get(card.job_role, "")
+            if card.job_role == "cafe_crew" and scenario_slug == "ondo-cafe-crew":
+                scenario_slug = "cafe-order-taking"
             if nfc_bridge.recent_tap_matches(body.nfc_uid):
                 card_org_id = card.institution_id
         else:
@@ -321,17 +323,21 @@ edit("mvp/src/App.jsx", [
     ),
 ])
 
+shell_source = (SOURCE / "mvp/src/pages/ServiceEntryShell.jsx").read_text()
+service_mode_prop = ' serviceMode={serviceMode?.id}' if 'serviceMode={serviceMode?.id}' in shell_source else ''
 edit("mvp/src/pages/ServiceEntryShell.jsx", [
     (
-        '    {active === "home" && nfcFallback && <NfcStartFallback onPick={startFromJobRole} onClose={() => setNfcFallback(false)} />}\n',
-        '    {active === "home" && nfcFallback && <NfcStartFallback cardConfirmed={Boolean(entry.state.nfcCard?.kioskSessionId)} onPick={startFromJobRole} onClose={() => setNfcFallback(false)} />}\n',
+        f'    {{active === "home" && nfcFallback && <NfcStartFallback{service_mode_prop} onPick={{startFromJobRole}} onClose={{() => setNfcFallback(false)}} />}}\n',
+        f'    {{active === "home" && nfcFallback && <NfcStartFallback{service_mode_prop} cardConfirmed={{Boolean(entry.state.nfcCard?.kioskSessionId)}} onPick={{startFromJobRole}} onClose={{() => setNfcFallback(false)}} />}}\n',
     ),
 ])
 
+fallback_source = (SOURCE / "mvp/src/components/nfc/NfcStartFallback.jsx").read_text()
+fallback_props = ', serviceMode = "workplace"' if 'serviceMode = "workplace"' in fallback_source else ''
 edit("mvp/src/components/nfc/NfcStartFallback.jsx", [
     (
-        "export function NfcStartFallback({ onPick, onClose }) {",
-        "export function NfcStartFallback({ cardConfirmed = false, onPick, onClose }) {",
+        f"export function NfcStartFallback({{ onPick, onClose{fallback_props} }}) {{",
+        f"export function NfcStartFallback({{ cardConfirmed = false, onPick, onClose{fallback_props} }}) {{",
     ),
     (
         '<div className="nfc-fallback-overlay" role="dialog" aria-label="카드 미인식 — 직무 선택으로 시작">',
@@ -359,6 +365,31 @@ changes["poc/backend/tests/test_idprinter_bridge.py"] = "", tests
 
 flow_tests = (HERE / "test_kiosk_flow.py").read_text()
 changes["poc/backend/tests/test_idprinter_kiosk_flow.py"] = "", flow_tests
+
+changes["mvp/src/lib/idprinterBridge.test.js"] = "", '''import assert from "node:assert/strict";
+import test from "node:test";
+import { createSession } from "./pocApi.js";
+
+test("kiosk card snapshot accompanies the selected MirrorTing role", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalStorage = globalThis.localStorage;
+  globalThis.localStorage = { getItem: () => "test-client", setItem: () => {} };
+  let payload;
+  globalThis.fetch = async (_url, options) => {
+    payload = JSON.parse(options.body);
+    return new Response(JSON.stringify({ id: 1 }), { status: 200 });
+  };
+  try {
+    await createSession({ consent: true, jobRole: "office_admin", nfcUid: "04AABBCC", kioskSessionId: "MW2610030001" });
+    assert.equal(payload.kiosk_session_id, "MW2610030001");
+    assert.equal(payload.nfc_uid, "04AABBCC");
+    assert.equal(payload.job_role, "office_admin");
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.localStorage = originalStorage;
+  }
+});
+'''
 
 diff = []
 for relative, (old, new) in changes.items():
