@@ -1,5 +1,22 @@
 # Decisions
 
+## D-047 Analysis visual effects · 2026-10-12
+Status: IMPLEMENTED following owner request for a stronger AI analysis impression
+
+- 촬영 사진을 유지하고 스캔 라인·포인트 연결망·모서리 프레임을 표시한다. A에는 8개 캐릭터 비교 모션을 추가한다.
+- 그래픽은 연출임을 화면에 표시한다. 실제 얼굴 좌표·일치 순위·단계 완료·진행률을 생성하지 않는다.
+- CSS/SVG와 기존 이미지로 구현하며 실제 요청·6초 최소 표시·오류/초기화·사진 해제 경로는 유지한다.
+- 오류·결과 화면에는 반복 효과를 표시하지 않고 reduced-motion에서는 장식 애니메이션을 끈다.
+
+## D-046 Visitor character choice · 2026-10-12
+Status: IMPLEMENTED following owner discussion and overall readiness request
+
+- AI 추천 후 결과 화면에서 8명 중 원하는 캐릭터를 직접 선택할 수 있다.
+- 얼굴·성격·능력의 등급이나 닮음 백분율을 표시하지 않는다.
+- 직접 선택은 `내가 고른 캐릭터`로 표시하고, NFC/사원증에는 선택한 ID를 전달한다.
+- NFC 등록 전 결과 화면에서만 변경한다. 등록/출력 오류 복구와 중복 방지는 기존 계약을 유지한다.
+- 팝업 취소는 결과를 유지하며, 재촬영·초기화는 직접 선택 상태를 지운다.
+
 이 문서는 다시 실수로 논의/변경하지 않도록 확정사항과 현재 우선 방향을 기록한다.
 
 하드웨어/함체 상세 이력은 [HARDWARE_ENCLOSURE_2026-09-30.md](HARDWARE_ENCLOSURE_2026-09-30.md)를 우선한다.
@@ -380,3 +397,20 @@ Status: IMPLEMENTED UI direction
 - 터치·클릭 중심으로 그림의 등장/부유 및 화면 전환 효과를 제거한다. 작업 중에는 안내 문구 위의 단일 로딩 표시를 사용하고 reduced-motion 설정을 따른다. 촬영 준비 상태와 실제 작업 결과를 장식 효과로 대체하지 않는다.
 - 풋터는 `동양미래대학교 컴퓨터공학부 전공동아리 CarpeDM`이다.
 - [검증 범위](qa/TOUCH_UI_2026-10-08.md)를 실제 장치 인수와 구분한다.
+
+## D-048 Brutalist report and dedicated-card photo · 2026-10-12
+Status: IMPLEMENTED software / actual URL, card UID and physical acceptance pending
+
+- 리포트 화면·감열 출력을 브루탈리즘으로 변경한다. 실제 결과/미측정/출처를 유지한다.
+- 소유자 결정: 사진은 감열 인화만, QR은 MirrorTing 소개·팀 사이트. 공개 사진 저장/다운로드 서비스를 만들지 않는다.
+- 전용 카드만 체험 없는 촬영/인화에 사용하며 일반 입사 등록을 차단한다. 기존 카메라·NFC·SQLite 출력 작업·프린터 계층을 재사용한다.
+- 기존 퇴근 동반 사진의 화면 미리보기 정책은 유지한다. 별도 전용 카드 경로에서 사진 인화를 지원한다.
+- 실제 소개 주소/UID 미설정은 명시적 오류이며 실물 검증과 구분한다. [운영](SOUVENIR.md).
+
+## D-049 Photo in experience report and teacher advice · 2026-10-12
+Status: IMPLEMENTED software / physical printer acceptance pending
+
+- 소유자 요청에 따라 D-044/048의 퇴근 동반 사진 화면 전용 제한을 대체한다. 확인한 사진을 체험 리포트에 함께 감열 인쇄하며 사진 없이 진행도 유지한다.
+- 센터 선생님의 빨간 첨삭 1~5번·전화 응대·기록 조언을 7개 짧은 팁으로 정리한다. 미첨삭 6~8번 조언이나 새로운 공식 원문을 만들지 않는다.
+- 팁은 세션마다 한 가지를 선택하고 재시도·서버 재시작에서 유지한다. 분석 점수와 별도 구역에 센터명·첨삭 요약 표기를 담는다.
+- 기존 출력 계층·전체 프레임 인화 처리·세션 중복 방지를 재사용한다. 원본 사진을 DB에 보관하지 않는다. [구현·문구 기준](REPORT_PHOTO_TIPS.md).

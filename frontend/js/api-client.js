@@ -1,5 +1,5 @@
-import { liveIntegrations } from "./live-integrations.js";
-import { characters } from "./content.js?v=20261008-idphoto8-r1";
+import { liveIntegrations } from "./live-integrations.js?v=20261012-report-photo-r3";
+import { characters, sampleCareerTip } from "./content.js?v=20261012-report-photo-r3";
 
 export class KioskError extends Error {
   constructor(code, retryable = true) {
@@ -9,6 +9,12 @@ export class KioskError extends Error {
   }
 }
 export const errorCopy = {
+  SOUVENIR_NOT_CONFIGURED: ["기념사진을 준비하고 있어요.", "소개 QR과 전용 카드 설정이 필요해요. 현장 스태프에게 알려주세요."],
+  SOUVENIR_PRINT_PENDING: ["이전 인화 상태를 확인하고 있어요.", "중복 출력을 막기 위해 촬영을 잠시 멈췄어요. 현장 스태프에게 알려주세요."],
+  SOUVENIR_CARD_REQUIRED: ["기념사진 전용 카드를 태그해주세요.", "현장 스태프에게 기념사진 카드를 받아 다시 태그해주세요."],
+  SOUVENIR_CARD: ["기념사진 전용 카드예요.", "처음 화면의 기념사진 메뉴에서 사용해주세요. 사원증 등록은 다른 카드로 진행해주세요."],
+  SOUVENIR_PASS_EXPIRED: ["카드를 다시 확인해주세요.", "촬영 시간이 지났어요. 처음 화면에서 전용 카드를 다시 태그해주세요."],
+  SOUVENIR_RENDER_FAILED: ["기념사진을 준비하지 못했어요.", "촬영한 사진은 그대로예요. 다시 시도하거나 현장 스태프에게 알려주세요."],
   PROFILE_EXPIRED: ["프로필을 다시 만들어주세요.", "임시 보관 시간이 지났어요. 다시 촬영하면 새 사원증을 만들 수 있어요."],
   PROFILE_QUALITY_FAILED: ["촬영 상태를 확인해주세요.", "얼굴 위치와 사진 선명도를 확인한 뒤 다시 촬영해주세요."],
   PROFILE_COMPOSITE_FAILED: ["프로필을 완성하지 못했어요.", "사진을 다시 촬영해주세요. 계속 실패하면 현장 스태프에게 알려주세요."],
@@ -72,7 +78,7 @@ export const errorCopy = {
   NFC_TIMEOUT: ["카드를 확인하지 못했어요.", "카드를 다시 한 번 태그해주세요."],
   PRINTER_ERROR: [
     "프린터를 사용할 수 없어요.",
-    "사원 정보는 그대로예요. 스태프의 안내에 따라 다시 시도해주세요.",
+    "준비한 내용은 그대로예요. 스태프의 안내에 따라 다시 시도해주세요.",
   ],
   UNKNOWN_CARD: [
     "등록되지 않은 카드예요.",
@@ -290,7 +296,9 @@ export function createDemoApi(scenario = "success") {
       operation(
         "checkout",
         ctx,
-        { sessionId: "DEMO-0002", name: "김미래", teamId: "design" },
+        ctx.purpose === "souvenir"
+          ? { kind: "souvenir", photoPass: "SAMPLE-PHOTO", printJobId: "sample-souvenir", sample: true }
+          : { sessionId: "DEMO-0002", name: "김미래", teamId: "design" },
         scenario === "unknown_card"
           ? "UNKNOWN_CARD"
           : scenario === "nfc_timeout"
@@ -306,6 +314,7 @@ export function createDemoApi(scenario = "success") {
           : {
               status: "available",
               sessionId,
+              careerTip: sampleCareerTip,
               reportId: "DEMO-REPORT-0002",
               scenario: "새로운 팀원과 첫 미팅",
               summary:
@@ -325,6 +334,8 @@ export function createDemoApi(scenario = "success") {
         { status: "success", demo: true },
         scenario === "printer_error" ? "PRINTER_ERROR" : null,
       ),
+    printSouvenir: (_, __, ctx) => operation("souvenirPrint", ctx,
+      { status: "success", demo: true }, scenario === "printer_error" ? "PRINTER_ERROR" : null),
   };
 }
 
@@ -333,6 +344,7 @@ export function createLiveApi(
   fetcher = fetch,
 ) {
   const profileIds = new Set();
+  const photoPasses = new Set();
   const call = async (name, sideEffect, ...args) => {
     if (typeof integrations[name] !== "function")
       throw new KioskError("INTEGRATION_PENDING", false);
@@ -350,6 +362,9 @@ export function createLiveApi(
   return {
     demo: false,
     reset() {
+      for (const photoPass of photoPasses)
+        Promise.resolve(fetcher(`/api/souvenirs/${encodeURIComponent(photoPass)}`, { method: "DELETE", keepalive: true })).catch(() => {});
+      photoPasses.clear();
       for (const profileId of profileIds) {
         Promise.resolve(
           fetcher(`/api/profile/${encodeURIComponent(profileId)}`, {
@@ -398,9 +413,14 @@ export function createLiveApi(
     },
     registerNfc: (...args) => call("registerNfc", true, ...args),
     issueBadge: (...args) => call("issueBadge", true, ...args),
-    resolveCheckout: (...args) => call("resolveCheckout", false, ...args),
+    resolveCheckout: async (...args) => {
+      const result = await call("resolveCheckout", false, ...args);
+      if (result?.kind === "souvenir" && /^p_[A-Za-z0-9_-]{24}$/.test(result.photoPass)) photoPasses.add(result.photoPass);
+      return result;
+    },
     getMirrorTingReport: (...args) => call("getMirrorTingReport", false, ...args),
     printReport: (...args) => call("printReport", true, ...args),
+    printSouvenir: (...args) => call("printSouvenir", true, ...args),
     updateSessionProfile: (...args) => call("updateSessionProfile", true, ...args),
     getOperation: (operationId, { signal } = {}) =>
       request(`/api/operations/${encodeURIComponent(operationId)}`, { signal, timeout: 5000 }, fetcher),

@@ -1,7 +1,7 @@
-import { characters, teams, screenIds } from "./content.js";
+import { characters, teams, screenIds, sampleCareerTip } from "./content.js?v=20261012-report-photo-r3";
 import { createState } from "./state.js";
 import { createDigitalBadge } from "./digital-badge.js";
-import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261008-touch-ui-r3";
+import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261012-report-photo-r3";
 
 // Only implemented views: retired modes/detailB/resultB are not kiosk pages.
 export const previewScreens = [
@@ -13,6 +13,11 @@ export const previewScreens = [
   ["checkoutResult", "체험 기록 확인"], ["photoCamera", "퇴근 기념사진 촬영"],
   ["photoReview", "기념사진 확인"], ["report", "퇴근 리포트"],
   ["reportPrint", "리포트 출력"], ["checkoutComplete", "퇴근 완료"], ["fatal", "서비스 점검"],
+  ["souvenirCard", "사진 전용 · 카드 확인", "checkout"],
+  ["souvenirCamera", "사진 전용 · 촬영", "photoCamera"],
+  ["souvenirReview", "사진 전용 · 인화 확인", "photoReview"],
+  ["souvenirPrint", "사진 전용 · 인화", "reportPrint"],
+  ["souvenirComplete", "사진 전용 · 결과", "checkoutComplete"],
   ["webHome", "웹 · 처음 화면", "home"], ["webCamera", "웹 · 촬영", "camera"],
   ["webProcessing", "웹 · 분석", "processing"], ["webResult", "웹 · 결과", "resultA"],
   ["webIssue", "웹 · 사원증 준비"], ["webCard", "웹 · 디지털 사원증"],
@@ -33,11 +38,14 @@ export function previewState(id, teamId, variant = "default") {
     result: { kind: "A", characterId: characters[0].id, image: characters[0].image },
     report: {
       status: "available", sample: true, scenario: "UI 예시 · 새로운 팀원과 첫 미팅",
+      careerTip: sampleCareerTip,
       summary: "화면 구성을 확인하기 위한 예시 기록입니다.",
       strength: "상대방의 이야기에 귀 기울이는 태도", nextAction: "열린 질문을 건네보세요.",
       modeLabel: "AI 캐릭터 매칭",
     },
   };
+  if (["resultA", "resultB", "webIssue"].includes(screen)) state.sessionId = null;
+  if (id.startsWith("souvenir")) Object.assign(state, { flow: "souvenir", name: "", sessionId: null, photoGrant: { photoPass: "SAMPLE-PHOTO", sample: true } });
   if (variant === "loading") Object.assign(state, { busy: true, nfc: checkout ? "resolving" : "writing" });
   if (variant === "empty") state.report = { status: "not_found" };
   if (variant === "error") {

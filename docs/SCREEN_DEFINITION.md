@@ -1,3 +1,5 @@
+> 2026-10-12 현재 추가: 브루탈리즘 리포트와 전용 카드 사진·소개 QR 인화 경로를 구현했다. 퇴근 동반 사진도 실제 감열 리포트에 포함하며, 센터 첨삭 팁 한 가지를 미리보기와 출력에 표시한다. 아래 10-05의 화면 전용 사진 제한은 이전 이력이다. [전용 카드 운영](SOUVENIR.md).
+
 > 2026-10-05 UI 변경: SCR-05/07/11의 A/B 선택·B 생성 진입은 제거했다. 이름 이후 SCR-06 캐릭터 매칭으로 연결한다. 퇴근은 SCR-16→SCR-26 PHOTO_CAMERA→SCR-27 PHOTO_REVIEW→SCR-17 REPORT이며 사진 없이 진행 가능하다. 아래 이전 B 명세는 이력이다. 기념사진은 화면 전용이며 종이 사진 인쇄는 미연결이다.
 
 > 2026-10-05 전체 점검 수정: SCR-16에서 기념사진 또는 `사진 없이 리포트 보기`를 선택한다. 촬영 화면의 권한 대기/연결 종료는 공통 카메라 오류로 복구한다. 상태 창과 홈 초기화는 서버 상태를 새로 조회한다. 조회 응답은 현재 입력·사진을 지우지 않으며 홈 초기화 자체는 이전 방문자 정보를 제거한다. AI·NFC·출력 오류는 실패 원인과 다음 행동을 중심으로 표시한다. 샘플 완료는 실제 등록한 카드 이동을 지시하지 않는다. [검증 결과](qa/AUDIT_FIXES_2026-10-05.md).
@@ -264,9 +266,10 @@ Example:
 
 **UI**:
 - mode-aware title
-- captured photo with subtle decorative glowing points (shared by kiosk/web, modes A/B)
+- stationary captured photo with a scanning line, connected point graphic and corner markers (shared by kiosk/web, modes A/B)
+- mode A additionally shows all 8 character thumbnails with a repeating comparison highlight; it is not a ranking or result
 - sample mode explicitly uses a labeled fixture photo
-- light points are visual decoration, not detected landmarks or progress
+- scan/network graphics are explicitly labelled as visual effects, not detected landmarks or progress
 - reduced-motion disables the animation
 - indeterminate/progress only if truthful
 
@@ -293,13 +296,15 @@ detect → pose/landmark → segmentation → suit composite → final quality
 
 ## SCR-10 AI_RESULT_A
 
-**Purpose**: 캐릭터 매칭 결과를 명확하고 정직하게 표시.
+**Purpose**: 추천 캐릭터를 확인하고 마음에 드는 캐릭터로 발급.
 
 **UI**:
 - matched character hero
 - name/team context
-- wording: `8명의 캐릭터 중 가장 가까운 캐릭터`
-- optional ranking/relative score if useful
+- wording: `오늘 함께할 캐릭터예요.` / 직접 선택 후 `내가 고른 캐릭터예요.`
+- 점수·외모·성격 평가 문구를 표시하지 않는다.
+- `다른 캐릭터 고르기`: 8명 선택 팝업. 선택 즉시 결과 이미지 갱신, 취소 시 현재 결과 유지.
+- NFC 등록 전, A 결과 화면에서만 선택 가능. 작업 중·오류·이미 등록된 세션에서는 변경 금지.
 - continue CTA
 
 **Do not say**: `82% 닮았습니다` unless metric semantics are explicitly proven.
@@ -483,3 +488,9 @@ Overlay/modal before inactivity reset.
 
 Any valid user interaction resumes session.
 Do not interrupt irreversible in-flight operations without explicit policy.
+
+## 브루탈리즘 리포트·사진 전용 경로 · 2026-10-12
+
+SCR-17은 MY DAY / MY RECORD 큰 타이포그래피, 직각 검정 테두리, 하드 섀도, 번호가 붙은 섹션으로 구성한다. 긴 기록은 내부 스크롤하며 실제 기록/샘플 표기를 유지한다. 감열 출력은 576도트·1비트와 실제 출처/누락 지표를 유지한다.
+
+사진 전용 경로는 기존 SCR-15/26/27/18/19를 `flow:souvenir`로 재사용한다. 3단계 카드/촬영/인화 표기, 취소·재촬영·프린터 복구, 이름 없는 완료 화면을 제공한다. 사진과 소개 QR을 실제 인화 렌더러로 보낸다. 퇴근 동반 사진도 체험 리포트에 함께 인쇄하며, 사진 없이 진행할 수 있다. [사진 포함 리포트·센터 팁](REPORT_PHOTO_TIPS.md)을 참고한다.

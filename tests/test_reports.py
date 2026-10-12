@@ -130,6 +130,61 @@ def test_real_report_sections_fit_a_receipt_without_coaching_quotes():
     assert image.height < 4300
 
 
+def test_career_advice_is_stable_per_visitor_and_varies_across_visitors():
+    from backend.career_tips import CAREER_TIPS, career_tip
+
+    first = career_tip(KIOSK_ID)
+    assert first == career_tip(KIOSK_ID)
+    assert {career_tip(f"visitor-{i}")["id"] for i in range(200)} == {f"{i + 1:02d}" for i in range(len(CAREER_TIPS))}
+    assert first["source"] == "동양미래대학교 취업지원센터"
+    assert "첨삭" in first["note"]
+
+
+def test_print_wrapping_keeps_short_words_together_without_losing_text():
+    from PIL import Image, ImageDraw, ImageFont
+    from backend.reports import _wrapped
+
+    draw = ImageDraw.Draw(Image.new("L", (1, 1)))
+    font = ImageFont.load_default(size=22)
+    value = "업무의 방향과 완성 시점을 확인하면 좋아요."
+    width = int(draw.textlength("업무의 방향과 완성", font=font))
+    lines = _wrapped(draw, value, font, width)
+    assert "".join(lines) == value
+    assert any("좋아요." in line for line in lines)
+    assert all(draw.textlength(line, font=font) <= width for line in lines)
+
+
+@pytest.mark.parametrize("size", [(400, 800), (800, 400)])
+def test_report_keeps_entire_photo_and_prints_one_separate_teacher_tip(monkeypatch, size):
+    from PIL import Image, ImageDraw, ImageFont
+    import backend.reports as reports
+    from backend.career_tips import career_tip
+
+    monkeypatch.setattr(reports, "_font", lambda size: ImageFont.load_default(size=size))
+    photo = Image.new("RGB", size, "white")
+    pen = ImageDraw.Draw(photo)
+    for x, y in [(0, 0), (size[0] - 32, 0), (0, size[1] - 32), (size[0] - 32, size[1] - 32)]:
+        pen.rectangle((x, y, x + 31, y + 31), fill="black")
+    drawn = []
+    original = ImageDraw.ImageDraw.text
+    def capture_text(draw, position, value, **kwargs):
+        drawn.append(value)
+        return original(draw, position, value, **kwargs)
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", capture_text)
+    report = normalize_report(KIOSK_ID, MIRROR_ID, upstream_report())
+    image = render_report(report, name="김미래", team="AI팀", photo=photo)
+    expected = reports.thermal_photo(photo, (480, 640))
+    x = (576 - expected.width) // 2
+    assert image.crop((x, 154, x + expected.width, 154 + expected.height)).tobytes() == expected.tobytes()
+    assert image.mode == "1" and image.width == 576
+    text = "".join(drawn)
+    tip = career_tip(KIOSK_ID)
+    assert text.count(tip["title"]) == 1
+    assert tip["source"] in text and tip["note"] in text
+    assert "목소리: 미측정" in text
+    assert drawn[-1] == "출처: MirrorTing 세션 분석 결과"
+
+
 @pytest.mark.parametrize("content", ["긴 리포트 " * 100, "verbose report " * 100, "줄\n" * 250])
 def test_maximum_accepted_report_renders_all_lines_and_footer(monkeypatch, content):
     from PIL import ImageDraw, ImageFont

@@ -144,3 +144,11 @@ Record:
 - [ ] real hardware tested
 - [ ] session reset tested
 - [ ] operator knows basic recovery
+
+## 사진 전용 경로
+
+`npm test`, `.venv/bin/python -m pytest tests -q`, `.venv/bin/python scripts/preflight.py --souvenir`로 검증한다. `integrations/mirrorting/test_kiosk_flow.py`는 동반 패치를 적용한 MirrorTing 저장소에서 실행하는 테스트이며 이 저장소에서 bare pytest 수집 대상이 아니다. [실물 확인 순서](SOUVENIR.md)를 따른다.
+
+## 사진 포함 리포트·센터 팁
+
+`npm test`, `.venv/bin/python -m pytest tests -q`와 사진 포함/생략·중복 JSON 요청·안전 재시도·결과 불명 잠금·7개 팁 줄바꿈을 확인한다. 실제 프린터에서는 사진 명암과 긴 용지 배출·절단을 점검한다. [최신 QA](qa/REPORT_PHOTO_TIPS_2026-10-12.md).

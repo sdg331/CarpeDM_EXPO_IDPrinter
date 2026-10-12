@@ -2,9 +2,16 @@ export const characters = Array.from({ length: 8 }, (_, i) => {
   const id = `char_${String(i + 1).padStart(2, "0")}`;
   return {
     id,
-    image: `/assets/characters/${id}.png?v=20261008-idphoto8-r1`,
-    thumbnail: `/assets/characters/${id}.webp?v=20261008-idphoto8-r1`,
+    image: `/assets/characters/${id}.png?v=20261012-readiness-r1`,
+    thumbnail: `/assets/characters/${id}.webp?v=20261012-readiness-r1`,
   };
+});
+
+// Fixed demonstration copy; live advice is supplied by the kiosk backend.
+export const sampleCareerTip = Object.freeze({
+  id: "07", title: "기억보다 기록을 남기세요.",
+  body: "업무 지시를 받을 때 메모하세요. 자주 하는 업무는 나만의 체크리스트로 만들면 실수를 줄이고 업무 속도를 높일 수 있어요.",
+  source: "동양미래대학교 취업지원센터", note: "선생님 첨삭 내용을 짧게 정리했어요.",
 });
 
 export const teams = [

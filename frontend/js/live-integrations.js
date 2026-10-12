@@ -19,8 +19,8 @@ async function postJson(path, payload, context, sideEffect = true, fetcher = fet
   try {
     response = await fetcher(path, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
+      headers: payload instanceof FormData ? {} : { "content-type": "application/json" },
+      body: payload instanceof FormData ? payload : JSON.stringify(payload),
       signal: context.signal,
     });
   } catch (error) {
@@ -118,7 +118,7 @@ export function createLiveIntegrations(fetcher = fetch) {
   resolveCheckout(context) {
     return postJson(
       "/api/nfc/resolve",
-      { operationId: context.operationId },
+      { operationId: context.operationId, ...(context.purpose ? { purpose: context.purpose } : {}) },
       context,
       false,
       fetcher,
@@ -139,14 +139,27 @@ export function createLiveIntegrations(fetcher = fetch) {
     return getJson(`/api/reports/${encodeURIComponent(sessionId)}`, context, fetcher);
   },
 
-  printReport(report, context) {
+  printReport(report, context, frame = null) {
+    const payload = { operationId: context.operationId, sessionId: report.sessionId, reportId: report.reportId };
+    if (frame) {
+      const form = new FormData();
+      for (const [key, value] of Object.entries(payload)) form.append(key, value);
+      form.append("frame", frame, "report-photo.jpg");
+      return postJson("/api/reports/print-photo", form, context, true, fetcher);
+    }
     return postJson(
       "/api/reports/print",
-      { operationId: context.operationId, sessionId: report.sessionId, reportId: report.reportId },
+      payload,
       context,
       true,
       fetcher,
     );
+  },
+
+  printSouvenir(photoPass, frame, context) {
+    const form = new FormData();
+    form.append("frame", frame, "souvenir.jpg");
+    return postJson(`/api/souvenirs/${encodeURIComponent(photoPass)}/print`, form, context, true, fetcher);
   },
   });
 }
