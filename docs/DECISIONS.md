@@ -1,5 +1,14 @@
 # Decisions
 
+## D-050 Print readability and checkout card reuse · 2026-10-13
+Status: IMPLEMENTED following owner request
+
+- 출처 문구는 화면/인쇄에서 제거하고 내부 출처 검증은 유지한다. 팁은 TIP·제목·본문만 표시한다.
+- 감열 글씨는 최소 24px, 리포트 본문은 28px, 구분선은 2px다. 출근 배지는 576×808 및 보정된 초상을 유지하면서 WORKS·이름을 강조한다.
+- 정상 리포트 출력 응답 또는 운영자의 printed 확인 시 카드 UID 연결 해제와 퇴근 완료를 출력 결과와 함께 원자적으로 저장한다. 실패/결과 불명/not_printed에서는 연결을 유지한다.
+- 카드 메모리에 방문자 정보를 쓰지 않으므로 UID를 지우지 않는다. 다음 출근에서 같은 카드를 새 방문자로 등록한다. 실물 출력·카드 회수는 별도로 확인한다.
+- 이 표시/초기화 기준은 아래 이전 리포트·출력 후 카드 유지 기준보다 우선한다.
+
 ## D-047 Analysis visual effects · 2026-10-12
 Status: IMPLEMENTED following owner request for a stronger AI analysis impression
 

@@ -9,7 +9,7 @@ import {
   wait,
 } from "./api-client.js?v=20261012-report-photo-r3";
 import { Camera } from "./camera.js?v=20261005-audit-fixes";
-import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, escape } from "./views.js?v=20261012-report-photo-r3";
+import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, escape } from "./views.js?v=20261013-print-checkout-r2";
 import { icon } from "./icons.js";
 import { createMotion } from "./motion.js?v=20261008-touch-ui-r3";
 import { resolveRuntime } from "./runtime.js";
@@ -112,6 +112,7 @@ function go(next, patch = {}, direction = "forward") {
   if (state.data.screen === "processing" && next !== "processing") clearCapturePreview();
   state.invalidate();
   state.patch({ screen: next, error: null, ...patch });
+  if (demo && next === "name" && !state.data.name) state.patch({ name: "체험자" });
   lastActivity = Date.now();
   completionAt = !presentation && next.endsWith("Complete") ? Date.now() + 15000 : 0;
   render(direction);

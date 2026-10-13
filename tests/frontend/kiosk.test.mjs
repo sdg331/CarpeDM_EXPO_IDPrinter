@@ -20,6 +20,22 @@ import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker } 
 import { resolveRuntime } from "../../frontend/js/runtime.js";
 import { createLiveIntegrations } from "../../frontend/js/live-integrations.js";
 
+test("Click demo supplies a name without changing live input or an edited sample name", () => {
+  const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
+  for (const [demo, name, expected] of [[true, "", "체험자"], [false, "", ""], [true, "김미래", "김미래"]]) {
+    const state = createState();
+    state.patch({ name });
+    const context = {
+      state, demo, presentation: true, Date,
+      render() {}, resetViewport() {}, updateName() {},
+      screen: { focus() {}, querySelector: () => ({ value: state.data.name, focus() {}, setSelectionRange() {} }) },
+    };
+    runInNewContext(source.slice(source.indexOf("function go("), source.indexOf("function reset()")), context);
+    context.go("name");
+    assert.equal(state.data.name, expected);
+  }
+});
+
 test("Default uses the device flow; web preview and fixtures require explicit URLs", () => {
   for (const query of ["", "scenario=success", "controls=1"])
     assert.equal(resolveRuntime(new URLSearchParams(query)), "kiosk");
@@ -218,11 +234,12 @@ test("Checkout photo is optional and live review offers printing with the report
   assert.equal(state.data.souvenirPhoto, null);
 });
 
-test("Teacher advice is separated from analysis and escaped before rendering", () => {
+test("TIP hides attribution copy and keeps advice escaped", () => {
   const tip = { title: '<script>alert(1)</script>', body: '메모하세요.', source: '동양미래대학교 취업지원센터', note: '첨삭 내용 요약' };
   const html = renderScreen({ screen: "report", report: { careerTip: tip, fitScores: {} } }, false);
   assert.match(html, /class="report-section career-tip"/);
-  assert.match(html, /동양미래대학교 취업지원센터/);
+  assert.match(html, /aria-label="TIP"><span>TIP<\/span>/);
+  assert.doesNotMatch(html, /동양미래대학교 취업지원센터|첨삭 내용 요약|오늘의 직장생활 꿀팁/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>/);
 });
@@ -856,12 +873,15 @@ test("Print result wording distinguishes preview, sent command, and operator con
   assert.doesNotMatch(submitted, /실물 출력을 확인했어요/);
   const confirmed = renderScreen({ ...base, printResult: { status: "confirmed" } }, false);
   assert.match(confirmed, /현장 스태프가 종이 출력 결과를 확인했어요/);
+  const checkout = renderScreen({ ...base, screen: "checkoutComplete", printResult: { status: "submitted" } }, false);
+  assert.match(checkout, /카드 연결을 초기화했어요/);
 });
 
 test("Sample completion gives a truthful next step and checkout photos remain optional", () => {
   for (const screen of ["checkinComplete", "checkoutComplete"]) {
     const html = renderScreen({ screen, name: "점검자", printResult: { status: "success" } }, true);
     assert.match(html, /실물 카드 등록과 출력은 없었어요/);
+    assert.doesNotMatch(html, /카드 연결을 초기화했어요/);
     assert.match(html, /카드 등록과 스마트미러 체험은 현장 스태프의 안내/);
     assert.doesNotMatch(html, /등록한 카드를 가지고|실물 인쇄 여부를 확인/);
     assert.equal((html.match(/화면 체험을 마쳤어요/g) || []).length, 1);
@@ -901,7 +921,11 @@ test("Live report renders source fields without inventing a scenario", () => {
   assert.match(html, /차분한 &lt;대화&gt;/);
   assert.match(html, /목소리가 안정적이에요/);
   assert.match(html, /관찰 기록이 포함돼요/);
+  for (const value of ["경청", "열린 질문", "상대방을 바라보세요.", "오늘도 수고했어요."])
+    assert.ok(html.includes(value));
+  assert.doesNotMatch(html, /<ul>|<li>/);
   assert.doesNotMatch(html, />true<|오늘의 시나리오|새로운 팀원과 첫 미팅/);
+  assert.doesNotMatch(html, /출처:/);
 });
 
 test("A profile attached to a backend session is not deleted by visitor reset", async () => {
