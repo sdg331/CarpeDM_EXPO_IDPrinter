@@ -1,4 +1,5 @@
 from PIL import Image
+import pytest
 
 import backend.app as backend_app
 from backend.printing import PrintError
@@ -281,7 +282,8 @@ def test_http_rejects_cross_origin_side_effects_and_disables_legacy():
         assert page.headers['cache-control'] == 'no-store, max-age=0'
 
 
-def test_bridge_http_auth_link_and_report_print_use_server_identity(monkeypatch, tmp_path):
+@pytest.mark.parametrize("printer_backend", ["screen", "escpos"])
+def test_bridge_http_auth_link_and_report_print_use_server_identity(monkeypatch, tmp_path, printer_backend):
     from fastapi.testclient import TestClient
 
     store = configure(monkeypatch, tmp_path)
@@ -311,7 +313,7 @@ def test_bridge_http_auth_link_and_report_print_use_server_identity(monkeypatch,
         return Image.new('1', (576, 500))
     monkeypatch.setattr(backend_app, 'render_report', render)
     calls = []
-    monkeypatch.setattr(backend_app, 'print_badge', lambda _: calls.append(True) or {'backend': 'screen'})
+    monkeypatch.setattr(backend_app, 'print_badge', lambda _: calls.append(True) or {'backend': printer_backend})
     report = client.get(f'/api/reports/{session_id}')
     assert report.json()['source'] == 'mirrorting'
     wrong = client.post('/api/reports/print', json={'operationId': 'report-print-id', 'sessionId': session_id, 'reportId': '43'})
@@ -319,7 +321,7 @@ def test_bridge_http_auth_link_and_report_print_use_server_identity(monkeypatch,
     assert calls == []
     correct = {'operationId': 'report-print-id', 'sessionId': session_id, 'reportId': '42'}
     printed = client.post('/api/reports/print', json=correct)
-    assert printed.json()['status'] == 'preview'
+    assert printed.json()['status'] == ('preview' if printer_backend == 'screen' else 'submitted')
     repeated = client.post('/api/reports/print', json={**correct, 'operationId': 'another-report-print-id'})
     assert repeated.json()['printJobId'] == 'report-print-id'
     assert len(calls) == 1
@@ -327,6 +329,13 @@ def test_bridge_http_auth_link_and_report_print_use_server_identity(monkeypatch,
     assert all(row == (session_id, 42, 'server-only-capability', 'http://127.0.0.1:8001') for row in fetched)
     assert 'server-only-capability' not in report.text
     assert store.get_operation('report-print-id')['status'] == 'success'
+    assert store.resolve_card('04AABBCC') is None
+    assert not store.active_card(session_id)
+    assert store.get_session(session_id)['status'] == 'checkout_complete'
+    assert client.get('/api/integrations/mirrorting/cards/04AABBCC', headers=headers).status_code == 404
+    new_visit = backend_app.register_nfc(register_request('nfc-after-checkout'))
+    assert new_visit['sessionId'] != session_id
+    assert store.resolve_card('04AABBCC')['session_id'] == new_visit['sessionId']
 
 
 def test_card_reassignment_prevents_previous_visitor_print_and_report(monkeypatch, tmp_path):
@@ -373,10 +382,11 @@ def test_report_render_failures_are_safe_retryable_errors_before_print(monkeypat
         assert json.loads(response.body) == {'ok': False, 'error': {'code': 'REPORT_RENDER_FAILED', 'retryable': True}}
         assert store.get_operation(request.operationId) is None
         assert print_calls == []
+        assert store.active_card(session_id)
     monkeypatch.setattr(backend_app, 'render_report', lambda *a, **kw: Image.new('1', (576, 500)))
     assert backend_app.print_session_report(request)['status'] == 'preview'
     assert len(print_calls) == 1
-    assert store.active_card(session_id)
+    assert not store.active_card(session_id)
 
 
 def test_report_rechecks_current_card_after_upstream_network_wait(monkeypatch, tmp_path):
@@ -543,7 +553,9 @@ def test_report_photo_http_prints_once_and_json_cannot_print_a_second_copy(monke
     result = client.post('/api/reports/print-photo', data=data, files={'frame': ('photo.png', frame.getvalue(), 'image/png')})
     assert result.status_code == 200
     assert rendered[0].size == (32, 48) and rendered[0].getpixel((0, 0)) == (12, 34, 56)
-    assert client.get(f'/api/reports/{session_id}').json()['careerTip'] == career_tip(session_id)
+    assert client.get(f'/api/reports/{session_id}').status_code == 409
+    assert store.resolve_card('04AABBCC') is None
+    assert store.get_session(session_id)['status'] == 'checkout_complete'
     repeated = client.post('/api/reports/print-photo', data=data, files={'frame': ('photo.png', frame.getvalue(), 'image/png')})
     without_photo = client.post('/api/reports/print', json={**data, 'operationId': 'report-json-after-photo'})
     assert repeated.json()['printJobId'] == without_photo.json()['printJobId'] == data['operationId']
@@ -579,8 +591,10 @@ def test_report_photo_safe_retry_keeps_the_tip_and_unknown_output_stays_locked(m
     monkeypatch.setattr(backend_app, 'print_badge', lambda _: (_ for _ in ()).throw(PrintError('offline', retryable=True)))
     req = backend_app.ReportPrintRequest(operationId='report-photo-retry', sessionId=session_id, reportId='42')
     assert backend_app._print_session_report(req, frame.getvalue()).status_code == 503
+    assert store.active_card(session_id)
     monkeypatch.setattr(backend_app, 'print_badge', lambda _: (_ for _ in ()).throw(PrintError('uncertain', retryable=False)))
     assert backend_app._print_session_report(req, frame.getvalue()).status_code == 503
+    assert store.active_card(session_id)
     assert store.get_operation(req.operationId)['status'] == 'unknown'
     assert backend_app._print_session_report(req, frame.getvalue()).status_code == 409
     assert len(tips) == 2 and tips[0] == tips[1]

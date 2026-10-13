@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from backend.store import KioskStore
 
 
@@ -7,6 +9,54 @@ def make_store(tmp_path: Path) -> KioskStore:
     store = KioskStore(tmp_path / "kiosk.sqlite3")
     store.init()
     return store
+
+
+@pytest.mark.parametrize("outcome", ["printed", "not_printed"])
+def test_report_unknown_keeps_card_until_operator_confirms(tmp_path, outcome):
+    store = make_store(tmp_path)
+    session = store.create_session(name="퇴근자", team_id="ai", ai_mode="A", char_id="char_01")['session_id']
+    store.bind_card(session_id=session, card_uid="04AABBCC", operation_id="checkout-nfc")
+    store.claim_operation("checkout-report", kind="report_print", session_id=session, unique_session=True)
+    store.finish_operation("checkout-report", kind="report_print", status="unknown", error_code="UNKNOWN_OUTCOME")
+    assert store.resolve_card("04AABBCC")['session_id'] == session
+    store.resolve_unknown_operation("checkout-report", outcome=outcome)
+    if outcome == "printed":
+        assert store.resolve_card("04AABBCC") is None
+        assert store.get_session(session)['status'] == 'checkout_complete'
+    else:
+        assert store.resolve_card("04AABBCC")['session_id'] == session
+        assert store.get_operation("checkout-report")['status'] == 'retryable_error'
+
+
+def test_report_success_and_card_release_roll_back_together(tmp_path, monkeypatch):
+    store = make_store(tmp_path)
+    session = store.create_session(name="퇴근자", team_id="ai", ai_mode="A", char_id="char_01")['session_id']
+    store.bind_card(session_id=session, card_uid="04AABBCC", operation_id="checkout-nfc")
+    store.claim_operation("checkout-report", kind="report_print", session_id=session, unique_session=True)
+    release = store._release_session_rows
+
+    def fail_after_release(con, session_id, now):
+        release(con, session_id, now)
+        raise RuntimeError("simulated storage failure")
+
+    monkeypatch.setattr(store, '_release_session_rows', fail_after_release)
+    with pytest.raises(RuntimeError):
+        store.finish_operation("checkout-report", kind="report_print", status="success", result={'status': 'submitted'})
+    assert store.resolve_card("04AABBCC")['session_id'] == session
+    assert store.get_session(session)['status'] == 'active'
+    assert store.get_operation("checkout-report")['status'] == 'running'
+
+
+def test_report_confirmation_does_not_release_a_reassigned_card(tmp_path):
+    store = make_store(tmp_path)
+    old = store.create_session(name="이전 방문자", team_id="ai", ai_mode="A", char_id="char_01")['session_id']
+    store.bind_card(session_id=old, card_uid="04AABBCC", operation_id="old-nfc")
+    store.claim_operation("old-report", kind="report_print", session_id=old, unique_session=True)
+    store.finish_operation("old-report", kind="report_print", status="unknown")
+    new = store.create_session(name="다음 방문자", team_id="ai", ai_mode="A", char_id="char_02")['session_id']
+    store.bind_card(session_id=new, card_uid="04AABBCC", operation_id="new-nfc")
+    store.resolve_unknown_operation("old-report", outcome="printed")
+    assert store.resolve_card("04AABBCC")['session_id'] == new
 
 
 def test_session_ids_are_backend_owned_and_increment(tmp_path):

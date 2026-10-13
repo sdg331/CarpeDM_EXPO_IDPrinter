@@ -376,10 +376,12 @@ class KioskStore:
     ) -> dict[str, Any]:
         if status not in {"success", "retryable_error", "unknown", "error"}:
             raise ValueError("invalid operation status")
-        if self.get_operation(operation_id, kind) is None:
+        operation = self.get_operation(operation_id, kind)
+        if operation is None:
             raise StoreError("operation does not exist")
         now = _now()
         with closing(self._connect()) as con:
+            con.execute("BEGIN IMMEDIATE")
             con.execute(
                 """
                 UPDATE operations
@@ -395,6 +397,9 @@ class KioskStore:
                     operation_id,
                 ),
             )
+            if kind == 'report_print' and status == 'success':
+                self._release_session_rows(con, operation['session_id'], now)
+            con.execute("COMMIT")
         return self.get_operation(operation_id, kind)  # type: ignore[return-value]
 
     def bind_card(
@@ -485,26 +490,17 @@ class KioskStore:
         now = _now()
         with closing(self._connect()) as con:
             con.execute("BEGIN IMMEDIATE")
-            con.execute(
-                """
-                UPDATE card_bindings
-                SET active = 0, released_at = ?
-                WHERE session_id = ? AND active = 1
-                """,
-                (now, session_id),
-            )
-            cur = con.execute(
-                """
-                UPDATE sessions
-                SET status = 'checkout_complete', updated_at = ?
-                WHERE session_id = ?
-                """,
-                (now, session_id),
-            )
-            if cur.rowcount != 1:
-                con.execute("ROLLBACK")
-                raise SessionNotFound(session_id)
+            self._release_session_rows(con, session_id, now)
             con.execute("COMMIT")
+
+    def _release_session_rows(self, con: sqlite3.Connection, session_id: str, now: str) -> None:
+        # Commit checkout and card revocation with the durable print result.
+        con.execute("UPDATE card_bindings SET active=0,released_at=? WHERE session_id=? AND active=1",
+                    (now, session_id))
+        changed = con.execute("UPDATE sessions SET status='checkout_complete',updated_at=? WHERE session_id=?",
+                              (now, session_id)).rowcount
+        if changed != 1:
+            raise SessionNotFound(session_id)
 
     def recover_interrupted_operations(self) -> None:
         """Only call once during single-worker startup, before accepting traffic."""
@@ -548,6 +544,8 @@ class KioskStore:
                     "UPDATE operations SET status='success',error_code=NULL,retryable=0,result_json=?,updated_at=? WHERE operation_id=?",
                     (json.dumps(result), now, operation_id),
                 )
+                if row['kind'] == 'report_print':
+                    self._release_session_rows(con, row['session_id'], now)
             con.execute('INSERT INTO operator_resolutions(operation_id,outcome,resolved_at) VALUES (?,?,?)', (operation_id, outcome, now))
             con.execute('COMMIT')
         return self.get_operation(operation_id)
