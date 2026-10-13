@@ -199,7 +199,7 @@ function complete(s, demo, checkout = false) {
   const title = demo ? "화면 체험을 마쳤어요." : status === "preview" ? `${item} 미리보기가 준비됐어요.` : status === "confirmed" ? "실물 출력을 확인했어요." : "출력 명령을 보냈어요.";
   const note = demo ? "샘플 데이터로 진행했으며 실물 카드 등록과 출력은 없었어요." : status === "preview" ? "서버에서 이미지를 만들었어요. 실물 프린터로는 출력하지 않았어요." : status === "confirmed" ? "현장 스태프가 종이 출력 결과를 확인했어요." : "프린터로 명령을 전송했어요. 용지 배출과 절단 완료는 현장에서 확인해주세요.";
   const routeTitle = souvenir ? "사진은 추억으로, QR은 다음 만남으로" : demo ? "실제 체험은 전시 부스에서" : checkout ? "퇴근 리포트" : "다음은 MirrorTing 스마트미러";
-  const routeCopy = souvenir ? "소개 QR에서 MirrorTing을 만나보세요. 전용 카드는 스태프에게 돌려주세요." : demo ? "카드 등록과 스마트미러 체험은 현장 스태프의 안내를 따라주세요." : checkout ? "실물 인쇄 여부를 확인한 뒤 전시 운영 안내를 따라주세요." : "등록한 카드를 가지고 스마트미러로 이동해주세요.";
+  const routeCopy = souvenir ? "소개 QR에서 MirrorTing을 만나보세요. 전용 카드는 스태프에게 돌려주세요." : demo ? "카드 등록과 스마트미러 체험은 현장 스태프의 안내를 따라주세요." : checkout ? "카드 연결을 초기화했어요. 용지 출력을 확인하고 카드는 스태프에게 돌려주세요." : "등록한 카드를 가지고 스마트미러로 이동해주세요.";
   const preview = status === "preview" && s.printResult?.previewUrl
     ? `<a class="print-preview-link" href="${escape(s.printResult.previewUrl)}" target="_blank" rel="noopener">${item} 이미지 미리보기 열기</a>` : "";
   return `${step(souvenir ? 3 : 5, souvenir ? "기념사진 결과" : checkout ? "퇴근 결과" : "입사 결과", false, souvenir ? 3 : 5)}<div class="completion-hero"><div class="completion-art" aria-hidden="true">${kioskArtwork("completion-check")}</div>${heading(checkout ? "UNTIL WE MEET AGAIN" : "YOU’RE ONE OF US NOW", title, souvenir ? "오늘의 한 장을 오래 간직해주세요." : `${escape(s.name)}님, ${demo ? "샘플 화면을 모두 확인했어요." : checkout ? "오늘의 기록을 확인해보세요." : "다음 체험으로 이어가세요."}`)}</div><div class="status-copy completion-note" role="status"><p>${note}</p></div>${preview}<div class="completion-route"><span class="completion-route-icon">${icon(demo ? "info" : checkout ? "receipt" : "mirror")}</span><div><strong>${routeTitle}</strong><p>${routeCopy}</p></div></div>${actions(btn("home", "처음 화면으로", "", "arrow") + (demo ? "" : '<p class="countdown"><span id="complete-count">15</span>초 뒤 처음 화면으로 돌아가요.</p>'))}`;
@@ -219,44 +219,36 @@ function souvenirReview(s, demo) {
   return `${step(3, "기념사진 확인", false)}${heading("KEEP THIS MOMENT", "이 사진으로<br>기억할까요?", demo ? "실제 촬영 결과가 아닌 샘플 사진이에요." : "마음에 들지 않으면 다시 찍을 수 있어요.")}<figure class="souvenir-review"><img src="${escape(s.souvenirPhoto)}" alt="이번 방문자의 퇴근 기념사진"><figcaption>${escape(s.name)} · ${escape(s.team?.title)}</figcaption></figure><p class="photo-print-note">확인한 사진을 체험 리포트에 함께 인쇄해요. 사진 없이 진행해도 좋아요.</p>${actions(btn("photo-confirm", "사진과 함께 리포트 보기", "", "receipt") + btn("photo-retake", "다시 찍기", "secondary", "camera") + btn("photo-skip", "사진 없이 계속하기", "text", ""))}`;
 }
 function reportPhoto(s) {
-  return s.souvenirPhoto ? `<figure class="receipt-photo"><img src="${escape(s.souvenirPhoto)}" alt="퇴근 기념사진 미리보기"><figcaption>KEEP THIS MOMENT / 오늘의 기념사진</figcaption></figure>` : "";
+  return s.souvenirPhoto ? `<figure class="receipt-photo"><img src="${escape(s.souvenirPhoto)}" alt="퇴근 기념사진 미리보기"><figcaption>오늘의 기념사진</figcaption></figure>` : "";
 }
 function reportPhotoNotice(s, demo) {
   return s.souvenirPhoto ? `<p class="photo-print-note">${demo ? "샘플 사진과 기록을 보여드려요. 실제 촬영·인쇄는 하지 않아요." : "사진과 체험 기록을 함께 인쇄해요. 원본 사진은 파일로 보관하지 않아요."}</p>` : "";
 }
 function reportCareerTip(r) {
   const tip = r?.careerTip;
-  if (!tip || ![tip.title, tip.body, tip.source, tip.note].every(value => typeof value === "string")) return "";
-  return `<section class="report-section career-tip" aria-label="취업지원센터 직장생활 꿀팁"><span>오늘의 직장생활 꿀팁</span><small class="career-tip-source">${escape(tip.source)}</small><h3>${escape(tip.title)}</h3><p>${escape(tip.body)}</p><small>${escape(tip.note)}</small></section>`;
+  if (!tip || ![tip.title, tip.body].every(value => typeof value === "string")) return "";
+  return `<section class="report-section career-tip" aria-label="TIP"><span>TIP</span><h3>${escape(tip.title)}</h3><p>${escape(tip.body)}</p></section>`;
 }
-const reportMasthead = (sample, photo = false) => `<div class="receipt-overline"><span>MIRRORTING / FIELD NOTES</span><span>${sample ? "SAMPLE" : "MY RECORD"}</span></div><div class="receipt-brand">${photo ? "MY DAY. MY RECORD." : "MY DAY.<br>MY RECORD."}</div><div class="receipt-label">${sample ? "체험용 예시 · 오늘의 체험 리포트" : "MirrorTing 체험 리포트"}</div>`;
+const reportMasthead = (sample) => `<div class="receipt-overline"><span>4-Fit MirrorTing</span><span>${sample ? "SAMPLE" : "MY RECORD"}</span></div><div class="receipt-brand">오늘의 나를, 한 장에.</div><div class="receipt-label">MY DAY / MY RECORD</div>`;
+function reportProse(values) {
+  return Array.isArray(values) ? values.filter(value => typeof value === "string" && value.trim()).map(value => `<p>${escape(value)}</p>`).join("") : "";
+}
 function liveReport(s) {
   const r = s.report;
-  const fitLabels = { response: "응답", voice: "목소리", expression: "표정", posture: "자세", eye: "시선" };
-  const fits = Object.entries(r.fitScores || {}).filter(([key, value]) => fitLabels[key] && value && typeof value === "object");
-  const list = (values) => Array.isArray(values) ? values.filter((value) => typeof value === "string" && value.trim()).map((value) => `<li>${escape(value)}</li>`).join("") : "";
-  const strengths = list(r.strengths);
-  const improvements = list(r.improvements);
-  const coaching = Array.isArray(r.coaching) ? r.coaching.filter((item) => item && typeof item === "object" && (item.issue || item.suggestion)).map((item) => `<li>${item.issue ? `<strong>${escape(item.issue)}</strong>` : ""}${item.suggestion ? `<p>${escape(item.suggestion)}</p>` : ""}</li>`).join("") : "";
-  return `${step(3, "퇴근 리포트 미리보기")}${heading("YOUR DAY, ON PAPER", "오늘의 기록을 확인해요.", "MirrorTing에서 받은 내용을 그대로 정리했어요.")}<p class="report-scroll-hint">${icon("receipt")}리포트를 위로 밀어 아래 내용도 확인해주세요.</p><article class="receipt live-receipt" tabindex="0" aria-label="MirrorTing 퇴근 리포트">${reportMasthead(false, Boolean(s.souvenirPhoto))}${reportPhoto(s)}<div class="receipt-row"><span>카드 등록 정보</span><strong>${escape(s.name)} · ${escape(s.team?.title)}</strong></div><div class="receipt-row"><span>사원 번호</span><strong>${escape(s.sessionId)}</strong></div><div class="receipt-row"><span>기록 출처</span><strong>MirrorTing 세션 ${escape(r.mirrorSessionId)}</strong></div>${r.grade ? `<div class="receipt-row"><span>결과 등급</span><strong>${escape(r.grade)}</strong></div>` : ""}${typeof r.totalScore === "number" && Number.isFinite(r.totalScore) ? `<div class="receipt-row"><span>기록된 총점</span><strong>${escape(r.totalScore)}</strong></div>` : ""}<hr class="receipt-rule">${r.headline?.sentence ? `<section class="report-section"><span>오늘의 한 문장</span><p>${escape(r.headline.sentence)}</p>${r.headline.context ? `<small>${escape(r.headline.context)}</small>` : ""}</section>` : ""}${fits.length ? `<section class="report-section"><span>관찰 항목</span><div class="fit-list">${fits.map(([key, fit]) => `<div class="fit-item"><strong>${fitLabels[key]}${fit.label ? ` · ${escape(fit.label)}` : ""}${fit.provisional ? " · 참고" : ""}</strong>${fit.summary ? `<p>${escape(fit.summary)}</p>` : ""}${fit.observation ? "<small>관찰 기록이 포함돼요.</small>" : ""}</div>`).join("")}</div></section>` : ""}${strengths ? `<section class="report-section"><span>발견한 강점</span><ul>${strengths}</ul></section>` : ""}${improvements ? `<section class="report-section"><span>더 해볼 점</span><ul>${improvements}</ul></section>` : ""}${coaching ? `<section class="report-section"><span>다음 대화 제안</span><ul>${coaching}</ul></section>` : ""}${r.dayEnding?.text ? `<section class="report-section"><span>${escape(r.dayEnding.label || "오늘의 마무리")}</span><p>${escape(r.dayEnding.text)}</p></section>` : ""}${reportCareerTip(r)}<div class="receipt-end">EVERY EXPERIENCE BECOMES YOU.</div></article>${reportPhotoNotice(s, false)}${actions(btn("report-print", s.souvenirPhoto ? "사진과 기록 함께 출력 요청" : "이 기록으로 출력 요청", "", "printer"))}`;
+  const fitLabels = { response: "응답", voice: "목소리", expression: "표정", posture: "자세" };
+  const fits = Object.entries(fitLabels).map(([key, label]) => {
+    const fit = r.fitScores?.[key] || {};
+    const score = typeof fit.score === "number" && Number.isFinite(fit.score) ? `${fit.score}점` : "미측정";
+    return `<div class="fit-item"><strong>${label}: ${score}${fit.provisional ? " · 참고 지표" : ""}</strong>${fit.summary ? `<p>${escape(fit.summary)}</p>` : ""}${fit.observation ? "<small>관찰 기록이 포함돼요.</small>" : ""}</div>`;
+  }).join("");
+  const reflection = reportProse([...(Array.isArray(r.strengths) ? r.strengths : []), r.dayEnding?.text]);
+  const nextSteps = reportProse(r.improvements) + (Array.isArray(r.coaching) ? r.coaching.filter(item => item && typeof item === "object" && item.suggestion).map(item => `<p>${item.issue ? `${escape(item.issue)}<br>` : ""}${escape(item.suggestion)}</p>`).join("") : "");
+  return `${step(3, "퇴근 리포트 미리보기")}${heading("YOUR DAY, ON PAPER", "오늘의 기록을 확인해요.", "오늘의 대화와 다음의 나를 한 장에 담았어요.")}<p class="report-scroll-hint">${icon("receipt")}리포트를 위로 밀어 아래 내용도 확인해주세요.</p><article class="receipt live-receipt" tabindex="0" aria-label="MirrorTing 퇴근 리포트">${reportMasthead(false)}${reportPhoto(s)}<div class="receipt-identity"><strong>${escape(s.name)} · ${escape(s.team?.title)}</strong><small>${escape(s.sessionId)} · MirrorTing 세션 ${escape(r.mirrorSessionId)}</small></div>${r.headline?.sentence ? `<blockquote class="receipt-highlight"><p>${escape(r.headline.sentence)}</p>${r.headline.context ? `<small>${escape(r.headline.context)}</small>` : ""}</blockquote>` : r.headline?.context ? `<p>${escape(r.headline.context)}</p>` : ""}<div class="receipt-score"><strong>${typeof r.totalScore === "number" && Number.isFinite(r.totalScore) ? `${escape(r.totalScore)}점` : "미측정"}</strong>${r.grade ? `<span>${escape(r.grade)}</span>` : ""}</div><section class="report-section"><span>4-Fit / 대화의 인상</span><div class="fit-list">${fits}</div>${r.fitScores?.eye?.summary ? `<p class="receipt-observation">시선 관찰 · 점수 제외<br>${escape(r.fitScores.eye.summary)}</p>` : ""}</section>${reflection ? `<section class="report-section"><span>오늘 남은 장면</span>${reflection}</section>` : ""}${nextSteps ? `<section class="report-section"><span>다음 대화에서는</span>${nextSteps}</section>` : ""}${reportCareerTip(r)}<div class="receipt-end">미측정은 0점이 아니며, 참고 지표는 보조 피드백입니다.</div></article>${reportPhotoNotice(s, false)}${actions(btn("report-print", s.souvenirPhoto ? "사진과 기록 함께 출력 요청" : "이 기록으로 출력 요청", "", "printer"))}`;
 }
 function report(s, demo) {
   if (!demo) return liveReport(s);
   const r = s.report;
-  return `${step(3, "퇴근 리포트 미리보기")}${heading("YOUR DAY, ON PAPER", "오늘의 나를 기록했어요.", demo ? "내용과 시간은 화면 확인을 위한 예시예요." : "오늘 발견한 나의 가능성을 한 장에 담았어요.")}<p class="report-scroll-hint">${icon("receipt")}리포트를 위로 밀어 아래 내용도 확인해주세요.</p><article class="receipt" tabindex="0" aria-label="퇴근 리포트 내용">${reportMasthead(demo, Boolean(s.souvenirPhoto))}${reportPhoto(s)}<div class="receipt-row"><span>이름 / 팀</span><strong>${escape(s.name)} / ${escape(s.team.title)}</strong></div><div class="receipt-row"><span>사원 번호</span><strong>${escape(s.sessionId)}</strong></div>${r.checkinAt ? `<div class="receipt-row"><span>입사</span><strong>${escape(r.checkinAt)}</strong></div>` : ""}${r.checkoutAt ? `<div class="receipt-row"><span>퇴근</span><strong>${escape(r.checkoutAt)}</strong></div>` : ""}<hr class="receipt-rule">${[
-    ["오늘의 시나리오", r.scenario],
-    ["경험 돌아보기", r.summary],
-    ["발견한 강점", r.strength],
-    ["다음의 나에게", r.nextAction],
-  ]
-    .map(([title, value]) =>
-      value
-        ? `<div class="report-section"><span>${title}</span><p>${escape(value)}</p></div>`
-        : "",
-    )
-    .join(
-      "",
-    )}<hr class="receipt-rule">${r.modeLabel ? `<div class="receipt-row"><span>나의 프로필</span><strong>${escape(r.modeLabel)}</strong></div>` : ""}${reportCareerTip(r)}<div class="receipt-end">EVERY EXPERIENCE BECOMES YOU.</div></article>${reportPhotoNotice(s, demo)}${actions(btn("report-print", s.souvenirPhoto ? "사진과 기록 출력 시연" : "퇴근 리포트 출력", "", "printer"))}`;
+  return `${step(3, "퇴근 리포트 미리보기")}${heading("YOUR DAY, ON PAPER", "오늘의 나를 기록했어요.", "내용과 시간은 화면 확인을 위한 예시예요.")}<p class="report-scroll-hint">${icon("receipt")}리포트를 위로 밀어 아래 내용도 확인해주세요.</p><article class="receipt" tabindex="0" aria-label="퇴근 리포트 내용">${reportMasthead(true)}${reportPhoto(s)}<div class="receipt-identity"><strong>${escape(s.name)} · ${escape(s.team?.title)}</strong><small>${escape(s.sessionId)}${r.modeLabel ? ` · ${escape(r.modeLabel)}` : ""}</small>${r.checkinAt || r.checkoutAt ? `<small>${escape(r.checkinAt)} → ${escape(r.checkoutAt)}</small>` : ""}</div>${r.scenario ? `<blockquote class="receipt-highlight"><p>${escape(r.scenario)}</p></blockquote>` : ""}${r.summary || r.strength ? `<section class="report-section"><span>오늘 남은 장면</span>${reportProse([r.summary, r.strength])}</section>` : ""}${r.nextAction ? `<section class="report-section"><span>다음 대화에서는</span><p>${escape(r.nextAction)}</p></section>` : ""}${reportCareerTip(r)}<div class="receipt-end">EVERY EXPERIENCE BECOMES YOU.</div></article>${reportPhotoNotice(s, true)}${actions(btn("report-print", s.souvenirPhoto ? "사진과 기록 출력 시연" : "퇴근 리포트 출력", "", "printer"))}`;
 }
 
 export function renderScreen(s, demo, web = false) {

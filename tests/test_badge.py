@@ -80,3 +80,22 @@ def test_mode_b_badge_renders_the_generated_portrait_without_character_asset():
     Image.new('RGB', (720, 960), 'white').save(white, format='PNG')
     badge_white = render_badge('프로필', 'AI팀', None, 'MW2610030001', profile_png=white.getvalue())
     assert badge_white.getpixel((288, 300)) == 255
+
+
+def test_badge_print_text_is_large_and_stays_inside_paper(monkeypatch):
+    from PIL import ImageDraw
+
+    drawn = []
+    original = ImageDraw.ImageDraw.text
+
+    def record(draw, position, text, **kwargs):
+        drawn.append((position, text, kwargs['font']))
+        return original(draw, position, text, **kwargs)
+
+    monkeypatch.setattr(ImageDraw.ImageDraw, 'text', record)
+    image = render_badge('가나다라마바사아자차', '마케팅팀', 'char_01', 'MW2610130001')
+    for (x, y), text, font in drawn:
+        bounds = font.getbbox(text)
+        assert font.size >= 24
+        assert x >= 20 and x + bounds[2] < image.width - 20
+        assert y + bounds[3] < image.height - 20

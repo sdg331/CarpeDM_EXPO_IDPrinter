@@ -10,7 +10,7 @@
     둘을 섞어 그린 캔버스를 마지막에 한 번에 threshold 하면 디더 픽셀은 이미 0/255 라
     보존되고, 안티앨리어싱된 글자 가장자리만 정리된다.
 
-부서 구분은 색이 아니라 검은 띠 + 라벨이다 — 감열지에는 색이 없다.
+감열지에는 색이 없으므로 큰 검정 글씨와 여백으로 정보의 우선순위를 정한다.
 """
 
 from __future__ import annotations
@@ -70,18 +70,18 @@ def _portrait(char_id: str) -> Image.Image:
 
 
 def _center(draw: ImageDraw.ImageDraw, text: str, y: int, font, fill=0,
-            tracking: int = 0) -> None:
+            tracking: int = 0, stroke_width: int = 0) -> None:
     """가로 중앙 정렬. tracking 은 자간(px) — STAFF ID 같은 라벨용."""
     if tracking:
         widths = [draw.textlength(ch, font=font) for ch in text]
         total = sum(widths) + tracking * (len(text) - 1)
         x = (W - total) / 2
         for ch, w in zip(text, widths):
-            draw.text((x, y), ch, font=font, fill=fill)
+            draw.text((x, y), ch, font=font, fill=fill, stroke_width=stroke_width)
             x += w + tracking
     else:
         w = draw.textlength(text, font=font)
-        draw.text(((W - w) / 2, y), text, font=font, fill=fill)
+        draw.text(((W - w) / 2, y), text, font=font, fill=fill, stroke_width=stroke_width)
 
 
 def render_badge(name: str, dept: str, char_id: str | None, emp_no: str,
@@ -93,10 +93,9 @@ def render_badge(name: str, dept: str, char_id: str | None, emp_no: str,
     canvas = Image.new("L", (W, H), 255)
     d = ImageDraw.Draw(canvas)
 
-    # ── 상단 검은 띠 ──
-    d.rectangle([0, 0, W, 108], fill=0)
-    _center(d, "4-Fit MirrorTing", 22, _font(36), fill=255)
-    _center(d, "STAFF ID", 72, _font(15), fill=255, tracking=10)
+    d.rectangle([20, 14, W - 21, H - 21], outline=0, width=2)
+    _center(d, "MIRRORTING / STAFF ID", 26, _font(24))
+    _center(d, "WORKS", 62, _font(60), tracking=4, stroke_width=1)
 
     # ── 초상 (288폭 인쇄 자산, 중앙) ──
     if profile_png is not None:
@@ -114,32 +113,32 @@ def render_badge(name: str, dept: str, char_id: str | None, emp_no: str,
     py = 148
     canvas.paste(portrait, (px, py))
     d.rectangle([px - 1, py - 1, px + portrait.width, py + portrait.height],
-                outline=0, width=1)
+                outline=0, width=2)
 
     # ── 이름 · 부서 ──
-    # 이름은 최대 10자 — 58px 로는 8자부터 폭을 넘는다. 맞을 때까지 줄인다.
+    # Keep long names readable inside the same fixed-size badge.
     y = py + portrait.height + 34
-    name_font = _font(58)
+    name_font = _font(52)
     max_w = W - MARGIN * 2
-    for size in (58, 50, 44, 38, 33):
+    for size in (52, 46, 40, 34):
         name_font = _font(size)
         if d.textlength(name, font=name_font) <= max_w:
             break
-    _center(d, name, y, name_font)
-    _center(d, f"{dept} · 사원", y + 78, _font(26))
+    _center(d, name, y, name_font, stroke_width=1)
+    _center(d, f"{dept} · 사원", y + 66, _font(28))
 
     # ── 구분선 · 하단 정보 ──
-    ry = y + 130
-    d.line([MARGIN, ry, W - MARGIN, ry], fill=0, width=1)
+    ry = y + 118
+    d.line([MARGIN, ry, W - MARGIN, ry], fill=0, width=2)
 
-    fy = ry + 22
-    small, val = _font(15), _font(24)
+    fy = ry + 18
+    small, val = _font(24), _font(26)
     d.text((MARGIN, fy), "발급일", font=small, fill=0)
-    d.text((MARGIN, fy + 24), issued, font=val, fill=0)
+    d.text((MARGIN, fy + 32), issued, font=val, fill=0)
     w1 = d.textlength("사원번호", font=small)
     w2 = d.textlength(emp_no, font=val)
     d.text((W - MARGIN - w1, fy), "사원번호", font=small, fill=0)
-    d.text((W - MARGIN - w2, fy + 24), emp_no, font=val, fill=0)
+    d.text((W - MARGIN - w2, fy + 32), emp_no, font=val, fill=0)
 
     # 글자 가장자리 정리 + 1비트 확정 (모듈 docstring 참고)
     return canvas.point(lambda p: 255 if p > 127 else 0).convert("1")

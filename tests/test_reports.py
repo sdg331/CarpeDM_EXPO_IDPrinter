@@ -180,9 +180,10 @@ def test_report_keeps_entire_photo_and_prints_one_separate_teacher_tip(monkeypat
     text = "".join(drawn)
     tip = career_tip(KIOSK_ID)
     assert text.count(tip["title"]) == 1
-    assert tip["source"] in text and tip["note"] in text
+    assert "TIP" in drawn
+    assert tip["source"] not in text and tip["note"] not in text
     assert "목소리: 미측정" in text
-    assert drawn[-1] == "출처: MirrorTing 세션 분석 결과"
+    assert drawn[-1] == "오늘의 기록을 오래 간직해주세요."
 
 
 @pytest.mark.parametrize("content", ["긴 리포트 " * 100, "verbose report " * 100, "줄\n" * 250])
@@ -215,11 +216,59 @@ def test_maximum_accepted_report_renders_all_lines_and_footer(monkeypatch, conte
     # All accepted strengths/improvements and the last section survive wrapping.
     for value in report["strengths"] + report["improvements"] + [report["dayEnding"]["text"]]:
         assert value.replace("\n", "") in printed_text
-    assert drawn[-1][1] == "출처: MirrorTing 세션 분석 결과"
+    assert drawn[-1][1] == "오늘의 기록을 오래 간직해주세요."
     assert drawn[-1][0][1] > 4300
     for (x, y), value, font in drawn:
         bounds = font.getbbox(value)
         assert x + bounds[2] <= image.width
         assert y + bounds[3] <= image.height
+        assert font.size >= 24
     # Check real ink in the footer, not just a tall empty allocation.
     assert image.crop((34, image.height - 48, 542, image.height)).getextrema() == (0, 255)
+
+
+@pytest.mark.parametrize("score", [None, 0, 100])
+def test_editorial_receipt_preserves_feedback_without_boxes_or_tip_provenance(monkeypatch, score):
+    from PIL import ImageDraw, ImageFont
+    import backend.reports as reports
+
+    monkeypatch.setattr(reports, "_font", lambda size: ImageFont.load_default(size=size))
+    drawn, bar_outlines = [], []
+    original_text = ImageDraw.ImageDraw.text
+    original_rectangle = ImageDraw.ImageDraw.rectangle
+
+    def record_text(draw, position, value, **kwargs):
+        drawn.append(value)
+        return original_text(draw, position, value, **kwargs)
+
+    def record_rectangle(draw, bounds, **kwargs):
+        if kwargs.get("outline") == 0 and kwargs.get("width") == 1:
+            bar_outlines.append(bounds)
+        return original_rectangle(draw, bounds, **kwargs)
+
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", record_text)
+    monkeypatch.setattr(ImageDraw.ImageDraw, "rectangle", record_rectangle)
+    report = normalize_report(KIOSK_ID, MIRROR_ID, upstream_report(
+        total_score=score,
+        fit_scores={
+            "response": {"score": score, "label": "응답", "summary": "원본 응답 해석"},
+            "voice": {"score": None, "label": "목소리"},
+            "expression": {"score": score, "label": "표정", "provisional": True},
+            "eye": {"score": 83, "label": "시선", "summary": "원본 시선 관찰", "observation": True},
+        },
+        coaching=[{"issue": f"관찰{i}", "suggestion": f"연습{i}", "quote": "출력 금지 원문"} for i in range(5)],
+    ))
+    image = render_report(report, name="방문자", team="AI팀")
+    text = "".join(drawn)
+    for expected in ("원본 응답 해석", "원본 시선 관찰", "목소리: 미측정", "자세: 미측정", "참고 지표", "5분 모드", "미측정은 0점이 아니며", "TIP"):
+        assert expected in text
+    for index in range(5):
+        assert f"관찰{index}" in text
+        assert f"연습{index}" in text
+    assert "83점" not in text and "출력 금지 원문" not in text
+    assert bar_outlines == []
+    assert "동양미래대학교 취업지원센터" not in text
+    assert "첨삭" not in text and "짧게 정리" not in text and "출처" not in text
+    assert "01 /" not in text and "관찰된 점:" not in text
+    if score is not None:
+        assert f"{score}점" in text

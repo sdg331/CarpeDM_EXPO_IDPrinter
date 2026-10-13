@@ -1,7 +1,7 @@
 import { characters, teams, screenIds, sampleCareerTip } from "./content.js?v=20261012-report-photo-r3";
 import { createState } from "./state.js";
 import { createDigitalBadge } from "./digital-badge.js";
-import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261012-report-photo-r3";
+import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261013-print-checkout-r2";
 
 // Only implemented views: retired modes/detailB/resultB are not kiosk pages.
 export const previewScreens = [

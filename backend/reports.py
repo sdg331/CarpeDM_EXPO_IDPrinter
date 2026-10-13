@@ -253,118 +253,135 @@ def render_report(report: Mapping[str, object], *, name: str, team: str,
     if not report.get("sessionId") or not report.get("reportId"):
         raise ReportError("INVALID_RESPONSE")
     try:
-        title_font, section_font, body_font, small_font = _font(38), _font(26), _font(22), _font(18)
+        title_font, section_font, body_font, small_font = _font(38), _font(30), _font(28), _font(24)
     except BadgeError as exc:
         raise ReportError("REPORT_RENDER_FAILED") from exc
 
     width, margin = REPORT_WIDTH, 34
-    # Measure and record every wrapped line before allocating the receipt.
-    # Valid normalized reports can be much taller than the old fixed canvas.
     draw = ImageDraw.Draw(Image.new("L", (1, 1), 255))
-    text_runs = []
-    rules = []
+    text_runs, rules = [], []
 
-    def text(position, value, font, fill=0):
-        text_runs.append((position, value, font, fill))
+    def text(position, value, font):
+        text_runs.append((position, value, font))
 
-    text((margin, 25), "MIRRORTING", title_font)
-    text((margin, 78), "오늘의 나를, 한 장에. / MY RECORD", body_font)
+    def centered(value, top, font):
+        text(((width - draw.textlength(value, font=font)) / 2, top), value, font)
+
+    centered("4-Fit MirrorTing", 22, small_font)
+    centered("오늘의 나를, 한 장에.", 54, title_font)
+    centered("MY DAY / MY RECORD", 110, small_font)
     y = 154
     photo_position = None
     if photo is not None:
         photo = thermal_photo(photo, (480, 640))
         photo_position = ((width - photo.width) // 2, y)
         y += photo.height + 16
-        text((margin, y), "KEEP THIS MOMENT / 오늘의 기념사진", small_font)
+        centered("오늘의 기념사진", y, small_font)
         y += 48
 
-    def line(label: str, value: str) -> None:
+    def paragraph(value, font=body_font, *, center=False):
         nonlocal y
         if not value:
             return
-        text((margin, y), label, small_font)
-        y += 28
-        for part in _wrapped(draw, value, body_font, width - 2 * margin):
-            text((margin, y), part, body_font)
-            y += 32
-        y += 10
+        for part in _wrapped(draw, value, font, width - 2 * margin):
+            if center:
+                centered(part, y, font)
+            else:
+                text((margin, y), part, font)
+            y += font.size + 10
+        y += 8
 
-    def section(label: str, values: list[str]) -> None:
+    def section(label, values):
         nonlocal y
         if not values:
             return
-        y += 16
-        rules.append((y, 44))
-        text((margin + 12, y + 5), f"{len(rules):02d} / {label}", section_font, 255)
-        y += 60
+        y += 12
+        rules.append(y)
+        text((margin, y + 18), label, small_font)
+        y += 62
         for value in values:
-            for part in _wrapped(draw, value, body_font, width - 2 * margin):
-                text((margin, y), part, body_font)
-                y += 32
-            y += 12
+            paragraph(value)
 
-    line("이름 / 팀", f"{_text(name, limit=30)} / {_text(team, limit=40)}")
-    text((margin, y), "RECORD / " + str(report["sessionId"]), small_font)
-    y += 38
+    paragraph(f"{_text(name, limit=30)} · {_text(team, limit=40)}", center=True)
+    paragraph("RECORD / " + str(report["sessionId"]), small_font, center=True)
+    if report.get("modeMinutes") in (5, 10):
+        paragraph(f"대화 체험 / {report['modeMinutes']}분 모드", small_font, center=True)
+
+    headline = report.get("headline") or {}
+    if isinstance(headline, Mapping):
+        if headline.get("sentence"):
+            y += 16
+            paragraph(_text(headline["sentence"]), section_font, center=True)
+        paragraph(_text(headline.get("context")), small_font, center=True)
     score = report.get("totalScore")
     score_label = "미측정" if score is None else f"{float(score):g}점"
     if report.get("grade"):
-        score_label += f" · {_text(report['grade'], limit=40)}"
-    line("종합 결과", score_label)
+        score_label += " · " + _text(report['grade'], limit=40)
+    y += 12
+    paragraph(score_label, title_font, center=True)
 
     fits = report.get("fitScores") or {}
     if not isinstance(fits, Mapping):
         raise ReportError("INVALID_RESPONSE")
-    fit_lines = []
-    for key in _SCORED_FITS:
-        fit = fits.get(key)
+    y += 12
+    rules.append(y)
+    text((margin, y + 18), "4-Fit / 대화의 인상", small_font)
+    y += 62
+    column_width = (width - 2 * margin - 28) // 2
+    row_top = row_bottom = y
+    for index, (key, fallback) in enumerate(zip(_SCORED_FITS, ("응답", "목소리", "표정", "자세"))):
+        fit = fits.get(key, {})
         if not isinstance(fit, Mapping):
-            continue
-        label = _text(fit.get("label"), limit=60) or key
+            raise ReportError("INVALID_RESPONSE")
+        if index % 2 == 0:
+            row_top = row_bottom
+        x = margin + (index % 2) * (column_width + 28)
+        item_y = row_top
+        label = _text(fit.get("label"), limit=60) or fallback
         value = "미측정" if fit.get("score") is None else f"{float(fit['score']):g}점"
         if fit.get("provisional"):
             value += " (참고 지표)"
-        fit_lines.append(f"{label}: {value}")
-    section("4-Fit", fit_lines)
-    section("발견한 강점", list(report.get("strengths") or []))
-    section("다음 연습", list(report.get("improvements") or []))
-    headline = report.get("headline") or {}
-    if isinstance(headline, Mapping):
-        headline_lines = [
-            clean for item in (headline.get("sentence"), headline.get("context"))
-            if (clean := _text(item, limit=220))
-        ]
-        section("오늘의 한 문장", headline_lines)
+        for value, font in ((f"{label}: {value}", body_font), (_text(fit.get("summary")), small_font)):
+            if not value:
+                continue
+            for part in _wrapped(draw, value, font, column_width):
+                text((x, item_y), part, font)
+                item_y += font.size + 10
+        row_bottom = max(row_bottom, item_y + 22)
+    y = row_bottom
+    eye = fits.get("eye")
+    if isinstance(eye, Mapping) and (observation := _text(eye.get("summary"))):
+        paragraph("시선 관찰 / 점수 제외", small_font)
+        paragraph(observation, small_font)
+
+    ending = report.get("dayEnding") or {}
+    reflection = list(report.get("strengths") or [])
+    if isinstance(ending, Mapping) and ending.get("text"):
+        reflection.append(_text(ending["text"]))
+    section("오늘 남은 장면", reflection)
+    next_steps = list(report.get("improvements") or [])
     coaching = report.get("coaching") or []
     if isinstance(coaching, list):
-        coaching_lines = []
-        for item in coaching[:3]:
+        for item in coaching[:5]:
             if not isinstance(item, Mapping):
                 continue
-            issue = _text(item.get("issue"), limit=100)
-            suggestion = _text(item.get("suggestion"), limit=220)
+            issue, suggestion = _text(item.get("issue")), _text(item.get("suggestion"))
             if suggestion:
-                coaching_lines.append(f"{issue}: {suggestion}" if issue else suggestion)
-        section("다음 대화 제안", coaching_lines)
-    ending = report.get("dayEnding") or {}
-    if isinstance(ending, Mapping):
-        section(_text(ending.get("label"), limit=80) or "하루의 결말", [_text(ending.get("text"))] if ending.get("text") else [])
+                next_steps.append(f"{issue}\n{suggestion}" if issue else suggestion)
+    section("다음 대화에서는", next_steps)
     tip = career_tip(str(report["sessionId"]))
-    section("오늘의 직장생활 꿀팁", [tip["source"], tip["title"], tip["body"]])
-    for part in _wrapped(draw, tip["note"], small_font, width - 2 * margin):
-        text((margin, y), part, small_font)
-        y += 26
-    rules.append((y + 10, 4))
-    text((margin, y + 26), "출처: MirrorTing 세션 분석 결과", small_font)
+    section("TIP", [tip["title"], tip["body"]])
+    y += 12
+    paragraph("미측정은 0점이 아니며, 참고 지표와 시선 관찰은 보조 피드백입니다. 이번 체험의 기록으로 읽어주세요.", small_font)
+    rules.append(y + 10)
+    centered("오늘의 기록을 오래 간직해주세요.", y + 26, small_font)
     canvas = Image.new("L", (width, y + 74), 255)
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle((18, 12, width - 19, 124), outline=0, width=4)
     if photo_position is not None:
-        x, photo_y = photo_position
         canvas.paste(photo, photo_position)
-        draw.rectangle((x - 3, photo_y - 3, x + photo.width + 2, photo_y + photo.height + 2), outline=0, width=3)
-    for rule_y, rule_h in rules:
-        draw.rectangle((margin, rule_y, width - margin, rule_y + rule_h), fill=0)
-    for position, value, font, fill in text_runs:
-        draw.text(position, value, font=font, fill=fill)
+    for rule_y in rules:
+        for x in range(margin, width - margin, 14):
+            draw.line((x, rule_y, min(x + 8, width - margin), rule_y), fill=0, width=2)
+    for position, value, font in text_runs:
+        draw.text(position, value, font=font, fill=0)
     return canvas.point(lambda pixel: 255 if pixel > 127 else 0).convert("1")
