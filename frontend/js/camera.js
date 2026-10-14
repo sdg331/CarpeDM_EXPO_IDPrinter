@@ -7,7 +7,7 @@ export class Camera {
   startupTimer = null;
   controller = null;
   video = null;
-  async start(video, api, onState) {
+  async start(video, api, onState, { requireFace = true } = {}) {
     this.stop();
     const generation = this.generation;
     this.video = video;
@@ -46,6 +46,10 @@ export class Camera {
       await video.play();
       if (generation !== this.generation) return;
       clearTimeout(this.startupTimer);
+      if (!requireFace) {
+        onState("ready");
+        return;
+      }
       const detect = async () => {
         if (generation !== this.generation) return;
         try {

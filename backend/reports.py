@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 import httpx
-from PIL import Image, ImageDraw, ImageEnhance, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 from backend.badge import BadgeError, _font
 from backend.career_tips import career_tip
@@ -239,16 +239,27 @@ def _wrapped(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list
 
 
 def thermal_photo(photo: Image.Image, size: tuple[int, int]) -> Image.Image:
-    """Fit the whole frame and dither only the photograph, keeping text crisp."""
-    photo = ImageOps.contain(ImageOps.exif_transpose(photo).convert("L"), size)
-    photo = ImageEnhance.Brightness(ImageOps.autocontrast(photo, cutoff=1)).enhance(1.08)
+    """Keep the frame, suppress camera noise, and sharpen at the printer's native dots."""
+    photo = ImageOps.exif_transpose(photo).convert("L")
+    # Reduce camera grain before downsampling; sharpen only at the final dot size
+    # so edge detail survives without turning sensor noise into black flecks.
+    photo = photo.filter(ImageFilter.MedianFilter(3))
+    photo = ImageOps.contain(photo, size, method=Image.Resampling.LANCZOS)
+    photo = ImageOps.autocontrast(photo, cutoff=0.5)
+    photo = photo.point([round(255 * (i / 255) ** (1 / 1.12)) for i in range(256)])
+    photo = ImageEnhance.Contrast(photo).enhance(1.08)
+    photo = photo.filter(ImageFilter.UnsharpMask(radius=0.75, percent=125, threshold=3))
+    # Near-white noise becomes very visible as isolated thermal dots. Keep clean
+    # highlights white while retaining the midtones that describe the face.
+    photo = photo.point([255 if value >= 246 else 0 if value <= 5 else value for value in range(256)])
     return photo.convert("1", dither=Image.Dither.FLOYDSTEINBERG)
 
 
 def render_report(report: Mapping[str, object], *, name: str, team: str,
-                  photo: Image.Image | None = None) -> Image.Image:
+                  photo: Image.Image | None = None, photo_is_sample: bool = False) -> Image.Image:
     """Render a 576-dot 1-bit receipt from verified normalized source fields."""
-    if report.get("status") != "available" or report.get("source") != "mirrorting":
+    sample = report.get("source") == "demo_sample" and report.get("sample") is True
+    if report.get("status") != "available" or (report.get("source") != "mirrorting" and not sample):
         raise ReportError("REPORT_NOT_FOUND")
     if not report.get("sessionId") or not report.get("reportId"):
         raise ReportError("INVALID_RESPONSE")
@@ -269,14 +280,14 @@ def render_report(report: Mapping[str, object], *, name: str, team: str,
 
     centered("4-Fit MirrorTing", 22, small_font)
     centered("오늘의 나를, 한 장에.", 54, title_font)
-    centered("MY DAY / MY RECORD", 110, small_font)
+    centered("시연용 예시 · 실제 체험 기록 아님" if sample else "MY DAY / MY RECORD", 110, small_font)
     y = 154
     photo_position = None
     if photo is not None:
         photo = thermal_photo(photo, (480, 640))
         photo_position = ((width - photo.width) // 2, y)
         y += photo.height + 16
-        centered("오늘의 기념사진", y, small_font)
+        centered(("샘플 캐릭터 사진 · 인화 품질 확인" if photo_is_sample else "직접 촬영한 사진 · 체험 기록은 예시") if sample else "오늘의 기념사진", y, small_font)
         y += 48
 
     def paragraph(value, font=body_font, *, center=False):

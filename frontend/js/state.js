@@ -13,6 +13,7 @@ export function createState() {
   const empty = () => ({
     screen: "home",
     flow: null,
+    checkoutRehearsal: false,
     team: null,
     draftTeam: null,
     name: "",

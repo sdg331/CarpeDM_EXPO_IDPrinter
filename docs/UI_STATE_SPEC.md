@@ -136,6 +136,8 @@ error
 
 `not_found` is not a fabricated report; show clear retry/fallback choice.
 
+2026-10-07: 운영자가 명시적으로 생성한 카드별 테스트 기록은 `source:local_test`, `sample:true`로 구분한다. 조회·리포트에서 테스트용 예시임을 표시하고 화면 미리보기만 제공한다. 인쇄와 가짜 출력 완료는 제공하지 않는다. 기본 비활성화, 1시간 만료, 활성 카드 세션만 조회 가능하며 실제 MirrorTing 링크가 있으면 실제 경로가 우선한다.
+
 ## Backend Health
 
 ```text

@@ -19,6 +19,7 @@ models/
 
 # 분포 테스트용 실제 얼굴 표본. 개인정보라 저장소에 올리지 않는다.
 data/test_faces/
+data/test_records/
 
 # 로컬 키오스크 세션 DB. 이름·카드 UID가 들어갈 수 있으므로 커밋 금지
 data/*.sqlite3

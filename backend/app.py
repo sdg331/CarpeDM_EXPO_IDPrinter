@@ -50,13 +50,15 @@ from backend.face import (
     primary_face,
     face_metadata,
 )
-from backend.nfc import NfcError, nfc_status, read_card_uid
+from backend.nfc import NfcError, nfc_status, read_card_uid, reader_generation, reset_reader
 from backend.printing import PREVIEWS, PrintError, print_badge, printer_status
 from backend.profile import ProfileComposer, ProfileQualityError, ProfileStore
 from backend.photo_lab import router as photo_lab_router
 from backend.ratio_lab import router as ratio_lab_router
 from backend.reports import ReportError, fetch_mirrorting_report, render_report
 from backend.souvenir import introduction_url, qr_image, render_souvenir
+from backend.rehearsal import example_report
+from backend.test_records import load_test_report
 from backend.store import (
     TEAM_LABELS,
     KioskStore,
@@ -80,6 +82,17 @@ STATE: dict = {}
 STORE = KioskStore()
 ENGINE_LOCK = threading.RLock()
 NFC_LOCK = threading.Lock()
+
+
+def _read_current_card(generation: int) -> str:
+    with NFC_LOCK:
+        if generation != reader_generation():
+            raise NfcError("NFC_READ_CANCELLED", True)
+        uid = read_card_uid(NFC_TIMEOUT_SECONDS)
+        if generation != reader_generation():
+            raise NfcError("NFC_READ_CANCELLED", True)
+        return uid
+
 
 
 @asynccontextmanager
@@ -133,6 +146,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="4-Fit MirrorTing 사원증 키오스크", lifespan=lifespan)
 app.include_router(ratio_lab_router)
+
+
+@app.post("/api/nfc/reset")
+def reset_nfc():
+    reset_reader()
+    return {"ok": True}
 
 
 @app.middleware("http")
@@ -446,7 +465,7 @@ class NfcRegisterRequest(BaseModel):
 
 class OperationRequest(BaseModel):
     operationId: str = Field(min_length=8, max_length=128)
-    purpose: Literal["checkout", "souvenir"] = "checkout"
+    purpose: Literal["checkout", "souvenir", "rehearsal"] = "checkout"
 
 
 def _souvenir_card() -> str:
@@ -465,6 +484,30 @@ def _souvenir_configured() -> bool:
 def _souvenir_pass(photo_pass: str) -> dict:
     return {"ok": True, "kind": "souvenir", "photoPass": photo_pass,
             "printJobId": f"souvenir-{photo_pass}", "qrPreviewUrl": f"/api/souvenirs/{photo_pass}/qr"}
+
+
+@app.post("/api/souvenirs/start")
+def start_souvenir(req: OperationRequest):
+    """A local photo-only visit needs neither an employee session nor an NFC card."""
+    grants = STATE.get("souvenirs")
+    if grants is None:
+        return _error("BACKEND_UNAVAILABLE", retryable=True, status_code=503)
+    with STORE.card_access():
+        if STORE.unresolved_souvenir_print():
+            return _error("SOUVENIR_PRINT_PENDING", retryable=False, status_code=409)
+        photo_pass = grants.find_operation(req.operationId)
+        if not photo_pass:
+            url = "@checkout-rehearsal" if req.purpose == "rehearsal" else os.getenv("KIOSK_SOUVENIR_QR_URL", "").strip()
+            if url and req.purpose != "rehearsal":
+                try:
+                    qr_image(url)
+                except (ValueError, cv2.error):
+                    return _error("SOUVENIR_NOT_CONFIGURED", retryable=False, status_code=503)
+            photo_pass = grants.put(url.encode("utf-8"), req.operationId)
+        result = _souvenir_pass(photo_pass)
+        if grants.get(photo_pass) in {b"", b"@checkout-rehearsal"}:
+            result["qrPreviewUrl"] = None
+        return result
 
 
 class BadgePrintRequest(BaseModel):
@@ -501,6 +544,7 @@ def _previous_operation(op):
 
 @app.post("/api/nfc/register")
 def register_nfc(req: NfcRegisterRequest):
+    generation = reader_generation()
     """One durable operation/session per request; safely bind the NFC UID."""
     try:
         previous = STORE.get_operation(req.operationId, "nfc_register")
@@ -540,8 +584,7 @@ def register_nfc(req: NfcRegisterRequest):
         return _error("INVALID_SESSION", retryable=False, status_code=400)
 
     try:
-        with NFC_LOCK:
-            uid = read_card_uid(NFC_TIMEOUT_SECONDS)
+        uid = _read_current_card(generation)
     except NfcError as exc:
         STORE.finish_operation(req.operationId, kind="nfc_register",
             status="retryable_error" if exc.retryable else "error", error_code=exc.code, retryable=exc.retryable)
@@ -562,13 +605,13 @@ def register_nfc(req: NfcRegisterRequest):
 @app.post("/api/nfc/resolve")
 def resolve_checkout(req: OperationRequest):
     """Read a card and resolve its currently active visitor session."""
+    generation = reader_generation()
     souvenirs = STATE.get("souvenirs")
     previous = souvenirs.find_operation(req.operationId) if souvenirs else None
     if previous:
         return _souvenir_pass(previous)
     try:
-        with NFC_LOCK:
-            uid = read_card_uid(NFC_TIMEOUT_SECONDS)
+        uid = _read_current_card(generation)
     except NfcError as exc:
         status = 408 if exc.code == "NFC_TIMEOUT" else 503
         return _error(
@@ -609,6 +652,8 @@ def souvenir_qr(photo_pass: str):
     url = grants.get(photo_pass) if grants else None
     if url is None:
         return _error("SOUVENIR_PASS_EXPIRED", retryable=False, status_code=410)
+    if not url or url == b"@checkout-rehearsal":
+        return _error("SOUVENIR_NOT_CONFIGURED", retryable=False, status_code=404)
     data = BytesIO()
     qr_image(url.decode("utf-8")).save(data, format="PNG")
     return Response(data.getvalue(), media_type="image/png", headers={"Cache-Control": "no-store"})
@@ -639,7 +684,7 @@ def _print_souvenir(photo_pass: str, raw: bytes):
         bgr = _decode_frame(raw)
         photo = Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
         try:
-            image = render_souvenir(photo, url.decode("utf-8"))
+            image = render_report(example_report(), name="퇴근 체험자 (예시)", team="시연", photo=photo) if url == b"@checkout-rehearsal" else render_souvenir(photo, url.decode("utf-8"))
         except (BadgeError, OSError, ValueError, cv2.error):
             return _error("SOUVENIR_RENDER_FAILED", retryable=True, status_code=500)
         with STORE.card_access():
@@ -810,9 +855,17 @@ def _linked_report(session_id: str):
     session = STORE.get_session(session_id)
     if not STORE.active_card(session_id):
         raise ReportError('SESSION_REPLACED')
+    link = STORE.get_mirrorting_link(session_id)
+    if link is None:
+        test_report = load_test_report(session_id)
+        if test_report is not None:
+            # Match the live path's identity check immediately before returning.
+            with STORE.card_access():
+                if not STORE.active_card(session_id):
+                    raise ReportError('SESSION_REPLACED')
+            return session, test_report
     if not os.getenv('KIOSK_MIRRORTING_URL'):
         raise ReportError('INTEGRATION_PENDING')
-    link = STORE.get_mirrorting_link(session_id)
     if link is None:
         raise ReportError('REPORT_NOT_FOUND', retryable=True)
     report = fetch_mirrorting_report(session_id, link['mirror_session_id'], link['access_token'],
@@ -857,6 +910,8 @@ async def print_report_photo(
 
 def _print_session_report(req: ReportPrintRequest, raw_photo: bytes | None = None):
     try:
+        if req.reportId == f'TEST-{req.sessionId}' and load_test_report(req.sessionId) is not None:
+            return _error('TEST_REPORT_PREVIEW_ONLY', retryable=False, status_code=409)
         original = STORE.get_operation(req.operationId, 'report_print')
         if original and original['session_id'] != req.sessionId:
             raise OperationConflict('print session changed')

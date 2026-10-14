@@ -156,6 +156,11 @@ export function createLiveIntegrations(fetcher = fetch) {
     );
   },
 
+  startSouvenir(context) {
+    return postJson("/api/souvenirs/start", { operationId: context.operationId,
+      ...(context.purpose ? { purpose: context.purpose } : {}) }, context, false, fetcher);
+  },
+
   printSouvenir(photoPass, frame, context) {
     const form = new FormData();
     form.append("frame", frame, "souvenir.jpg");

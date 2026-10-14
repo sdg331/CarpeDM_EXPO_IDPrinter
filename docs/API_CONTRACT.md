@@ -12,6 +12,8 @@
 
 추천 조건은 현재 브라우저 상태에만 보관한다. 재촬영은 유지하고 새 방문자 초기화에서는 `any`로 되돌린다. NFC/DB에는 추가 저장하지 않는다. 결과 화면의 직접 선택은 기존처럼 8명 전체를 허용한다.
 
+운영자가 명시적으로 연 `?rehearsal=checkout`은 퇴근 한 번만 카드 없이 실제 카메라로 촬영하고 시연용 예시 리포트를 인쇄한다. 촬영·재촬영·취소가 가능하며 다음 일반 퇴근은 실제 카드 조회다. 이 모드는 `POST /api/souvenirs/start`의 `purpose:rehearsal`로 발급한 임시 인화 권한을 사용한다. 실제 체험 기록이나 카드 등록으로 가장하지 않으며 인쇄물의 제목과 출처에 예시를 표시한다.
+
 ## 선택 사진 실험
 
 `/static/photo-lab.html` 전용이며 기존 발급 흐름에서 호출하지 않는다. `GET /api/experiments/photo/status`는 `enabled`, `ready`, `processing:local_cv`, `generatesFace:false`, `generatesSuit:false`, `externalUpload:false`를 반환한다. `KIOSK_PHOTO_LAB=1`일 때만 `POST /api/experiments/photo/compose`가 동작한다. 요청은 multipart가 아닌 JPEG/PNG/WebP 원시 바이트, 최대 8 MiB이며 전체 디코딩 전에 기존 1,200만 픽셀 제한을 확인한다. 성공은 720×960 PNG이며 세션·이미지 저장소·NFC·인쇄를 변경하지 않는다. 모든 방문자 API와 같은 loopback·출처·no-store 제한을 따른다. 오류는 `PHOTO_LAB_DISABLED`, `PHOTO_ENGINE_UNAVAILABLE`, `NO_PERSON`, `MULTIPLE_PEOPLE`, `PHOTO_QUALITY_FAILED`, `PHOTO_PROCESSING_FAILED` 또는 기존 이미지 오류다. [실험 사용과 한계](PHOTO_LAB.md)를 따른다.
@@ -73,6 +75,8 @@ B는 `aiMode:"B"`, `result:{"kind":"B","profileId":"서버가 반환한 ID"}`를
 
 출력 반환에는 `printJobId`, `backend`, `status`, `physicalOutput`, `completionConfirmed`가 있다.
 
+`KIOSK_PRINT=disabled`는 명시적인 출력 비활성화 설정이다. `/api/health`의 프린터 상태는 `ready:false`, `physicalOutput:false`, `completionConfirmed:false`와 비활성화 안내를 반환한다. 출력은 미리보기나 장치 제출 없이 기존 `PRINT_UNAVAILABLE` 오류로 거절하며, 설정을 고친 뒤 같은 작업 ID로 재시도할 수 있다.
+
 | status | 의미 |
 | --- | --- |
 | `preview` | 메모리 미리보기. `physicalOutput:false`, `completionConfirmed:false`, `previewUrl` 제공 |
@@ -119,6 +123,10 @@ careerTip.{id,title,body,source,note}
 
 ## 전용 NFC 카드 사진 · 2026-10-12
 
+2026-10-13 변경: HOME의 사진만 찍기는 NFC를 사용하지 않는다. `POST /api/souvenirs/start`에 `{operationId}`를 보내 임시 인화 권한을 받는다. 기존 인화 계약을 재사용하며 소개 주소 미설정 시 `qrPreviewUrl:null`이다. 사진 아래에는 작품 소개를 인쇄한다. 같은 operationId 재요청은 같은 유효 권한을 반환한다.
+
+`POST /api/nfc/reset`은 `{ok:true}`를 반환하고 진행 중 NFC 읽기를 취소한다. 이전 요청은 `NFC_READ_CANCELLED`이며 새로운 요청은 초기화 완료 후 진행한다. 카드 UID·세션·체험 기록을 삭제하지 않는다.
+
 - `POST /api/nfc/resolve`: 기존 `{operationId}`에 선택적 `purpose:checkout|souvenir` 추가. 전용 카드면 `{ok,kind:souvenir,photoPass,printJobId,qrPreviewUrl}`를 반환한다. 사원 세션/UID는 반환하지 않는다.
 - `GET /api/souvenirs/{photoPass}/qr`: 승인된 소개 주소 QR PNG, no-store.
 - `POST /api/souvenirs/{photoPass}/print`: multipart `frame`, 기존 8 MiB/1,200만 픽셀·JPEG/PNG/WebP 검증. 서버가 승인에 고정한 `souvenir-{photoPass}` ID로 1회 인화한다. 기존 preview/submitted/confirmed 계약을 사용한다.
@@ -135,3 +143,9 @@ careerTip.{id,title,body,source,note}
 - `POST /api/face-map`: 같은 multipart frame, 선택 얼굴의 실제 좌표를 반환한다. `{ok,face,detailAvailable,externalUpload:false}`. 별도 MediaPipe 환경이 없거나 잠겨 있거나 상세 좌표가 실패하면 실제 YuNet5개를 반환한다. 임의 좌표·다른 사람의 좌표로 대체하지 않는다. 얼굴 없음은 ok:false/error:no_face, 기타 사진 검증은 기존 크기·형식 오류다.
 - 상세 작업은 비교 실험과 같은 잠금을 사용하고 프로세스8초 제한이다. 기본 매칭은 상세 맵 실패 때문에 실패하지 않는다. 모든 사진·좌표는 메모리에서 처리하며 no-store·loopback·same-origin 정책을 유지한다.
 - 비교 API는 SFace가 선택한 박스를 상세 워커에 전달한다. MediaPipe가 여러 얼굴을 찾으면 그 박스와 가장 겹치는 얼굴을 사용하고 겹침이 부족하면 명시적 오류다. 각각 다른 사람을 비교하지 않는다.
+
+## 명시적인 카드별 테스트 기록 · 2026-10-07
+
+운영자가 요청한 화면 확인용 예시는 `scripts/seed_test_report.py <sessionId>`로 현재 활성 카드 세션에만 생성한다. `KIOSK_TEST_RECORDS=1`일 때 `data/test_records/<sessionId>.json`을 읽으며 기본 1시간 후 조회에서 제외한다. 원본 이름·UID·사진·토큰은 이 파일에 넣지 않는다. Git에서도 제외한다.
+
+실제 MirrorTing 링크가 없는 해당 세션에만 적용하며 실제 링크·조회 오류를 예시로 대체하지 않는다. 반환은 `source:local_test`, `sample:true`, `reportId:TEST-<sessionId>`, `mirrorSessionId:null`이다. 퇴근 조회와 리포트 화면은 `테스트용 예시`를 명시한다. 예시 기록에는 인쇄 버튼을 제공하지 않으며 출력 API도 409 `TEST_REPORT_PREVIEW_ONLY`로 차단한다. 기능을 끄려면 `KIOSK_TEST_RECORDS=0`으로 변경하고 서버를 다시 시작한다.

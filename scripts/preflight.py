@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 def main() -> int:
     parser = argparse.ArgumentParser(description="기동 전 점검 (출력/촬영하지 않음)")
     parser.add_argument("--hardware", action="store_true", help="PC/SC 및 프린터 설정도 필수로 확인")
-    parser.add_argument("--souvenir", action="store_true", help="사진 전용 NFC 카드·소개 QR 설정 확인")
+    parser.add_argument("--souvenir", action="store_true", help="카드 없는 기념사진·선택적 소개 QR 설정 확인")
     args = parser.parse_args()
     try:
         from dotenv import load_dotenv
@@ -66,12 +66,13 @@ def main() -> int:
 
     if args.souvenir:
         import cv2
-        from backend.app import _souvenir_card
         from backend.souvenir import qr_image
-        check("기념사진 전용 UID", bool(_souvenir_card()), "KIOSK_SOUVENIR_CARD_UID 설정")
+        check("카드 없는 기념사진", True, "HOME → 촬영 → 사진 확인 → 인화")
         try:
-            qr_image(os.getenv("KIOSK_SOUVENIR_QR_URL", ""))
-            check("소개 QR 생성", True)
+            url = os.getenv("KIOSK_SOUVENIR_QR_URL", "").strip()
+            if url:
+                qr_image(url)
+            check("소개 QR 설정", True, "소개 주소 미설정 시 작품 소개만 인쇄" if not url else "실제 소개 주소로 QR 생성")
         except (ValueError, RuntimeError, cv2.error):
             check("소개 QR 생성", False, "KIOSK_SOUVENIR_QR_URL에 실제 소개 주소 설정")
 

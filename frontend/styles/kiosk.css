@@ -2450,13 +2450,20 @@ h2 {
 .receipt-score { display: flex; justify-content: center; align-items: baseline; gap: 16px; margin: 24px 0; }
 .receipt-score strong { font-size: 36px; font-weight: 500; }
 .receipt-score span { font-size: 22px; }
-.souvenir-entry { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 82px; padding: 18px 22px; margin-top: 18px; border: 2px solid #17202b; background: #fffef9; color: #17202b; font: inherit; cursor: pointer; text-align: left; }
-.souvenir-entry > .icon { width: 26px; height: 26px; }
+.souvenir-entry { display: flex; align-items: center; justify-content: space-between; gap: 20px; width: 100%; min-height: 120px; padding: 24px; margin-top: 18px; border: 0; border-radius: var(--radius-lg); background: #edf3ff; color: var(--ink); font: inherit; cursor: pointer; text-align: left; }
+.souvenir-entry > .icon { width: 32px; height: 32px; }
 .souvenir-entry span { flex: 1; }
-.souvenir-entry strong { display: block; font-size: 24px; font-weight: 800; }
-.souvenir-entry small { display: block; font-size: 18px; color: #49515d; margin-top: 4px; }
+.souvenir-entry strong { display: block; font-size: 28px; font-weight: 800; }
+.souvenir-entry small { display: block; font-size: 22px; color: #49515d; margin-top: 6px; }
 .souvenir-entry:active { background: #e7eeff; }
 .souvenir-entry:focus-visible { outline: 3px solid var(--brand); outline-offset: 4px; }
+.character-type-group { margin: 18px 0 0; padding: 0; border: 0; }
+.character-type-group legend { margin-bottom: 12px; font-size: 24px; font-weight: 750; }
+.character-type-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.character-type-options button { min-height: 72px; padding: 12px; border: 2px solid transparent; border-radius: var(--radius-sm); background: var(--elevated); color: var(--ink); font: 700 22px var(--font); cursor: pointer; }
+.character-type-options button[aria-pressed="true"] { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+.character-type-options button:active { background: #dce8ff; }
+.character-type-options button:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
 .souvenir-ticket { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 230px; grid-template-rows: auto minmax(0, 1fr); gap: 16px; border: 3px solid #17202b; background: #fffef9; box-shadow: 5px 5px 0 #17202b; padding: 16px; }
 .ticket-masthead { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 3px solid #17202b; }
 .ticket-masthead strong { font-size: 28px; font-weight: 900; letter-spacing: -1px; }

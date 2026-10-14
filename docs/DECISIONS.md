@@ -23,6 +23,15 @@ Status: IMPLEMENTED following owner request
 - 카드 메모리에 방문자 정보를 쓰지 않으므로 UID를 지우지 않는다. 다음 출근에서 같은 카드를 새 방문자로 등록한다. 실물 출력·카드 회수는 별도로 확인한다.
 - 이 표시/초기화 기준은 아래 이전 리포트·출력 후 카드 유지 기준보다 우선한다.
 
+## PI-050 카드 없는 즉시 촬영·NFC 초기화 · 2026-10-13
+
+Status: CONFIRMED by owner / IMPLEMENTED
+
+- HOME에 `사진만 찍기`를 표시하고 카드 태그 없이 즉시 카메라를 시작한다. D-048의 사진 전용 카드 요구를 이 메뉴에서 대체한다. 이름·팀·AI 분석 없이 촬영·재촬영·인화한다.
+- 사진 아래에 4-Fit MirrorTing 작품 소개를 넣는다. 실제 소개 주소가 있을 때만 QR을 추가한다.
+- 출근·퇴근을 선택하면 이전 NFC 화면 상태와 진행 중 읽기 요청을 초기화한다. 현재 활성 카드의 체험 기록은 유지한다.
+- 출력 예시는 실제 기록과 구분해 `시연용 예시 · 실제 체험 기록 아님`을 표시한다. 실제 조회 실패를 예시로 대체하지 않는다.
+
 ## D-047 Analysis visual effects · 2026-10-12
 Status: IMPLEMENTED following owner request for a stronger AI analysis impression
 

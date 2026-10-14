@@ -12,8 +12,24 @@ from __future__ import annotations
 
 import os
 import time
+import threading
 from dataclasses import dataclass
 from typing import Any
+
+_reader_lock = threading.Lock()
+_reader_generation = 0
+
+
+def reader_generation() -> int:
+    with _reader_lock:
+        return _reader_generation
+
+
+def reset_reader() -> None:
+    """Cancel pending reads, leaving registered card/session data intact."""
+    global _reader_generation
+    with _reader_lock:
+        _reader_generation += 1
 
 
 @dataclass
@@ -53,7 +69,7 @@ def nfc_status() -> dict[str, Any]:
         }
 
     try:
-        found = list(readers())
+        found = [reader for reader in readers() if "SAM" not in str(reader).upper()]
     except Exception as exc:
         return {"backend": backend, "ready": False, "detail": f"PC/SC 오류: {exc}"}
     return {
@@ -88,6 +104,7 @@ def _normalize_uid(value: str) -> str:
 
 
 def _read_pcsc_uid(timeout_seconds: float) -> str:
+    generation = reader_generation()
     try:
         from smartcard.Exceptions import CardConnectionException, NoCardException
         from smartcard.System import readers
@@ -95,7 +112,7 @@ def _read_pcsc_uid(timeout_seconds: float) -> str:
         raise NfcError("NFC_READER_OFFLINE", False, "pyscard is not installed") from exc
 
     try:
-        available = list(readers())
+        available = [reader for reader in readers() if "SAM" not in str(reader).upper()]
     except Exception as exc:
         raise NfcError("NFC_READER_OFFLINE", True, f"PC/SC reader query failed: {exc}") from exc
     if not available:
@@ -106,7 +123,11 @@ def _read_pcsc_uid(timeout_seconds: float) -> str:
     last_error = ""
 
     while time.monotonic() < deadline:
+        if generation != reader_generation():
+            raise NfcError("NFC_READ_CANCELLED", True, "card read reset for a new visit")
         for reader in available:
+            if "SAM" in str(reader).upper():
+                continue
             connection = reader.createConnection()
             try:
                 connection.connect()
