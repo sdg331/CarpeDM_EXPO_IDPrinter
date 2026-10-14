@@ -1,0 +1,9 @@
+# Install in .venv-landmarks, never over the kiosk .venv (NumPy versions differ).
+# Verified on Intel macOS / Python 3.12. Pi installation and latency need testing.
+mediapipe==0.10.21
+numpy==1.26.4
+opencv-contrib-python==4.11.0.86
+jax==0.4.38
+jaxlib==0.4.38
+scipy==1.15.3
+matplotlib==3.10.8
