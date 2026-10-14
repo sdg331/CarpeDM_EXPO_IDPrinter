@@ -1,4 +1,4 @@
-import { KioskError } from "./api-client.js";
+import { KioskError } from "./api-client.js?v=20261014-face-map-r1";
 
 export class Camera {
   stream = null;
@@ -54,15 +54,7 @@ export class Camera {
           if (generation !== this.generation) return;
           if (!Number.isInteger(result.count) || result.count < 0)
             throw new KioskError("INVALID_RESPONSE");
-          onState(
-            result.count === 0
-              ? "no_person"
-              : result.count > 1
-                ? "multiple_people"
-                : result.ok
-                  ? "ready"
-                  : "no_person",
-          );
+          onState(result.count > 0 && result.ok ? "ready" : "no_person", result);
           this.timer = setTimeout(detect, 650);
         } catch (error) {
           if (generation === this.generation && error.name !== "AbortError") {

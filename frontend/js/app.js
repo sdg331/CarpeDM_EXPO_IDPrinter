@@ -1,5 +1,5 @@
-import { createState, validateName } from "./state.js?v=20261012-report-photo-r3";
-import { characters, teams, scenarios, screenIds } from "./content.js?v=20261012-report-photo-r3";
+import { createState, validateName } from "./state.js?v=20261014-face-map-r1";
+import { characters, teams, scenarios, screenIds, characterGenderOptions } from "./content.js?v=20261013-character-gender-r1";
 import {
   createDemoApi,
   createLiveApi,
@@ -7,13 +7,14 @@ import {
   KioskError,
   errorCopy,
   wait,
-} from "./api-client.js?v=20261012-report-photo-r3";
-import { Camera } from "./camera.js?v=20261005-audit-fixes";
-import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, escape } from "./views.js?v=20261013-print-checkout-r2";
+} from "./api-client.js?v=20261014-face-map-r1";
+import { Camera } from "./camera.js?v=20261014-face-map-r1";
+import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, escape } from "./views.js?v=20261014-face-map-r1";
 import { icon } from "./icons.js";
 import { createMotion } from "./motion.js?v=20261008-touch-ui-r3";
 import { resolveRuntime } from "./runtime.js";
 import { createDigitalBadge } from "./digital-badge.js";
+import { drawFaceOverlay, validateFace } from "./face-overlay.js?v=20261014-face-map-r1";
 
 const query = new URLSearchParams(location.search);
 const runtime = resolveRuntime(query);
@@ -52,10 +53,12 @@ function resize() {
   const kiosk = document.querySelector("#kiosk");
   if (web) {
     kiosk.style.transform = "none";
+    drawAnalysisFace();
     return;
   }
   const scale = Math.min(1, innerWidth / 800, innerHeight / 1280);
   kiosk.style.transform = `scale(${scale})`;
+  drawAnalysisFace();
 }
 addEventListener("resize", resize);
 resize();
@@ -67,6 +70,17 @@ function render(direction = "forward") {
   screen.innerHTML = renderScreen(s, demo, web);
   footer.innerHTML = `<span class="footer-partner">동양미래대학교 컴퓨터공학부 전공동아리 <span class="footer-brand">CarpeDM</span></span><span class="footer-index">MIRRORTING WORKS / ${screenIds[s.screen].replace("SCR-", "")}</span>`;
   lockHeader();
+  screen.querySelector(".analysis-photo > img")?.addEventListener("load", drawAnalysisFace, { once: true });
+  drawAnalysisFace();
+}
+function drawAnalysisFace() {
+  drawFaceOverlay(screen.querySelector("#analysis-face-map"), state.data.captureFace,
+    { mirrored: !demo, visible: state.data.facePointsVisible !== false });
+  const note = screen.querySelector("#face-feature-note");
+  if (note && state.data.captureFace) {
+    const face = state.data.captureFace;
+    note.textContent = `${face.count > 1 ? `${face.count}명 중 가까운 얼굴 선택 · ` : ""}${face.source === "mediapipe" ? "윤곽·눈·코·입" : "눈·코·입"} 실제 특징점 ${face.landmarks.length}개`;
+  }
 }
 function lockHeader() {
   header.querySelectorAll(".demo-settings, .connection-button").forEach((button) => {
@@ -237,24 +251,27 @@ const cameraCopy = {
   initializing: "카메라를 준비하고 있어요.",
   ready: "얼굴이 잘 보여요. 촬영할 준비가 됐어요.",
   no_person: "카메라 앞으로 조금 더 가까이 와주세요.",
-  multiple_people: "한 분만 화면 안에 들어와 주세요.",
+  multiple_people: "가장 가까이 있는 얼굴을 선택했어요.",
   capturing: "촬영 중이에요. 잠시만 그대로 있어주세요.",
   error: "카메라를 사용할 수 없어요.",
 };
 const cameraLabels = {
   initializing: "준비 중", ready: "촬영 준비 완료", no_person: "얼굴 확인 중",
-  multiple_people: "한 분씩 촬영", capturing: "촬영 중", error: "연결 확인 필요",
+  multiple_people: "가까운 얼굴 선택", capturing: "촬영 중", error: "연결 확인 필요",
 };
-function updateCamera(status, code) {
+function updateCamera(status, detail) {
   if (!["camera", "photoCamera"].includes(state.data.screen) || state.data.busy) return;
   cameraState = status;
+  const code = typeof detail === "string" ? detail : null;
+  const face = detail && typeof detail === "object" ? detail.face : null;
   const panel = screen.querySelector("#camera-panel");
   panel.className = `camera-panel ${status}`;
   screen.querySelector("#camera-instruction").textContent =
-    code && errorCopy[code] ? errorCopy[code][0] : cameraCopy[status];
-  screen.querySelector("#camera-detection").textContent = cameraLabels[status];
+    code && errorCopy[code] ? errorCopy[code][0] : face?.count > 1 ? `${face.count}명 중 가장 크게 보이는 얼굴을 선택했어요. 선택된 분이 정면을 봐주세요.` : cameraCopy[status];
+  screen.querySelector("#camera-detection").textContent = face?.count > 1 ? "가까운 얼굴 선택" : cameraLabels[status];
+  drawFaceOverlay(screen.querySelector("#camera-face-map"), face, { fit: "contain", mirrored: true });
   const captureButton = screen.querySelector('[data-action="capture"]');
-  captureButton.disabled = status !== "ready";
+  captureButton.disabled = !["ready", "multiple_people"].includes(status);
   captureButton.hidden = status === "error";
   const retry = screen.querySelector('[data-action="camera-retry"]');
   retry.hidden = status !== "error";
@@ -277,7 +294,7 @@ function initializeCamera() {
         : scenario === "no_person"
           ? "no_person"
           : scenario === "multiple_people"
-            ? "multiple_people"
+            ? "ready"
             : "ready",
     );
     return;
@@ -287,10 +304,10 @@ function initializeCamera() {
 function clearCapturePreview() {
   const preview = state.data.capturePreview;
   if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-  state.patch({ capture: null, capturePreview: null });
+  state.patch({ capture: null, capturePreview: null, captureFace: null });
 }
 async function capture() {
-  if (cameraState !== "ready" || state.data.busy) return;
+  if (!["ready", "multiple_people"].includes(cameraState) || state.data.busy) return;
   updateCamera("capturing");
   if (state.data.screen === "photoCamera") return captureSouvenir();
   const token = state.begin();
@@ -355,6 +372,13 @@ function retake() {
   operationIds.delete("digital-card");
   go("camera", { result: null, characterChosen: false, capture: null, digitalCard: null, printResult: null });
 }
+function chooseCharacterGender(gender) {
+  if (state.data.screen !== "detailA" || state.data.busy ||
+      !characterGenderOptions.some(([value]) => value === gender)) return;
+  state.patch({ characterGender: gender });
+  render();
+  screen.querySelector(`[data-action="character-gender"][data-gender="${gender}"]`)?.focus({ preventScroll: true });
+}
 function chooseCharacter(id) {
   const s = state.data;
   if (modal !== "characters" || s.screen !== "resultA" || s.aiMode !== "A" || !s.result || s.busy || s.error || s.sessionId) return;
@@ -371,8 +395,17 @@ function analyze() {
     "ai",
     async (ctx) => {
       const startedAt = performance.now();
+      const frame = s.capture;
+      const onFace = (face) => {
+        if (ctx.signal.aborted || state.data.screen !== "processing" || state.data.capture !== frame || !state.data.busy) return;
+        try { validateFace(face); } catch { return; }
+        if (!face || (state.data.captureFace?.source === "mediapipe" && face.source !== "mediapipe")) return;
+        state.patch({ captureFace: face }); drawAnalysisFace();
+      };
+      // Optional detail never blocks successful matching or invents a face map.
+      api.faceMap?.(frame, ctx).then(data => onFace(data.face)).catch(() => {});
       const result = await (s.aiMode === "A"
-        ? api.matchCharacter(s.capture, ctx)
+        ? api.matchCharacter(s.capture, { ...ctx, characterGender: s.characterGender, onFace })
         : api.generateProfile(s.capture, ctx));
       const remaining = MIN_AI_SCREEN_MS - (performance.now() - startedAt);
       if (remaining > 0) await wait(remaining, ctx.signal);
@@ -668,6 +701,7 @@ const handlers = {
   },
   "name-next": submitName,
   "camera-open": () => go("camera"),
+  "character-gender": (el) => chooseCharacterGender(el.dataset.gender),
   "camera-retry": initializeCamera,
   "digital-card": prepareBadge,
   "card-connect": () => { if (web && state.data.result) go("webIssue"); },
@@ -727,6 +761,12 @@ const handlers = {
 };
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
+  if (button?.dataset.action === "face-points" && state.data.screen === "processing") {
+    state.patch({ facePointsVisible: state.data.facePointsVisible === false });
+    button.textContent = `특징점 ${state.data.facePointsVisible ? "숨기기" : "보기"}`;
+    button.setAttribute("aria-pressed", String(state.data.facePointsVisible));
+    drawAnalysisFace(); return;
+  }
   if (!button || button.disabled || state.data.busy) return;
   handlers[button.dataset.action]?.(button);
 });

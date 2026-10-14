@@ -1,5 +1,6 @@
 import { liveIntegrations } from "./live-integrations.js?v=20261012-report-photo-r3";
-import { characters, sampleCareerTip } from "./content.js?v=20261012-report-photo-r3";
+import { characters, sampleCareerTip, matchingCharacters } from "./content.js?v=20261013-character-gender-r1";
+import { validateFace } from "./face-overlay.js?v=20261014-face-map-r1";
 
 export class KioskError extends Error {
   constructor(code, retryable = true) {
@@ -244,7 +245,7 @@ export function createDemoApi(scenario = "success") {
     },
     getHealth: async () => ({ ok: true }),
     detectPreview: async () => ({
-      ok: scenario === "success",
+      ok: scenario !== "no_person",
       count:
         scenario === "no_person" ? 0 : scenario === "multiple_people" ? 2 : 1,
     }),
@@ -254,8 +255,8 @@ export function createDemoApi(scenario = "success") {
         ctx,
         {
           kind: "A",
-          characterId: "char_01",
-          image: characters[0].image,
+          characterId: matchingCharacters(ctx.characterGender)[0].id,
+          image: matchingCharacters(ctx.characterGender)[0].image,
         },
         scenario === "ai_error"
           ? "AI_ERROR"
@@ -387,14 +388,23 @@ export function createLiveApi(
         { method: "POST", body: multipart(frame), signal, timeout: 5000 },
         fetcher,
       ),
-    matchCharacter: async (frame, { signal } = {}) =>
-      normalizeMatch(
-        await request(
+    faceMap: async (frame, { signal } = {}) => {
+      const data = await request("/api/face-map", { method: "POST", body: multipart(frame), signal, timeout: 10000 }, fetcher);
+      if (data?.ok) validateFace(data.face);
+      return data;
+    },
+    matchCharacter: async (frame, { signal, characterGender = "any", onFace } = {}) => {
+      const form = multipart(frame);
+      form.append("character_gender", characterGender);
+      const data = await request(
           "/api/match",
-          { method: "POST", body: multipart(frame), signal },
+          { method: "POST", body: form, signal },
           fetcher,
-        ),
-      ),
+        );
+      const result = normalizeMatch(data);
+      if (data.face) { validateFace(data.face); onFace?.(data.face); }
+      return result;
+    },
     generateProfile: async (frame, { signal, operationId } = {}) => {
       const result = normalizeProfile(
         await request(

@@ -2,10 +2,17 @@ export const characters = Array.from({ length: 8 }, (_, i) => {
   const id = `char_${String(i + 1).padStart(2, "0")}`;
   return {
     id,
+    gender: i % 2 === 0 ? "female" : "male",
     image: `/assets/characters/${id}.png?v=20261012-readiness-r1`,
     thumbnail: `/assets/characters/${id}.webp?v=20261012-readiness-r1`,
   };
 });
+
+export const characterGenderOptions = [
+  ["male", "남자"], ["female", "여자"], ["any", "상관없음"],
+];
+export const matchingCharacters = (gender = "any") =>
+  characters.filter((character) => gender === "any" || character.gender === gender);
 
 // Fixed demonstration copy; live advice is supplied by the kiosk backend.
 export const sampleCareerTip = Object.freeze({

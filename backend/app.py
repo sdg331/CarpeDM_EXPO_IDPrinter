@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import ipaddress
+import json
 import os
 import re
 import secrets
@@ -46,11 +47,14 @@ from backend.face import (
     NoFaceError,
     Prototypes,
     display_scores,
+    primary_face,
+    face_metadata,
 )
 from backend.nfc import NfcError, nfc_status, read_card_uid
 from backend.printing import PREVIEWS, PrintError, print_badge, printer_status
 from backend.profile import ProfileComposer, ProfileQualityError, ProfileStore
 from backend.photo_lab import router as photo_lab_router
+from backend.ratio_lab import router as ratio_lab_router
 from backend.reports import ReportError, fetch_mirrorting_report, render_report
 from backend.souvenir import introduction_url, qr_image, render_souvenir
 from backend.store import (
@@ -66,6 +70,7 @@ ASSETS = ROOT / "assets"
 FRONTEND = ROOT / "frontend"
 PROTO_PATH = ASSETS / "prototypes.npz"
 DOMAIN_PATH = ASSETS / "domain_mean.npz"
+CHARACTER_GENDERS = json.loads((ASSETS / "characters" / "genders.json").read_text(encoding="utf-8"))
 
 TEMPERATURE = float(os.getenv("KIOSK_TEMPERATURE", "0.08"))
 MAX_UPLOAD = 8 * 1024 * 1024
@@ -127,6 +132,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="4-Fit MirrorTing 사원증 키오스크", lifespan=lifespan)
+app.include_router(ratio_lab_router)
 
 
 @app.middleware("http")
@@ -257,7 +263,11 @@ def _detect_frame(raw: bytes):
         engine = STATE.get("engine")
         if engine is None:
             raise HTTPException(503, "PROFILE_ENGINE_UNAVAILABLE")
-        return engine.detect(_decode_frame(raw))
+        image = _decode_frame(raw)
+        dets = engine.detect(image)
+        height, width = image.shape[:2]
+        selected = primary_face(dets, width, height) if dets else None
+        return dets, face_metadata(selected, width, height, len(dets)) if selected else None, selected
 
 
 @app.get("/api/characters")
@@ -267,18 +277,22 @@ def characters() -> dict:
 
 @app.post("/api/detect")
 async def detect(frame: UploadFile = File(...)) -> dict:
-    """Preview-only face count. SFace embedding is deliberately skipped."""
+    """Preview selection/coordinates only; SFace embedding is skipped."""
     raw = await _frame_bytes(frame)
-    dets = await run_in_threadpool(_detect_frame, raw)
+    dets, selected, detection = await run_in_threadpool(_detect_frame, raw)
     return {
-        "ok": len(dets) == 1,
+        "ok": bool(dets),
         "count": len(dets),
-        "confidence": round(float(dets[0].confidence), 3) if dets else 0.0,
+        "confidence": round(float(detection.confidence), 3) if detection else 0.0,
+        "face": selected,
     }
 
 
 @app.post("/api/match")
-async def match(frame: UploadFile = File(...)) -> dict:
+async def match(
+    frame: UploadFile = File(...),
+    character_gender: Literal["any", "male", "female"] = Form("any"),
+) -> dict:
     """One captured frame -> current-character relative scores. Image is not saved."""
     raw = await _frame_bytes(frame)
     proto = STATE.get("proto")
@@ -290,17 +304,24 @@ async def match(frame: UploadFile = File(...)) -> dict:
             engine = STATE.get("engine")
             if engine is None:
                 raise HTTPException(503, "AI_UNAVAILABLE")
-            return engine.embed_single(_decode_frame(raw), strict=True)
+            return engine.embed_primary(_decode_frame(raw))
     try:
-        emb, det = await run_in_threadpool(infer)
+        emb, det, selected = await run_in_threadpool(infer)
     except NoFaceError:
         return {"ok": False, "error": "no_face"}
     except MultipleFacesError as exc:
         return {"ok": False, "error": "multiple_faces", "count": exc.count}
     scores = proto.match_scores(emb, STATE.get("mu_real"))
-    display = display_scores(scores, TEMPERATURE)
-    top = int(np.argmax(scores))
-    order = np.argsort(scores)[::-1]
+    eligible = np.array([
+        i for i, cid in enumerate(proto.ids)
+        if character_gender == "any" or CHARACTER_GENDERS.get(cid) == character_gender
+    ], dtype=int)
+    if len(eligible) == 0:
+        return _error("AI_UNAVAILABLE", retryable=False, status_code=503)
+    display = np.zeros_like(scores)
+    display[eligible] = display_scores(scores[eligible], TEMPERATURE)
+    order = eligible[np.argsort(-scores[eligible], kind="stable")]
+    top = int(order[0])
     elapsed = (time.perf_counter() - t0) * 1000
 
     return {
@@ -310,11 +331,34 @@ async def match(frame: UploadFile = File(...)) -> dict:
         "display": [round(float(v) * 100, 1) for v in display],
         "order": [int(i) for i in order],
         "raw": [round(float(v), 4) for v in scores],
-        "margin": round(float(scores[order[0]] - scores[order[1]]), 4),
+        "margin": round(float(scores[order[0]] - scores[order[1]]), 4) if len(order) > 1 else 0.0,
+        "characterGender": character_gender,
         "confidence": round(float(det.confidence), 3),
+        "face": selected,
         "elapsed_ms": round(elapsed, 1),
         "calibrated": STATE.get("mu_real") is not None,
     }
+
+
+@app.post("/api/face-map")
+async def face_map(frame: UploadFile = File(...)) -> dict:
+    """Real points on the selected face. Dense detail is optional, never invented."""
+    from backend.ratio_lab import COMPARISON_LOCK, run_ratio_frame
+    from backend.face_ratios import RatioError
+    raw = await _frame_bytes(frame)
+    _, selected, _ = await run_in_threadpool(_detect_frame, raw)
+    if selected is None:
+        return {"ok": False, "error": "no_face", "count": 0}
+    if COMPARISON_LOCK.acquire(blocking=False):
+        try:
+            dense = await run_in_threadpool(run_ratio_frame, raw, "any", selected, landmarks_only=True)
+            selected = {**selected, "landmarks": dense["landmarks"], "source": "mediapipe"}
+        except (RatioError, KeyError):
+            pass  # Keep the five actual YuNet points if detail is unavailable.
+        finally:
+            COMPARISON_LOCK.release()
+    return {"ok": True, "face": selected, "detailAvailable": selected["source"] == "mediapipe",
+            "externalUpload": False}
 
 
 def _profile_response(profile_id: str, elapsed_ms: float, *, reused: bool) -> dict:

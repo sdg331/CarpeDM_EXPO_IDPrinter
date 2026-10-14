@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>캐릭터 매칭 비교 · MIRRORTING WORKS</title>
+  <link rel="stylesheet" href="/static/styles/tokens.css">
+  <link rel="stylesheet" href="/static/styles/matching-lab.css?v=20261013-ratio-lab-r1">
+  <script type="module" src="/static/js/matching-lab.js?v=20261014-face-map-r1"></script>
+</head>
+<body>
+  <main>
+    <header><span class="eyebrow">MIRRORTING WORKS · 실험</span><h1>어느 추천이 더 닮았나요?</h1><p>같은 사진으로 SFace와 얼굴 비율 추천을 비교해요.</p></header>
+    <section class="input-panel" aria-labelledby="input-title">
+      <h2 id="input-title">비교할 사진</h2>
+      <div class="photo"><img id="photo" alt="비교할 사진" hidden><canvas id="mesh" aria-hidden="true" hidden></canvas><video id="video" autoplay muted playsinline aria-label="촬영 미리보기" hidden></video><span id="photo-empty">얼굴이 잘 보이는 정면 사진을 골라주세요.</span></div>
+      <div class="input-actions"><label class="button secondary" for="file">사진 선택<input id="file" type="file" accept="image/jpeg,image/png,image/webp"></label><button id="camera" class="button secondary">카메라 촬영</button><button id="capture" class="button" hidden>촬영하기</button><button id="cancel-camera" class="button secondary" hidden>촬영 취소</button></div>
+      <fieldset id="preferences"><legend>추천 캐릭터</legend><div class="choices"><label><input type="radio" name="gender" value="male">남자</label><label><input type="radio" name="gender" value="female">여자</label><label><input type="radio" name="gender" value="any" checked>상관없음</label></div></fieldset>
+      <div class="samples"><span>기준 사진 · 동작 확인용 (닮음 비교는 실제 얼굴 사진으로)</span><div id="samples"></div></div>
+      <div class="compare-actions"><button id="compare" class="button" disabled>두 방식으로 비교하기</button><button id="clear" class="button secondary">사진 지우기</button></div>
+      <p id="status" role="status" aria-live="polite">분석 환경을 확인하고 있어요.</p>
+    </section>
+    <section id="results" hidden aria-label="두 방식의 추천 결과"><div class="result-grid"><article><span class="eyebrow">기존 방식</span><h2>SFace 추천</h2><div id="sface-result"></div></article><article><span class="eyebrow">분포 보정 · 실험</span><h2>얼굴 비율 추천</h2><div id="ratio-result"></div></article></div><p id="agreement"></p><label class="mesh-toggle"><input id="show-mesh" type="checkbox">실제로 추출한 얼굴 좌표 보기</label></section>
+    <footer>사진은 이 기기에서만 분석하고 파일·DB에 저장하지 않아요. 분포 보정은 닮음 정확도 개선을 뜻하지 않으며, 실험 결과는 사원증에 적용되지 않아요.</footer>
+  </main>
+</body>
+</html>

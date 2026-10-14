@@ -1,6 +1,6 @@
-import { characters, teams, modes } from "./content.js?v=20261012-report-photo-r3";
+import { characters, teams, modes, characterGenderOptions, matchingCharacters } from "./content.js?v=20261013-character-gender-r1";
 import { icon, logo } from "./icons.js";
-import { errorCopy } from "./api-client.js?v=20261012-report-photo-r3";
+import { errorCopy } from "./api-client.js?v=20261013-character-gender-r1";
 
 export const escape = (value) =>
   String(value ?? "").replace(
@@ -55,10 +55,8 @@ const statusVisual = (symbol, working = false, nfc = false) => {
 };
 const analysisPhoto = (s, demo = false) => {
   if (!s.capturePreview) return statusVisual("camera", true);
-  // Fixed visual overlay; the API does not provide detected face coordinates.
-  const points = [[46,22],[58,28],[36,34],[65,40],[43,43],[54,46],[34,52],[63,57],[47,59],[55,67],[40,72],[60,78]];
-  const candidates = s.aiMode === "A" ? `<div class="analysis-candidates" aria-hidden="true"><span>${characters.length}명의 캐릭터와 비교 중</span><div class="analysis-candidate-row">${characters.map((character, i) => `<img src="${character.thumbnail}" alt="" width="48" height="64" style="--delay:${i * 400}ms">`).join("")}</div></div>` : "";
-  return `<div class="analysis-photo ${demo ? "sample" : "captured"}"><img src="${escape(s.capturePreview)}" alt="${demo ? "분석 화면용 샘플 사진" : "방금 촬영한 사진"}"><div class="analysis-light" aria-hidden="true"><div class="analysis-scan"></div><svg class="analysis-network" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M46 22 58 28 65 40 63 57 60 78 55 67 40 72 34 52 36 34Z M46 22 43 43 36 34 M58 28 54 46 65 40 M36 34 54 46 63 57 M65 40 43 43 34 52 M43 43 54 46 47 59 43 43 M34 52 47 59 63 57 M40 72 47 59 55 67 60 78"/></svg>${points.map(([x,y], i) => `<i class="analysis-point" style="--x:${x}%;--y:${y}%;--delay:-${i * 230}ms"></i>`).join("")}<i class="analysis-corner top-left"></i><i class="analysis-corner top-right"></i><i class="analysis-corner bottom-left"></i><i class="analysis-corner bottom-right"></i></div><span class="analysis-photo-label">${icon("spark")} ${demo ? "샘플 분석 화면" : "AI 분석 중"}</span>${candidates}</div><p class="analysis-visual-note">스캔·연결망은 분석 과정을 표현한 연출이에요.</p>`;
+  const candidates = s.aiMode === "A" ? `<div class="analysis-candidates" aria-hidden="true"><span>${matchingCharacters(s.characterGender).length}명의 캐릭터와 비교 중</span><div class="analysis-candidate-row">${matchingCharacters(s.characterGender).map((character, i) => `<img src="${character.thumbnail}" alt="" width="48" height="64" style="--delay:${i * 400}ms">`).join("")}</div></div>` : "";
+  return `<div class="analysis-photo ${demo ? "sample" : "captured"}"><img src="${escape(s.capturePreview)}" alt="${demo ? "분석 화면용 샘플 사진" : "방금 촬영한 사진"}"><canvas class="face-overlay" id="analysis-face-map" aria-label="선택한 얼굴의 실제 특징점" hidden></canvas><span class="analysis-photo-label">${icon("spark")} ${demo ? "샘플 분석 화면" : "얼굴 특징 비교 중"}</span>${candidates}</div><div class="face-feature-controls"><p class="analysis-visual-note" id="face-feature-note">${demo ? "샘플 사진 · 실제 촬영이 아니에요." : "촬영한 얼굴의 실제 위치를 확인하고 있어요."}</p><button type="button" class="button secondary face-feature-toggle" data-action="face-points" aria-pressed="${s.facePointsVisible !== false}">특징점 ${s.facePointsVisible === false ? "보기" : "숨기기"}</button></div>`;
 };
 const errorPanel = (error) => {
   if (!error) return "";
@@ -80,7 +78,7 @@ function webHome(demo = false, web = false) {
 }
 
 const cameraOverlay = (demo = false) =>
-  `<div class="camera-toolbar" aria-hidden="true"><span class="camera-caption">${icon("camera")} ${demo ? "샘플 미리보기" : "카메라"}</span><span class="camera-detection" id="camera-detection">${demo ? "샘플 준비 완료" : "준비 중"}</span></div><p class="camera-instruction" id="camera-instruction" role="status">${demo ? "이 사진으로 진행할 수 있어요." : "카메라를 준비하고 있어요."}</p>`;
+  `<canvas class="face-overlay" id="camera-face-map" aria-label="분석할 얼굴의 실제 위치" hidden></canvas><div class="camera-toolbar" aria-hidden="true"><span class="camera-caption">${icon("camera")} ${demo ? "샘플 미리보기" : "카메라"}</span><span class="camera-detection" id="camera-detection">${demo ? "샘플 준비 완료" : "준비 중"}</span></div><p class="camera-instruction" id="camera-instruction" role="status">${demo ? "이 사진으로 진행할 수 있어요." : "카메라를 준비하고 있어요."}</p>`;
 
 function webCamera(s) {
   return `${step(3, "사진 준비")}${heading("", "내 얼굴을 담아볼까요?", "밝은 곳에서 얼굴 전체가 보이도록 정면을 바라봐주세요.")}
@@ -150,8 +148,11 @@ function nameInput(s, web) {
 }
 function modeDetail(s, demo) {
   const mode = modes[s.aiMode];
-  const preview = s.aiMode === "A" ? `<section class="matching-preview" aria-label="매칭 캐릭터 미리보기"><div class="matching-preview-heading"><strong>${characters.length}명의 MIRRORTING 캐릭터</strong><span>미리보기</span></div><div class="matching-portraits" aria-hidden="true">${characters.map(({ thumbnail }) => `<img src="${thumbnail}" alt="" width="96" height="128" decoding="async">`).join("")}</div></section>` : "";
-  return `${step(3, "캐릭터 매칭")}${heading("", mode.title, s.aiMode === "A" ? "사진 한 장으로 나와 닮은 캐릭터를 찾아요." : mode.detail)}${preview}${s.aiMode === "B" ? `<p class="mode-note">${demo ? "준비된 데모 이미지로 전체 과정을 이어서 보여드려요." : "사진은 외부로 보내지 않고 이 기기 안에서만 합성해요."}</p>` : ""}${actions(btn("camera-open", mode.cta) + btn("back", "이름 수정하기", "text", ""))}`;
+  const gender = s.characterGender || "any";
+  const candidates = matchingCharacters(gender);
+  const preference = `<div class="matching-preview-heading character-preference"><div class="matching-preview-title"><span id="character-preference-label">추천 캐릭터</span><span class="matching-count">${candidates.length}명</span></div><div class="character-preference-buttons" role="group" aria-labelledby="character-preference-label">${characterGenderOptions.map(([value, label]) => `<button type="button" data-action="character-gender" data-gender="${value}" aria-pressed="${gender === value}"${s.busy ? " disabled" : ""}>${label}</button>`).join("")}</div></div>`;
+  const preview = s.aiMode === "A" ? `<section class="matching-preview" aria-label="매칭 캐릭터 미리보기">${preference}<div class="matching-portraits" aria-hidden="true">${candidates.map(({ thumbnail }) => `<img src="${thumbnail}" alt="" width="96" height="128" decoding="async">`).join("")}</div></section>` : "";
+  return `${step(3, "캐릭터 매칭")}${heading("", mode.title, s.aiMode === "A" ? "사진 한 장으로 캐릭터를 추천해요." : mode.detail)}${preview}${s.aiMode === "B" ? `<p class="mode-note">${demo ? "준비된 데모 이미지로 전체 과정을 이어서 보여드려요." : "사진은 외부로 보내지 않고 이 기기 안에서만 합성해요."}</p>` : ""}${actions(btn("camera-open", mode.cta) + btn("back", "이름 수정하기", "text", ""))}`;
 }
 function cameraScreen(s, demo) {
   return `${step(3, "프로필 촬영")}${heading("READY FOR YOUR CLOSE-UP?", demo ? "이 사진으로 시작할게요." : "화면을 바라봐주세요.", demo ? "오늘 시연은 준비된 인물 이미지로 진행해요." : "얼굴이 잘 보이면 촬영 버튼이 활성화돼요.")}<div class="camera-panel${demo ? " ready" : ""}" id="camera-panel">${demo ? `<div class="camera-sample"><img src="${characters[0].image}" alt="데모용 인물 이미지"></div>` : '<video id="camera-video" autoplay muted playsinline aria-label="카메라 프리뷰"></video>'}${cameraOverlay(demo)}</div><p class="camera-state-note">${demo ? "샘플 사진으로 촬영 흐름을 확인해요." : "촬영한 원본 이미지는 분석 후 저장하지 않아요."}</p><div id="camera-error"></div>${actions(btn("capture", demo ? "이 사진으로 계속" : "촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "", "")).replace('data-action="camera-retry"', 'data-action="camera-retry" hidden')}`;

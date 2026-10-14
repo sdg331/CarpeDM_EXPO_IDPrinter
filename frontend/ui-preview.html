@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MIRRORTING WORKS · UI 화면 목록</title>
   <link rel="stylesheet" href="/static/styles/tokens.css?v=20261008-touch-ui-r3">
-  <link rel="stylesheet" href="/static/styles/kiosk.css?v=20261013-print-checkout-r2">
-  <link rel="stylesheet" href="/static/styles/web.css?v=20261013-print-checkout-r2">
+  <link rel="stylesheet" href="/static/styles/kiosk.css?v=20261014-face-map-r1">
+  <link rel="stylesheet" href="/static/styles/web.css?v=20261013-matching-clean-r2">
   <link rel="stylesheet" href="/static/styles/kiosk-icons.css?v=20261008-touch-ui-r3">
   <style>
     body, body[data-runtime="kiosk"], body[data-runtime="web"] { overflow: auto; }
@@ -19,7 +19,7 @@
     #kiosk, body[data-runtime="web"] #kiosk { margin: auto; }
     #preview-url { width: 100%; padding: 10px; font-size: 14px; }
   </style>
-  <script type="module" src="/static/js/ui-preview.js?v=20261013-print-checkout-r2"></script>
+  <script type="module" src="/static/js/ui-preview.js?v=20261014-face-map-r1"></script>
 </head>
 <body data-runtime="kiosk">
   <nav class="preview-tools" aria-label="UI 미리보기 설정">
@@ -31,7 +31,7 @@
       <option value="unknown">출력 결과 불확실</option>
     </select></label>
     <a href="/?sample=1&controls=1" target="_blank" rel="noopener">클릭 흐름 체험 ↗</a>
-    <p>UI 확인용 고정 화면입니다. 아래 화면의 버튼은 동작하지 않으며, 카메라·AI·카드·출력을 실행하지 않습니다. 키오스크는 800×1280 원본 크기이며 작은 창에서는 스크롤하세요.</p>
+    <p>UI 확인용 고정 화면입니다. 분석 화면은 샘플 사진에서 실제 얼굴 좌표를 추출하며 특징점을 켜고 끌 수 있습니다. 실제 카메라·카드·출력은 실행하지 않습니다. 키오스크는 800×1280 원본 크기이며 작은 창에서는 스크롤하세요.</p>
     <label style="width:100%">현재 화면 주소 · 선택 후 복사<input id="preview-url" readonly aria-label="현재 화면 주소"></label>
   </nav>
   <div id="stage"><div id="kiosk">

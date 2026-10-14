@@ -1,5 +1,17 @@
 # API Contract · 2026-10-03
 
+## 얼굴 비율 비교 실험 · 2026-10-13
+
+2026-10-14: 비율 추천에 고정된 실사/그림 표준화와 조건별 분포 보정을 적용한다. 상태 및 ratios 결과의 `distributionCorrected:true`는 분포 보정 적용 여부이며 `calibrated:false`는 사람이 평가한 닮음 검증이 없음을 유지한다. `ranking[].distance`는 보정된 비용의 제곱근으로 작을수록 우선이며 SFace 점수와 직접 비교하지 않는다. 보정 파일 누락/오래된 기준/잘못된 수치는503 또는 configured:false로 차단한다. 방문자 횟수·이전 결과는 사용하지 않는다.
+
+`KIOSK_MATCH_LAB=1`일 때만 POST `/api/experiments/matching/compare`로 같은 multipart frame과 character_gender를 SFace·MediaPipe 비율 방식에 전달한다. GET `/api/experiments/matching/status`는 활성화 및 로컬 설치 파일 상태를 반환한다. 동시1개·30초 프로세스 제한, 기존 사진 크기/loopback/same-origin 검사, 메모리 처리와 no-store 계약을 적용한다. 결과는 실험 전용이며 사원증과 세션에 적용하지 않는다. 실제 좌표와 두 추천을 반환하며 닮음 백분율은 없다. [전체 계약·오류·설치](FACE_RATIO_EXPERIMENT.md).
+
+## 캐릭터 추천 조건 · 2026-10-13
+
+`POST /api/match` multipart에 선택적 `character_gender:any|male|female`를 추가한다. 기본값은 `any`이며 다른 값은 422로 거부한다. 방문자의 성별을 추정하지 않는다. `assets/characters/genders.json`의 캐릭터 설정으로 후보를 제한하고 그 안에서 가장 높은 점수를 선택한다. `top`은 기존 전체 캐릭터 배열의 인덱스다. `raw`는 기존 전체 점수를 유지하며 `order`와 `margin`은 선택된 후보 기준이다. `display`는 제외된 후보가 0이며 선택된 후보의 합이 100이다. 응답에 `characterGender`를 반환한다. 후보가 없으면 `AI_UNAVAILABLE`이며 전체 후보로 자동 변경하지 않는다.
+
+추천 조건은 현재 브라우저 상태에만 보관한다. 재촬영은 유지하고 새 방문자 초기화에서는 `any`로 되돌린다. NFC/DB에는 추가 저장하지 않는다. 결과 화면의 직접 선택은 기존처럼 8명 전체를 허용한다.
+
 ## 선택 사진 실험
 
 `/static/photo-lab.html` 전용이며 기존 발급 흐름에서 호출하지 않는다. `GET /api/experiments/photo/status`는 `enabled`, `ready`, `processing:local_cv`, `generatesFace:false`, `generatesSuit:false`, `externalUpload:false`를 반환한다. `KIOSK_PHOTO_LAB=1`일 때만 `POST /api/experiments/photo/compose`가 동작한다. 요청은 multipart가 아닌 JPEG/PNG/WebP 원시 바이트, 최대 8 MiB이며 전체 디코딩 전에 기존 1,200만 픽셀 제한을 확인한다. 성공은 720×960 PNG이며 세션·이미지 저장소·NFC·인쇄를 변경하지 않는다. 모든 방문자 API와 같은 loopback·출처·no-store 제한을 따른다. 오류는 `PHOTO_LAB_DISABLED`, `PHOTO_ENGINE_UNAVAILABLE`, `NO_PERSON`, `MULTIPLE_PEOPLE`, `PHOTO_QUALITY_FAILED`, `PHOTO_PROCESSING_FAILED` 또는 기존 이미지 오류다. [실험 사용과 한계](PHOTO_LAB.md)를 따른다.
@@ -113,3 +125,13 @@ careerTip.{id,title,body,source,note}
 - `DELETE /api/souvenirs/{photoPass}`: 메모리 승인·관련 화면 출력 미리보기 제거. DB의 출력 중복 방지 기록은 유지한다.
 
 모든 경로는 기존 loopback/same-origin 제한을 따른다. 승인은 10분/최대 8개, 사진 DB·다운로드 서버·외부 업로드는 없다. 소개 주소는 서버 설정에서 고정하고 QR에 개인정보를 포함하지 않는다. [설정](SOUVENIR.md).
+
+## 전시 얼굴 선택·실제 특징점 · 2026-10-14
+
+- `POST /api/detect`: 얼굴이1명 이상이면 ok:true. count는 전체 YuNet 검출 수이며, 선택 대상의 confidence와 face를 반환한다. 임베딩은 실행하지 않는다.
+- 선택 기준은 이미지 안에서 보이는 얼굴 박스 면적이 가장 큰 사람이다. 면적 동률이면 중앙에 가까운 얼굴, 신뢰도 순서다. 실제 거리 센서나 신원 추적은 아니다.
+- `POST /api/match`: 같은 기준으로 SFace 임베딩을 만들고 기존 추천 조건·점수 계약과 face를 반환한다. 얼굴이 없으면 기존 no_face. offline/embed_single 및 B 합성의 엄격한 단일 얼굴 정책은 유지한다.
+- face: `{count,selection:largest_visible_face,source:yunet|mediapipe,imageSize:[width,height],box:[x,y,width,height],landmarks:[[x,y],...]}`. 좌표는 원본 이미지 기준 정규화, 좌우 반전 전이다. YuNet은 눈2·코·입 양끝5개, MediaPipe는478개다.
+- `POST /api/face-map`: 같은 multipart frame, 선택 얼굴의 실제 좌표를 반환한다. `{ok,face,detailAvailable,externalUpload:false}`. 별도 MediaPipe 환경이 없거나 잠겨 있거나 상세 좌표가 실패하면 실제 YuNet5개를 반환한다. 임의 좌표·다른 사람의 좌표로 대체하지 않는다. 얼굴 없음은 ok:false/error:no_face, 기타 사진 검증은 기존 크기·형식 오류다.
+- 상세 작업은 비교 실험과 같은 잠금을 사용하고 프로세스8초 제한이다. 기본 매칭은 상세 맵 실패 때문에 실패하지 않는다. 모든 사진·좌표는 메모리에서 처리하며 no-store·loopback·same-origin 정책을 유지한다.
+- 비교 API는 SFace가 선택한 박스를 상세 워커에 전달한다. MediaPipe가 여러 얼굴을 찾으면 그 박스와 가장 겹치는 얼굴을 사용하고 겹침이 부족하면 명시적 오류다. 각각 다른 사람을 비교하지 않는다.

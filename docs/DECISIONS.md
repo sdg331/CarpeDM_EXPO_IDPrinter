@@ -1,5 +1,19 @@
 # Decisions
 
+## D-052 Face ratio comparison experiment · 2026-10-13
+Status: IMPLEMENTED experiment following owner request; production replacement withheld
+
+- 현재8명으로 MediaPipe478개 좌표·9개 비율을 계산하고 SFace와 동일 사진/후보 조건에서 비교한다.
+- 사진은 로컬 메모리 처리이며 별도 환경과 실험 화면만 사용한다. 운영 입사/사원증 추천은 SFace다.
+- 원본 변형32건은 통과했지만 실사102건에서07/08 합계87.3% 집중으로 운영 교체를 보류한다. 사람의 닮음 평가와 독립 보정/평가가 필요하다.
+
+## D-051 Character recommendation preference · 2026-10-13
+Status: IMPLEMENTED following owner request
+
+- SCR-06에서 작은 `남자 · 여자 · 상관없음` 버튼으로 추천받을 캐릭터를 고른다. 기본은 상관없음이다.
+- 얼굴에서 성별을 추정하지 않고 현재 캐릭터 설정에 따라 후보를 제한한다. 직접 선택은 8명 전체를 유지한다.
+- 실제/샘플 흐름과 미리보기·분석 연출에 같은 조건을 사용한다. 재촬영은 유지하고 방문자 초기화에서는 제거한다. NFC/DB에는 이 조건을 저장하지 않는다.
+
 ## D-050 Print readability and checkout card reuse · 2026-10-13
 Status: IMPLEMENTED following owner request
 
@@ -423,3 +437,19 @@ Status: IMPLEMENTED software / physical printer acceptance pending
 - 센터 선생님의 빨간 첨삭 1~5번·전화 응대·기록 조언을 7개 짧은 팁으로 정리한다. 미첨삭 6~8번 조언이나 새로운 공식 원문을 만들지 않는다.
 - 팁은 세션마다 한 가지를 선택하고 재시도·서버 재시작에서 유지한다. 분석 점수와 별도 구역에 센터명·첨삭 요약 표기를 담는다.
 - 기존 출력 계층·전체 프레임 인화 처리·세션 중복 방지를 재사용한다. 원본 사진을 DB에 보관하지 않는다. [구현·문구 기준](REPORT_PHOTO_TIPS.md).
+
+## D-053 Face ratio distribution correction · 2026-10-14
+Status: IMPLEMENTED experiment / human likeness and Pi acceptance pending
+
+- 사용자 요청으로 매칭 비교 실험의 07/08 집중을 줄인다. 실사/캐릭터별 표준화와 조건별 고정 비용을 사용한다. 방문자별 순환·무작위·실시간 할당량은 없다.
+- 공개 LFW274명 보정과 별도100명 검증. 전체8종 각각9~20회,07/08 집중93%→29%. 이는 분포 개선이며 닮음 정확도가 아니다.
+- 기준/모델 해시와 수치를 검증하며 보정 누락·오래된 보정은 오류로 차단한다. 사용자 사진·좌표·개인별 결과는 저장하지 않는다.
+- 실사 사진용 보정으로 샘플 그림의 자기 추천은 보장하지 않는다. 기존 사원증 SFace·NFC·출력은 유지한다. [계산·재생성](FACE_RATIO_EXPERIMENT.md), [QA](qa/RATIO_BALANCE_2026-10-14.md).
+
+## D-054 Exhibition primary face and real overlay · 2026-10-14
+Status: IMPLEMENTED software / booth camera and Pi acceptance pending
+
+- 사용자 요청으로 촬영·SFace 매칭·비율 비교는 여러 얼굴을 거부하지 않고 보이는 얼굴 박스 면적이 가장 큰 사람을 선택한다. 동률은 중앙·신뢰도로 결정한다. 물리 거리 측정/신원 추적은 아니다.
+- 비교의 두 엔진과 상세 맵은 같은 YuNet 선택 박스를 사용한다. 상세 대상이 검출되지 않으면 다른 사람으로 대체하지 않는다.
+- 분석 중앙의 고정 장식 좌표를 제거하고 실제5점 또는478점을 사진에 맞춰 표시한다. 특징점 토글, 좌우 반전/여백 처리, 늦은 응답 폐기와 세션 종료 해제를 유지한다.
+- MediaPipe 실패/미설치는 기본 매칭을 막지 않고 실제 YuNet5점을 표시한다. 기존 B 프로필 및 offline 단일 얼굴 검증은 유지한다. [검증](qa/PRIMARY_FACE_MAP_2026-10-14.md).

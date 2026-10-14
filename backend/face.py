@@ -76,6 +76,29 @@ class Detection:
         return int(x), int(y), int(w), int(h)
 
 
+def primary_face(detections: list[Detection], width: int, height: int) -> Detection:
+    """Largest visible face approximates proximity; center breaks size ties."""
+    if not detections:
+        raise NoFaceError("얼굴을 찾지 못했다")
+    def priority(det):
+        x, y, w, h = map(float, det.row[:4])
+        visible_w = max(0, min(width, x + w) - max(0, x))
+        visible_h = max(0, min(height, y + h) - max(0, y))
+        center_distance = ((x + w / 2 - width / 2) / width) ** 2 + ((y + h / 2 - height / 2) / height) ** 2
+        return (visible_w * visible_h, -center_distance, det.confidence, -x, -y)
+    return max(detections, key=priority)
+
+
+def face_metadata(det: Detection, width: int, height: int, count: int) -> dict:
+    x, y, w, h = map(float, det.row[:4])
+    left, top = max(0, x), max(0, y)
+    right, bottom = min(width, x + w), min(height, y + h)
+    return {"count": count, "selection": "largest_visible_face", "source": "yunet",
+            "imageSize": [width, height],
+            "box": [left / width, top / height, max(0, right - left) / width, max(0, bottom - top) / height],
+            "landmarks": (det.row[4:14].reshape(5, 2) / [width, height]).tolist()}
+
+
 class FaceEngine:
     """YuNet + SFace를 감싼다. 모델 로드가 무거우니 프로세스당 하나만 만든다."""
 
@@ -139,6 +162,12 @@ class FaceEngine:
         if strict and len(dets) > 1:
             raise MultipleFacesError(len(dets))
         return self.embed(bgr, dets[0]), dets[0]
+
+    def embed_primary(self, bgr: np.ndarray):
+        detections = self.detect(bgr)
+        height, width = bgr.shape[:2]
+        det = primary_face(detections, width, height)
+        return self.embed(bgr, det), det, face_metadata(det, width, height, len(detections))
 
 
 def l2_normalize(v: np.ndarray) -> np.ndarray:

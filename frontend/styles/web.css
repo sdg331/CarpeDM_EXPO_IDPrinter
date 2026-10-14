@@ -244,7 +244,6 @@ body[data-runtime="web"] #footer { border-top: 0; }
 body[data-runtime="web"] [data-screen="SCR-06"] .how-list { margin-top: 0; }
 @media (max-width: 640px) {
   body[data-runtime="web"] .matching-preview-heading { font-size: 16px; }
-  body[data-runtime="web"] .matching-preview-heading > span { font-size: 14px; }
   body[data-runtime="web"] .matching-portraits { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   body[data-runtime="web"] [data-screen="SCR-06"] .how-list { padding: 0 14px; }
   body[data-runtime="web"] [data-screen="SCR-06"] .how-list li { gap: 12px; min-height: 92px; padding: 16px 0; }
@@ -358,9 +357,6 @@ body[data-runtime="web"] .view:has(.kiosk-welcome) .welcome-copy h1 { font-size:
 .name-input:focus { border-color: var(--brand); outline: 0; box-shadow: none; }
 .name-input[aria-invalid="true"] { border-color: var(--error); }
 
-[data-screen="SCR-06"] .matching-preview { background: var(--elevated); border-color: var(--line); border-radius: 22px; padding: 24px; }
-.matching-preview-heading strong { color: var(--ink); }
-.matching-portraits img { box-shadow: none; border-radius: 12px; }
 [data-screen="SCR-06"] .ai-details { margin: 16px 0 0; }
 .ai-details summary { color: var(--muted); font-size: 22px; font-weight: 550; }
 [data-screen="SCR-06"] .how-list { border: 0; background: transparent; padding: 0; }
@@ -424,11 +420,13 @@ body:is([data-runtime="kiosk"], [data-runtime="sample"]) .status-copy p { font-s
 .selection-summary { justify-content: center; }
 .keyboard-note { justify-content: center; }
 #name-form { width: 100%; max-width: 560px; margin: 0 auto; }
-[data-screen="SCR-06"] .matching-preview { border: 0; background: transparent; padding: 16px 0; }
-.matching-preview-heading { justify-content: center; margin-bottom: 24px; }
-.matching-preview-heading > span { display: none; }
-.matching-portraits { gap: 16px; }
-.matching-portraits img { border: 0; border-radius: 18px; }
+@media (max-width: 640px) {
+  body[data-runtime="web"] .character-preference { gap: 14px; }
+  body[data-runtime="web"] .character-preference-buttons { width: 100%; }
+  body[data-runtime="web"] .character-preference-buttons button { flex: 1; min-width: 0; padding-inline: 10px; }
+  body[data-runtime="web"] .matching-portraits { gap: 8px; }
+  body[data-runtime="web"] .matching-portraits img { border-radius: 10px; }
+}
 body:is([data-runtime="kiosk"], [data-runtime="sample"]) [data-screen="SCR-04"] .selection-summary .team-icon.team-image { width: 112px; height: 112px; }
 body:is([data-runtime="kiosk"], [data-runtime="sample"]) .camera-panel { height: 520px; }
 body:is([data-runtime="kiosk"], [data-runtime="sample"]) .analysis-photo { aspect-ratio: auto; height: 480px; }

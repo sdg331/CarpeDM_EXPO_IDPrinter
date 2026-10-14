@@ -1,7 +1,9 @@
-import { characters, teams, screenIds, sampleCareerTip } from "./content.js?v=20261012-report-photo-r3";
-import { createState } from "./state.js";
+import { characters, teams, screenIds, sampleCareerTip, characterGenderOptions } from "./content.js?v=20261013-character-gender-r1";
+import { createState } from "./state.js?v=20261014-face-map-r1";
 import { createDigitalBadge } from "./digital-badge.js";
-import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261013-print-checkout-r2";
+import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261014-face-map-r1";
+import { createLiveApi } from "./api-client.js?v=20261014-face-map-r1";
+import { drawFaceOverlay } from "./face-overlay.js?v=20261014-face-map-r1";
 
 // Only implemented views: retired modes/detailB/resultB are not kiosk pages.
 export const previewScreens = [
@@ -25,14 +27,14 @@ export const previewScreens = [
   ["webReport", "웹 · 기록 없음"],
 ];
 
-export function previewState(id, teamId, variant = "default") {
+export function previewState(id, teamId, variant = "default", characterGender = "any") {
   const entry = previewScreens.find(([key]) => key === id) || previewScreens[0];
   const screen = entry[2] || entry[0];
   const team = teams.find(({ id }) => id === teamId) || teams[0];
   const checkout = ["checkout", "checkoutResult", "photoCamera", "photoReview", "report", "reportPrint", "checkoutComplete"].includes(screen);
   const state = {
     ...createState().data, screen, team, draftTeam: team,
-    flow: checkout ? "checkout" : "checkin", name: "김미래", aiMode: "A",
+    flow: checkout ? "checkout" : "checkin", name: "김미래", aiMode: "A", characterGender,
     sessionId: "UI-SAMPLE-0001", capturePreview: characters[0].image,
     souvenirPhoto: characters[0].image, digitalCard: characters[0].image,
     result: { kind: "A", characterId: characters[0].id, image: characters[0].image },
@@ -66,17 +68,28 @@ if (typeof document !== "undefined") {
   teamSelect.innerHTML = teams.map(({ id, title }) => `<option value="${id}">${escape(title)}</option>`).join("");
   let badgeUrl;
   let revision = 0;
+  let characterGender = "any";
   function render() {
     const currentRevision = ++revision;
     if (badgeUrl) URL.revokeObjectURL(badgeUrl);
     badgeUrl = null;
-    const { state, web, entry } = previewState(screenSelect.value, teamSelect.value, stateSelect.value);
+    const { state, web, entry } = previewState(screenSelect.value, teamSelect.value, stateSelect.value, characterGender);
     document.body.dataset.runtime = web ? "web" : "kiosk";
     // Preview disclosure lives in the tools above; keep the visitor chrome authentic.
     document.querySelector("#header").innerHTML = renderHeader(false, false, false, "unknown");
     const main = document.querySelector("#screen");
     main.dataset.screen = screenIds[state.screen];
     main.innerHTML = renderScreen(state.screen === "team" ? { ...state, screen: "teams" } : state, true, web);
+    if (state.screen === "processing" && !state.error) {
+      fetch(state.capturePreview).then(response => response.blob()).then(frame => createLiveApi().faceMap(frame))
+        .then(data => {
+          if (revision !== currentRevision || !data.ok) return;
+          state.captureFace = data.face;
+          drawFaceOverlay(main.querySelector("#analysis-face-map"), data.face);
+          const note = main.querySelector("#face-feature-note");
+          if (note) note.textContent = `샘플 사진에서 실제 추출한 특징점 ${data.face.landmarks.length}개`;
+        }).catch(() => {});
+    }
     if (state.screen === "webCard") {
       createDigitalBadge(state).then((blob) => {
         if (revision !== currentRevision) return;
@@ -93,6 +106,7 @@ if (typeof document !== "undefined") {
     url.searchParams.set("screen", entry[0]);
     url.searchParams.set("team", teamSelect.value);
     url.searchParams.set("state", stateSelect.value);
+    url.searchParams.set("gender", characterGender);
     history.replaceState(null, "", url);
     document.querySelector("#preview-url").value = url.href;
   }
@@ -101,6 +115,7 @@ if (typeof document !== "undefined") {
     screenSelect.value = previewScreens.some(([id]) => id === query.get("screen")) ? query.get("screen") : "home";
     teamSelect.value = teams.some(({ id }) => id === query.get("team")) ? query.get("team") : teams[0].id;
     stateSelect.value = ["default", "loading", "error", "empty", "unknown"].includes(query.get("state")) ? query.get("state") : "default";
+    characterGender = characterGenderOptions.some(([value]) => value === query.get("gender")) ? query.get("gender") : "any";
     render();
   }
   for (const control of [screenSelect, teamSelect, stateSelect]) control.addEventListener("change", render);
@@ -108,6 +123,20 @@ if (typeof document !== "undefined") {
   // Keep visual controls focusable for inspection without executing visitor actions.
   document.querySelector("#kiosk").addEventListener("click", (event) => {
     if (event.target.closest("button, a")) event.preventDefault();
+    const preference = event.target.closest('[data-action="character-gender"]');
+    const feature = event.target.closest('[data-action="face-points"]');
+    if (feature) {
+      const canvas = document.querySelector("#analysis-face-map");
+      const shown = feature.getAttribute("aria-pressed") === "true";
+      feature.setAttribute("aria-pressed", String(!shown));
+      feature.textContent = `특징점 ${shown ? "보기" : "숨기기"}`;
+      if (canvas) canvas.hidden = shown;
+    }
+    if (preference && !preference.disabled && characterGenderOptions.some(([value]) => value === preference.dataset.gender)) {
+      characterGender = preference.dataset.gender;
+      render();
+      document.querySelector(`[data-action="character-gender"][data-gender="${characterGender}"]`)?.focus({ preventScroll: true });
+    }
   });
   document.querySelector("#kiosk").addEventListener("submit", (event) => event.preventDefault());
   addEventListener("popstate", restore);

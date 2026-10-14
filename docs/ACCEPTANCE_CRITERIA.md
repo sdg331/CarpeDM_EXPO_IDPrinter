@@ -144,3 +144,7 @@ Release blocked if:
 - [ ] 브루탈리즘 리포트 내부 스크롤·출력 CTA·출처/미측정 유지
 
 소프트웨어 증거는 [사진/리포트 QA](qa/SOUVENIR_REPORT_2026-10-12.md), 현장 설정은 [운영](SOUVENIR.md). 위 실물 항목은 자동 테스트 통과로 완료 처리하지 않는다.
+
+## 2026-10-14 exhibition face selection update
+
+SCR-08 multi-person is ready when a face is selected; SCR-09 uses actual coordinates on the selected person and hides missing data. Validate primary-face agreement across detect/match/face-map/comparison, feature toggle while busy, mirrored contain positioning, and late-response cleanup. Booth/Pi acceptance remains separate.

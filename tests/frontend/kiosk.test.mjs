@@ -189,20 +189,20 @@ test("Camera status reflects detection and only a ready face enables capture", (
   const context = {
     state, errorCopy, demo: false, web: false,
     screen: { querySelector: (selector) => elements[selector] },
-    camera: { stop: () => { stops++; } },
+    camera: { stop: () => { stops++; } }, drawFaceOverlay() {},
   };
   runInNewContext(source.slice(source.indexOf("const cameraCopy ="), source.indexOf("function initializeCamera()")), context);
   for (const screen of ["camera", "photoCamera"]) {
     state.patch({ screen });
     for (const [status, label] of [
       ["initializing", "준비 중"], ["no_person", "얼굴 확인 중"],
-      ["multiple_people", "한 분씩 촬영"], ["ready", "촬영 준비 완료"],
+      ["multiple_people", "가까운 얼굴 선택"], ["ready", "촬영 준비 완료"],
       ["capturing", "촬영 중"], ["error", "연결 확인 필요"],
     ]) {
       runInNewContext(`updateCamera(${JSON.stringify(status)})`, context);
       assert.equal(elements["#camera-detection"].textContent, label);
       assert.equal(elements["#camera-panel"].className, `camera-panel ${status}`);
-      assert.equal(elements['[data-action="capture"]'].disabled, status !== "ready");
+      assert.equal(elements['[data-action="capture"]'].disabled, !["ready", "multiple_people"].includes(status));
       assert.equal(elements['[data-action="camera-retry"]'].hidden, status !== "error");
     }
   }
@@ -374,12 +374,10 @@ test("Photo print adapter sends multipart and reset deletes the temporary photo 
 test("AI processing uses an indeterminate visual without invented progress stages", () => {
   const modeA = renderScreen({ screen: "processing", aiMode: "A", capturePreview: "blob:captured-photo" }, false, true);
   assert.match(modeA, /src="blob:captured-photo"/);
-  assert.match(modeA, /analysis-light" aria-hidden="true"/);
-  assert.equal((modeA.match(/class="analysis-point"/g) || []).length, 12);
-  assert.match(modeA, /class="analysis-scan"/);
-  assert.match(modeA, /class="analysis-network"/);
-  assert.match(modeA, /스캔·연결망은 분석 과정을 표현한 연출/);
-  assert.equal((modeA.match(/class="analysis-corner /g) || []).length, 4);
+  assert.match(modeA, /id="analysis-face-map"/);
+  assert.match(modeA, /선택한 얼굴의 실제 특징점/);
+  assert.match(modeA, /특징점 숨기기/);
+  assert.doesNotMatch(modeA, /analysis-point|analysis-scan|analysis-network|분석 과정을 표현한 연출/);
   for (const { thumbnail } of characters) assert.ok(modeA.includes(thumbnail));
   assert.doesNotMatch(modeA, /facemap|FACE MAP/);
   assert.match(modeA, /role="status"/);
@@ -392,7 +390,7 @@ test("AI processing uses an indeterminate visual without invented progress stage
   assert.doesNotMatch(modeB, /analysis-pipeline/);
   assert.doesNotMatch(modeB, /SFace|\d+%|정확도/);
   const capturedB = renderScreen({ screen: "processing", aiMode: "B", capturePreview: "blob:captured-photo" }, false, true);
-  assert.match(capturedB, /analysis-scan/);
+  assert.match(capturedB, /analysis-face-map/);
   assert.doesNotMatch(capturedB, /analysis-candidates|캐릭터와 비교 중/);
   const sample = renderScreen({ screen: "processing", aiMode: "B", capturePreview: "/assets/characters/char_01.png" }, true);
   assert.match(sample, /샘플 분석 화면/);
@@ -643,7 +641,8 @@ test("All 8 portraits are previewed and accepted; unknown IDs are rejected", () 
     });
   }
   const html = renderScreen({ screen: "detailA", aiMode: "A" }, false);
-  assert.match(html, /8명의 MIRRORTING 캐릭터/);
+  assert.match(html, /추천 캐릭터/);
+  assert.match(html, /class="matching-count">8명/);
   assert.doesNotMatch(html, /<details|<summary|class="how-list"/);
   for (const { thumbnail } of characters) assert.ok(html.includes(`src="${thumbnail}"`));
 });
@@ -1037,7 +1036,7 @@ test("Camera loss stops capture, releases resources, and rejects late frames and
         return new Promise((resolve, reject) => { deliver = resolve; rejectDetection = reject; });
       },
     }, (...status) => states.push(status));
-    assert.deepEqual(states.at(-1), ["ready"]);
+    assert.deepEqual(states.at(-1), ["ready", { ok: true, count: 1 }]);
     t.mock.timers.tick(650);
     await detecting;
     if (event === "backend_error") rejectDetection(new KioskError("BACKEND_UNAVAILABLE"));

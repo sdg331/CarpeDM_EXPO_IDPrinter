@@ -200,3 +200,11 @@ Camera preview exception:
 ## 사진 전용 상태 · 2026-10-12
 
 `flow:souvenir`, `photoGrant:{photoPass,printJobId,qrPreviewUrl}`, `souvenirFrame:Blob`, `souvenirPhoto:blob URL`을 사용한다. NFC 승인 후 촬영하며 고정 출력 ID를 재사용한다. 완료 시 Blob/URL을 해제하고 HOME/취소/페이지 종료 시 승인·화면 출력 미리보기 삭제를 요청한다. 늦은 응답은 기존 epoch 검사로 무시한다. 결과 불명 작업은 `souvenirPrint` ID로 조회하며 자동 재출력·idle 초기화를 하지 않는다.
+
+## 실제 얼굴 맵 · 2026-10-14
+
+촬영 준비는 count>0 및 ok:true로 판단한다. 여러 얼굴은 ready 상태이며 선택 대상에 실제 박스·눈/코/입5점과 안내를 표시한다. 카메라 전체 프레임을 contain으로 보여주고 같은 정규화 좌표를 미러링한다. 한 사람이 아니어도 촬영을 허용한다.
+
+분석 시작 시 captureFace:null, 실제 match 응답5점 및 별도 상세478점을 기다린다. 상세 실패는 실제5점만 유지한다. 캔버스는 데이터가 없으면 숨기며 화면 중앙 임의 맵은 없다. 같은 capture Blob·processing·busy 및 취소 신호를 확인해 늦은 다른 방문자의 좌표를 버린다. 특징점 토글은 분석 busy 중에도 허용하고 다른 진행 작업은 잠근다. 성공·오류·재촬영·초기화·pagehide에 사진/좌표를 해제한다.
+
+UI 고정 미리보기의 분석 화면은 공개 캐릭터 샘플을 실제 좌표 API로 분석하며 샘플임을 표시한다. 카메라·NFC·출력은 실행하지 않는다.
