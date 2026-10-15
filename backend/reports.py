@@ -265,6 +265,27 @@ def thermal_photo(photo: Image.Image, size: tuple[int, int]) -> Image.Image:
     return photo.convert("1", dither=Image.Dither.FLOYDSTEINBERG)
 
 
+ENCOURAGEMENT = (
+    "오늘 하루도 고생 많으셨습니다.",
+    "눈에 띄는 결과가 없던 날에도,",
+    "여러분이 애쓴 시간은 소중합니다.",
+    "이 사진이 오늘의 여러분에게",
+    "작은 응원으로 남길 바랍니다.",
+    "저희의 처음에 함께해 주셔서 감사합니다.",
+)
+KEEPSAKE_HEIGHT = len(ENCOURAGEMENT) * 38 + 40 + 168
+
+
+def draw_keepsake(draw: ImageDraw.ImageDraw, top: int) -> None:
+    """Solid native-dot lettering; only the photograph uses dithering."""
+    for index, line in enumerate(ENCOURAGEMENT):
+        draw.text((REPORT_WIDTH // 2, top + index * 38), line, font=_font(24), fill=0, anchor="mt", stroke_width=1)
+    stamp_y = top + len(ENCOURAGEMENT) * 38 + 40
+    draw.rectangle((64, stamp_y, 511, stamp_y + 168), outline=0, width=8)
+    draw.text((REPORT_WIDTH // 2, stamp_y + 26), "CarpeDM", font=_font(78), fill=0, anchor="mt", stroke_width=2)
+    draw.text((REPORT_WIDTH // 2, stamp_y + 120), "오늘의 당신을 응원합니다", font=_font(25), fill=0, anchor="mt", stroke_width=1)
+
+
 def render_report(report: Mapping[str, object], *, name: str, team: str,
                   photo: Image.Image | None = None) -> Image.Image:
     """Render a 576-dot 1-bit receipt from verified normalized source fields."""
@@ -295,9 +316,7 @@ def render_report(report: Mapping[str, object], *, name: str, team: str,
     if photo is not None:
         photo = thermal_photo(photo, (480, 640))
         photo_position = ((width - photo.width) // 2, y)
-        y += photo.height + 16
-        centered("오늘의 기념사진", y, small_font)
-        y += 48
+        y += photo.height + 36 + KEEPSAKE_HEIGHT + 32
 
     def paragraph(value, font=body_font, *, center=False):
         nonlocal y
@@ -399,6 +418,7 @@ def render_report(report: Mapping[str, object], *, name: str, team: str,
     draw = ImageDraw.Draw(canvas)
     if photo_position is not None:
         canvas.paste(photo, photo_position)
+        draw_keepsake(draw, photo_position[1] + photo.height + 36)
     for rule_y in rules:
         for x in range(margin, width - margin, 14):
             draw.line((x, rule_y, min(x + 8, width - margin), rule_y), fill=0, width=2)

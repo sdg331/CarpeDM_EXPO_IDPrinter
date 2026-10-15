@@ -113,3 +113,14 @@ careerTip.{id,title,body,source,note}
 - `DELETE /api/souvenirs/{photoPass}`: 메모리 승인·관련 화면 출력 미리보기 제거. DB의 출력 중복 방지 기록은 유지한다.
 
 모든 경로는 기존 loopback/same-origin 제한을 따른다. 승인은 10분/최대 8개, 사진 DB·다운로드 서버·외부 업로드는 없다. 소개 주소는 서버 설정에서 고정하고 QR에 개인정보를 포함하지 않는다. [설정](SOUVENIR.md).
+
+## 현장 일괄 출력 복구 · 2026-10-16
+
+- `GET /api/print/recovery`: `{ok,pending:[{operationId,kind,status,hasImage,recoverable,revision}]}`. 이름·카드 UID·이미지·보고서 내용을 반환하지 않는다. 사원증/퇴근 리포트/기념사진의 running·unknown·retryable_error만 조회한다.
+- `POST /api/print/recovery`: `{operationId,operationIds:[...],outcome:not_printed|printed,confirmed:true,revisions:{작업ID:revision}}`. 항목은 1~100개, 작업 ID는 8~128자다. 기존 loopback/same-origin 제한과 서버 측 카드 재할당 검사를 적용한다. 운영자가 용지와 프린터 대기열을 확인한 명시적 요청이다.
+- 응답은 `{ok,operationIds,outcome,results:[{operationId,status}]}`. 개별 status는 `submitted|preview|confirmed|missing_image|skipped|unknown|retryable_error|error`다. 전송·미리보기는 실물 완료를 뜻하지 않는다. `missing_image`는 차단 해제만 완료했으며 재촬영/재시도가 필요하다. 장치 실패 시 첫 오류에서 중단하므로 results에 없는 나머지 항목은 미처리 상태다.
+- 배치 자체도 `print_recovery` 작업으로 기록한다. 같은 배치 ID의 네트워크 재요청은 저장된 결과만 반환한다. 다른 목록/판정으로 같은 완료 배치 ID를 재사용하면 충돌이다. 결과 불명 건은 자동 재시도하지 않는다.
+- 기존 중복 요청 오류에는 정식 `error.operationId`를 돌려준다. 새로고침 후 만들어진 새 요청 ID 대신 원래 출력 작업을 조회/재시도하도록 UI까지 전달한다.
+- 기존 CLI 복구는 그대로 유지한다. 출력 PNG 임시 보관/삭제 기준은 [데이터 보관](DATA_PRIVACY.md)을 따른다.
+
+목록의 revision을 제출해 다른 창/배치가 이미 처리한 오래된 항목을 건너뛴다. 다시 실패한 unknown 건도 재조회와 새로운 실물 확인 없이 반복 출력하지 않는다.

@@ -1,4 +1,4 @@
-import { liveIntegrations } from "./live-integrations.js?v=20261012-report-photo-r3";
+import { liveIntegrations } from "./live-integrations.js?v=20261016-print-recovery-r1";
 import { characters, sampleCareerTip } from "./content.js?v=20261012-report-photo-r3";
 
 export class KioskError extends Error {
@@ -9,6 +9,8 @@ export class KioskError extends Error {
   }
 }
 export const errorCopy = {
+  PRINT_QUEUE_UNAVAILABLE: ["출력 대기 내용을 보관하지 못했어요.", "실물 출력은 시작하지 않았어요. 기기의 저장 공간을 확인한 뒤 다시 시도해주세요."],
+  INVALID_PRINT_RECOVERY: ["출력할 항목을 다시 선택해주세요.", "대기 목록을 다시 열고 미출력 항목을 선택해주세요."],
   SOUVENIR_NOT_CONFIGURED: ["기념사진을 준비하고 있어요.", "소개 QR과 전용 카드 설정이 필요해요. 현장 스태프에게 알려주세요."],
   SOUVENIR_PRINT_PENDING: ["이전 인화 상태를 확인하고 있어요.", "중복 출력을 막기 위해 촬영을 잠시 멈췄어요. 현장 스태프에게 알려주세요."],
   SOUVENIR_CARD_REQUIRED: ["기념사진 전용 카드를 태그해주세요.", "현장 스태프에게 기념사진 카드를 받아 다시 태그해주세요."],
@@ -336,6 +338,11 @@ export function createDemoApi(scenario = "success") {
       ),
     printSouvenir: (_, __, ctx) => operation("souvenirPrint", ctx,
       { status: "success", demo: true }, scenario === "printer_error" ? "PRINTER_ERROR" : null),
+    getPrintRecovery: async () => ({ ok: true, pending: [
+      { operationId: "sample-print-job", kind: "souvenir_print", status: "unknown", hasImage: true, recoverable: true, revision: "sample" },
+    ] }),
+    recoverPrints: async (selection, outcome) => ({ ok: true, operationIds: selection.map(row => row.operationId), outcome,
+      results: selection.map(row => ({ operationId: row.operationId, status: "preview" })) }),
   };
 }
 
@@ -354,8 +361,11 @@ export function createLiveApi(
     } catch (error) {
       if (error instanceof KioskError || error?.name === "AbortError")
         throw error;
-      if (typeof error?.code === "string")
-        throw new KioskError(error.code, Boolean(error.retryable));
+      if (typeof error?.code === "string") {
+        const wrapped = new KioskError(error.code, Boolean(error.retryable));
+        if (typeof error.operationId === "string") wrapped.operationId = error.operationId;
+        throw wrapped;
+      }
       throw new KioskError(sideEffect ? "UNKNOWN_OUTCOME" : "BACKEND_UNAVAILABLE", !sideEffect);
     }
   };
@@ -421,6 +431,8 @@ export function createLiveApi(
     getMirrorTingReport: (...args) => call("getMirrorTingReport", false, ...args),
     printReport: (...args) => call("printReport", true, ...args),
     printSouvenir: (...args) => call("printSouvenir", true, ...args),
+    recoverPrints: (...args) => call("recoverPrints", true, ...args),
+    getPrintRecovery: ({ signal } = {}) => request("/api/print/recovery", { signal, timeout: 5000, cache: "no-store" }, fetcher),
     updateSessionProfile: (...args) => call("updateSessionProfile", true, ...args),
     getOperation: (operationId, { signal } = {}) =>
       request(`/api/operations/${encodeURIComponent(operationId)}`, { signal, timeout: 5000 }, fetcher),

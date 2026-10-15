@@ -7,9 +7,9 @@ import {
   KioskError,
   errorCopy,
   wait,
-} from "./api-client.js?v=20261012-report-photo-r3";
+} from "./api-client.js?v=20261016-print-recovery-r1";
 import { Camera } from "./camera.js?v=20261005-audit-fixes";
-import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, escape } from "./views.js?v=20261013-print-checkout-r2";
+import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, renderPrintRecovery, escape } from "./views.js?v=20261016-print-recovery-r1";
 import { icon } from "./icons.js";
 import { createMotion } from "./motion.js?v=20261008-touch-ui-r3";
 import { resolveRuntime } from "./runtime.js";
@@ -45,6 +45,8 @@ let healthDetail = null;
 let healthRequest = null;
 let returnFocus = null;
 let badgeUrl = null;
+let printRecovery = null;
+let recoveryOriginError = null;
 const motion = createMotion();
 const MIN_AI_SCREEN_MS = 6000;
 
@@ -137,6 +139,7 @@ function reset() {
   if (badgeUrl) URL.revokeObjectURL(badgeUrl);
   badgeUrl = null;
   operationIds.clear();
+  printRecovery = recoveryOriginError = null;
   cameraAttempts = 0;
   cameraState = "uninitialized";
   composing = false;
@@ -154,7 +157,7 @@ async function run(
   name,
   task,
   success,
-  { sideEffect = false, statusField } = {},
+  { sideEffect = false, statusField, timeoutMs = 25000 } = {},
 ) {
   const token = state.begin();
   if (!token) return;
@@ -199,7 +202,7 @@ async function run(
               !sideEffect || demo,
             ),
           );
-        }, 25000);
+        }, timeoutMs);
       }),
     ]);
     if (!state.isCurrent(token)) return;
@@ -218,10 +221,11 @@ async function run(
     const code = sideEffect && !demo && error?.code === "INVALID_RESPONSE"
       ? "UNKNOWN_OUTCOME"
       : error.code || (sideEffect ? "UNKNOWN_OUTCOME" : "BACKEND_UNAVAILABLE");
+    if (typeof error.operationId === "string") operationIds.set(name, error.operationId);
     state.patch({
       error: {
         code,
-        ...(code === "UNKNOWN_OUTCOME" ? { operationId: context.operationId } : {}),
+        ...(sideEffect ? { operationId: error.operationId || context.operationId } : {}),
         retryable: code === "UNKNOWN_OUTCOME" ? false : error.retryable ?? !sideEffect,
       },
       ...(statusField ? { [statusField]: "error" } : {}),
@@ -263,7 +267,7 @@ function updateCamera(status, code) {
     : demo ? "샘플 사진으로 촬영 흐름을 확인해요."
     : "촬영한 원본 이미지는 분석 후 저장하지 않아요.";
   if (state.data.screen === "photoCamera" && status !== "error")
-    screen.querySelector(".camera-state-note").textContent = demo ? "샘플 사진으로 화면 흐름을 확인해요." : state.data.flow === "souvenir" ? "사진은 감열 인화에만 사용해요. 파일로 저장하거나 외부로 보내지 않아요." : "사진은 이 화면의 미리보기에만 사용하고, 처음으로 돌아가면 지워요.";
+    screen.querySelector(".camera-state-note").textContent = demo ? "샘플 사진으로 화면 흐름을 확인해요." : state.data.flow === "souvenir" ? "사진은 외부로 보내지 않아요. 복구용 출력 이미지만 이 기기에 잠시 보관해요." : "사진은 이 화면의 미리보기에만 사용하고, 처음으로 돌아가면 지워요.";
   if (web && state.data.screen !== "photoCamera" && status !== "error")
     screen.querySelector(".camera-state-note").textContent = "사진은 이 컴퓨터의 AI 서버에서 처리해요. 원본은 디스크에 저장하지 않아요.";
   if (status === "error") camera.stop();
@@ -457,7 +461,7 @@ function print(report) {
 async function reconcileOperation() {
   const screenName = state.data.screen;
   const operationName = state.data.flow === "souvenir" ? "souvenirPrint" : { nfc: "nfc", badge: "badge", reportPrint: "reportPrint" }[screenName];
-  const operationId = operationIds.get(operationName);
+  const operationId = state.data.error?.operationId || operationIds.get(operationName);
   if (!operationId || state.data.error?.code !== "UNKNOWN_OUTCOME") return;
   const token = state.begin();
   if (!token) return;
@@ -471,6 +475,12 @@ async function reconcileOperation() {
     state.finish(token);
     state.patch({ reconciling: false });
     if (operation?.ok && operation.operationId === operationId && operation.status === "success") {
+      if (operation.kind === "print_recovery") {
+        state.patch({ error: recoveryOriginError });
+        printRecovery = operation.result;
+        openModal("printRecovery");
+        return;
+      }
       if (screenName === "nfc") finishNfc(operation.result);
       else finishPrint(screenName === "reportPrint", operation.result);
       return;
@@ -490,6 +500,66 @@ async function reconcileOperation() {
     }
   } finally {
     if (currentController === controller) currentController = null;
+  }
+}
+
+async function openPrintRecovery() {
+  const token = state.begin();
+  if (!token) return;
+  const controller = new AbortController();
+  currentController = controller;
+  state.patch({ reconciling: true });
+  render();
+  try {
+    const result = await api.getPrintRecovery({ signal: controller.signal });
+    if (!result?.ok || !Array.isArray(result.pending)) throw new KioskError("INVALID_RESPONSE", false);
+    if (!state.isCurrent(token)) return;
+    printRecovery = result;
+  } catch {
+    if (!state.isCurrent(token)) return;
+    printRecovery = { pending: [], loadError: true };
+  } finally {
+    if (state.isCurrent(token)) {
+      state.finish(token);
+      state.patch({ reconciling: false });
+      render();
+      openModal("printRecovery");
+    }
+    if (currentController === controller) currentController = null;
+  }
+}
+function recoverPrints(outcome) {
+  const selected = [...overlay.querySelectorAll("[data-print-operation]:checked")].map(input => input.value);
+  if (!selected.length) return;
+  const selection = printRecovery.pending.filter(row => selected.includes(row.operationId));
+  recoveryOriginError = state.data.error;
+  closeModal();
+  operationIds.delete("printRecovery");
+  run("printRecovery", ctx => api.recoverPrints(selection, outcome, ctx), result => {
+    const allowed = ["preview", "submitted", "confirmed", "missing_image", "skipped", "unknown", "retryable_error", "error"];
+    if (!result?.ok || !Array.isArray(result.results) || !Array.isArray(result.operationIds) ||
+        result.operationIds.join() !== selected.join() ||
+        result.results.some(row => !selected.includes(row.operationId) || !allowed.includes(row.status)))
+      throw new KioskError("INVALID_RESPONSE", false);
+    state.patch({ error: recoveryOriginError });
+    printRecovery = result;
+    openModal("printRecovery");
+  }, { sideEffect: true, timeoutMs: 120000 });
+}
+function finishPrintRecovery() {
+  closeModal();
+  if (state.data.screen === "checkout") {
+    state.patch({ error: null, nfc: "idle" });
+    render();
+  } else if (demo) {
+    state.patch({ error: { code: "PRINT_RETRY_AUTHORIZED", retryable: true } });
+    render();
+  } else {
+    const key = state.data.flow === "souvenir" ? "souvenirPrint" : state.data.screen === "reportPrint" ? "reportPrint" : "badge";
+    state.patch({ error: { code: "UNKNOWN_OUTCOME", retryable: false,
+      operationId: recoveryOriginError?.operationId || operationIds.get(key) } });
+    render();
+    reconcileOperation();
   }
 }
 function readCheckout() {
@@ -616,6 +686,8 @@ function openModal(kind) {
     overlay.innerHTML = `<div class="overlay-backdrop"><section class="dialog system-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><button class="system-dialog-close" data-action="modal-close" aria-label="상태 닫기">${icon("close")}</button><span class="pi-dialog-badge"><i></i> ${demo ? "SAMPLE" : web ? "WEB PREVIEW" : "DEVICE MODE"}</span><h2 id="dialog-title">현재 체험 상태</h2><p>${demo ? "준비된 데이터로 화면 흐름만 체험합니다." : web ? "카메라와 로컬 AI를 사용하며 카드 등록과 실물 출력은 진행하지 않습니다." : "기기 체험 · 장치 연결은 진행 중 확인합니다. 아래 정보는 설정 상태이며 실제 작동은 각 단계에서 확인합니다."}</p>
       <section class="system-status-group current-system" aria-labelledby="current-system-title"><div class="system-status-heading"><div><span>현재 모드</span><h3 id="current-system-title">${demo ? "샘플 체험" : web ? "로컬 웹 미리보기" : "실제 서비스 흐름"}</h3></div><strong class="status-chip ${health === "healthy" || demo ? "active" : "pending"}">${demo ? "샘플" : checking ? "확인 중" : health === "healthy" ? "서버 응답" : "확인 필요"}</strong></div><dl class="connection-list"><div><dt>로컬 AI 서버</dt><dd>${demo ? "사용 안 함" : checking ? "상태 확인 중" : health === "healthy" ? "응답 확인" : "연결 확인 필요"}</dd></div><div><dt>카메라</dt><dd>${demo ? "준비된 이미지" : cameraLabel}</dd></div><div><dt>NFC</dt><dd>${nfcLabel}</dd></div><div><dt>프린터</dt><dd>${printerLabel}</dd></div><div><dt>MirrorTing 기록</dt><dd>${demo ? "샘플 데이터" : web ? "미리보기에서 조회 안 함" : checking ? "상태 확인 중" : healthDetail?.mirrorting?.configured === false ? "스마트미러 연결 설정 필요" : "퇴근 카드 확인 후 조회"}</dd></div></dl></section>
       <p class="connection-footnote">${demo ? "이 모드에서는 촬영·AI·NFC·출력이 실제로 실행되지 않습니다." : "서버 응답이나 출력 명령 전송은 실물 출력 완료를 뜻하지 않습니다."}</p><div class="dialog-actions"><button class="button" data-action="modal-close">확인</button></div></section></div>`;
+  } else if (kind === "printRecovery") {
+    overlay.innerHTML = renderPrintRecovery(printRecovery, demo);
   } else if (kind === "characters") {
     overlay.innerHTML = renderCharacterPicker(state.data);
   } else if (kind === "team") {
@@ -627,7 +699,7 @@ function openModal(kind) {
       '<div class="overlay-backdrop"><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><h2 id="dialog-title">계속 진행하시겠어요?</h2><p>잠시 사용이 없어 처음 화면으로 돌아갈 예정이에요.</p><strong class="idle-count" id="idle-count">15</strong><div class="dialog-actions"><button class="button" data-action="resume">계속하기</button><button class="button secondary" data-action="home">처음으로 돌아가기</button></div></section></div>';
   }
   header.inert = screen.inert = footer.inert = true;
-  overlay.querySelector("select,button").focus();
+  overlay.querySelector("select,input:not(:disabled),button:not(:disabled)")?.focus();
 }
 function closeModal(restoreTeam = true) {
   if (restoreTeam && modal === "team" && state.data.screen === "team") {
@@ -708,6 +780,10 @@ const handlers = {
   },
   "print-retry": () => print(state.data.screen === "reportPrint"),
   "operation-check": reconcileOperation,
+  "print-recovery-open": openPrintRecovery,
+  "print-recovery-submit": () => recoverPrints("not_printed"),
+  "print-recovery-printed": () => recoverPrints("printed"),
+  "print-recovery-done": finishPrintRecovery,
   home: reset,
   back,
   settings: () => openModal("settings"),
@@ -733,6 +809,16 @@ document.addEventListener("click", (event) => {
 document.addEventListener("input", (event) => {
   if (event.target.id === "visitor-name") updateName();
 });
+document.addEventListener("change", (event) => {
+  if (modal !== "printRecovery") return;
+  if (event.target.id === "print-recovery-all")
+    overlay.querySelectorAll("[data-print-operation]:not(:disabled)").forEach(input => { input.checked = event.target.checked; });
+  const count = overlay.querySelectorAll("[data-print-operation]:checked").length;
+  overlay.querySelectorAll('[data-action="print-recovery-submit"], [data-action="print-recovery-printed"]')
+    .forEach(button => { button.disabled = count === 0; });
+  const summary = overlay.querySelector("#print-recovery-selection");
+  if (summary) summary.textContent = `${count}건 선택`;
+});
 document.addEventListener("compositionstart", (event) => {
   if (event.target.id === "visitor-name") {
     composing = true;
@@ -752,7 +838,7 @@ document.addEventListener("submit", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.isComposing || event.keyCode === 229) return;
   if (modal && event.key === "Tab") {
-    const focusable = [...overlay.querySelectorAll("button,select")];
+    const focusable = [...overlay.querySelectorAll("button:not(:disabled),select,input:not(:disabled)")];
     const first = focusable[0],
       last = focusable.at(-1);
     if (event.shiftKey && document.activeElement === first) {
@@ -763,7 +849,7 @@ document.addEventListener("keydown", (event) => {
       first.focus();
     }
   }
-  if (event.key === "Escape" && ["settings", "team", "connections", "characters"].includes(modal)) closeModal();
+  if (event.key === "Escape" && ["settings", "team", "connections", "characters", "printRecovery"].includes(modal)) closeModal();
   if (event.key === "Enter" && event.target.id === "visitor-name") {
     event.preventDefault();
     submitName();
@@ -782,7 +868,7 @@ setInterval(() => {
     state.data.busy ||
     state.data.error?.code === "UNKNOWN_OUTCOME" ||
     ["home", "fatal"].includes(state.data.screen) ||
-    modal === "settings"
+    ["settings", "printRecovery"].includes(modal)
   )
     return;
   const now = Date.now();

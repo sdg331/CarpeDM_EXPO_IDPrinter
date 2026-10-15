@@ -92,3 +92,7 @@ Before clearing session, ensure side-effect state is known enough to avoid dupli
 ## 사진 전용 오류 · 2026-10-12
 
 `SOUVENIR_NOT_CONFIGURED`는 소개 URL/전용 UID 미설정, `SOUVENIR_CARD_REQUIRED`는 일반 카드, `SOUVENIR_CARD`는 전용 카드의 입사 등록 차단이다. `SOUVENIR_PASS_EXPIRED`는 HOME에서 다시 카드 확인, `SOUVENIR_RENDER_FAILED`는 장치 접근 전 안전한 명시적 재시도다. 사진 출력의 `UNKNOWN_OUTCOME`은 기존 상태 조회/운영자 실물 확인만 허용한다. `SOUVENIR_PRINT_PENDING`이면 기존 결과 불명 또는 실행 중 인화를 먼저 확인해야 새 승인/인화를 진행할 수 있다.
+
+## 화면 일괄 복구 · 2026-10-16
+
+출력 오류 및 기념사진 전역 차단은 `미출력 건 한 번에 출력`에서 복구한다. unknown은 운영자가 실물/대기열을 확인한 선택적 재출력 또는 printed 확인만 허용한다. running은 선택 불가, success는 대상에서 제외한다. 이미지가 없으면 missing_image로 알리고 차단만 해제한다. 복구 중 같은 배치 ID 재전송은 이전 결과를 재사용하며 프린터 실패 시 나머지는 유지한다. `PRINT_QUEUE_UNAVAILABLE`은 복구 이미지를 보관하지 못한 장치 접근 전 오류다.

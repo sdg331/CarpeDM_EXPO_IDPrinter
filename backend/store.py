@@ -137,6 +137,12 @@ class KioskStore:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS print_payloads (
+                    operation_id TEXT PRIMARY KEY REFERENCES operations(operation_id),
+                    image_png BLOB NOT NULL,
+                    extra_json TEXT NOT NULL
+                );
                 """
             )
 
@@ -344,6 +350,30 @@ class KioskStore:
                 "SELECT 1 FROM operations WHERE kind='souvenir_print' AND status IN ('running','unknown') LIMIT 1"
             ).fetchone() is not None
 
+    def save_print_payload(self, operation_id: str, image_png: bytes, extra: dict | None = None) -> None:
+        with closing(self._connect()) as con:
+            con.execute(
+                "INSERT INTO print_payloads(operation_id,image_png,extra_json) VALUES (?,?,?) "
+                "ON CONFLICT(operation_id) DO UPDATE SET image_png=excluded.image_png,extra_json=excluded.extra_json",
+                (operation_id, image_png, json.dumps(extra or {})),
+            )
+
+    def print_payload(self, operation_id: str) -> tuple[bytes, dict] | None:
+        with closing(self._connect()) as con:
+            row = con.execute("SELECT image_png,extra_json FROM print_payloads WHERE operation_id=?", (operation_id,)).fetchone()
+        return (row['image_png'], json.loads(row['extra_json'])) if row else None
+
+    def pending_prints(self) -> list[dict]:
+        with closing(self._connect()) as con:
+            rows = con.execute(
+                "SELECT o.operation_id,o.kind,o.status,o.session_id,o.updated_at,p.operation_id IS NOT NULL AS has_image, "
+                "(SELECT COUNT(*) FROM operator_resolutions r WHERE r.operation_id=o.operation_id) AS resolution_count "
+                "FROM operations o LEFT JOIN print_payloads p ON p.operation_id=o.operation_id "
+                "WHERE o.kind IN ('badge_print','report_print','souvenir_print') "
+                "AND o.status IN ('running','unknown','retryable_error') ORDER BY o.created_at,o.operation_id"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def restart_operation(self, operation_id: str, *, kind: str) -> dict[str, Any]:
         op = self.get_operation(operation_id, kind)
         if not op:
@@ -399,6 +429,8 @@ class KioskStore:
             )
             if kind == 'report_print' and status == 'success':
                 self._release_session_rows(con, operation['session_id'], now)
+            if status in {'success', 'error'}:
+                con.execute("DELETE FROM print_payloads WHERE operation_id=?", (operation_id,))
             con.execute("COMMIT")
         return self.get_operation(operation_id, kind)  # type: ignore[return-value]
 
@@ -508,7 +540,7 @@ class KioskStore:
             con.execute("BEGIN IMMEDIATE")
             con.execute(
                 "UPDATE operations SET status='unknown',error_code='UNKNOWN_OUTCOME',retryable=0,updated_at=? "
-                "WHERE status='running' AND kind IN ('badge_print','report_print','souvenir_print')", (_now(),),
+                "WHERE status='running' AND kind IN ('badge_print','report_print','souvenir_print','print_recovery')", (_now(),),
             )
             con.execute(
                 "UPDATE operations SET status='retryable_error',error_code='NFC_INTERRUPTED',retryable=1,updated_at=? "
@@ -546,6 +578,7 @@ class KioskStore:
                 )
                 if row['kind'] == 'report_print':
                     self._release_session_rows(con, row['session_id'], now)
+                con.execute("DELETE FROM print_payloads WHERE operation_id=?", (operation_id,))
             con.execute('INSERT INTO operator_resolutions(operation_id,outcome,resolved_at) VALUES (?,?,?)', (operation_id, outcome, now))
             con.execute('COMMIT')
         return self.get_operation(operation_id)
@@ -597,6 +630,10 @@ class KioskStore:
             condition = "SELECT session_id FROM sessions WHERE created_at < ? AND status != 'expired'"
             bindings = con.execute(f'DELETE FROM card_bindings WHERE session_id IN ({condition})', (cutoff,)).rowcount
             links = con.execute(f'DELETE FROM mirrorting_links WHERE session_id IN ({condition})', (cutoff,)).rowcount
+            con.execute(
+                "DELETE FROM print_payloads WHERE operation_id IN (SELECT operation_id FROM operations WHERE created_at < ?)",
+                (cutoff,),
+            )
             sessions = con.execute(
                 "UPDATE sessions SET name='',char_id=NULL,profile_id=NULL,status='expired',updated_at=? "
                 "WHERE created_at < ? AND status!='expired'", (_now(), cutoff),

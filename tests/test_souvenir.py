@@ -196,3 +196,31 @@ def test_qr_has_integer_modules_and_photo_is_contained_instead_of_cropped():
     assert image.width == 576 and image.mode == "1"
     assert np.array(image.convert("L"))[155, 50] == 0
     assert np.array(image.convert("L"))[530, 50] == 255
+
+
+def test_encouragement_stamp_is_solid_and_the_qr_survives_the_new_layout(monkeypatch):
+    from PIL import ImageDraw
+    from backend.badge import _font
+    from backend.reports import ENCOURAGEMENT, KEEPSAKE_HEIGHT
+    drawn = []
+    original = ImageDraw.ImageDraw.text
+    def capture(draw, position, value, **kwargs):
+        drawn.append((position, value, kwargs.get("font")))
+        return original(draw, position, value, **kwargs)
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", capture)
+    image = render_souvenir(Image.new("RGB", (960, 720), "white"), URL)
+    photo_bottom = 152 + 384
+    message_y = photo_bottom + 36
+    stamp_y = message_y + len(ENCOURAGEMENT) * 38 + 40
+    qr_y = message_y + KEEPSAKE_HEIGHT + 40
+    qr = qr_image(URL)
+    assert image.crop((24, qr_y, 24 + qr.width, qr_y + qr.height)).tobytes() == qr.tobytes()
+    assert cv2.QRCodeDetector().detectAndDecode(np.array(image.convert("L")))[0] == URL
+    values = [value for _, value, _ in drawn]
+    assert all(line in values for line in ENCOURAGEMENT)
+    assert values.index(ENCOURAGEMENT[-1]) < values.index("CarpeDM") < values.index("오늘의 당신을 응원합니다")
+    draw = ImageDraw.Draw(image)
+    assert all(draw.textlength(line, font=_font(24)) <= 528 for line in ENCOURAGEMENT)
+    assert np.all(np.array(image.convert("L"))[stamp_y:stamp_y + 8, 64:512] == 0)
+    assert np.all(np.array(image.convert("L"))[stamp_y - 30:stamp_y - 2, 64:512] == 255)
+    assert {font.size for _, text, font in drawn if text == "CarpeDM"} == {78}

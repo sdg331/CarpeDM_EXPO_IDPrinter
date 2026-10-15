@@ -1,6 +1,6 @@
 import { characters, teams, modes } from "./content.js?v=20261012-report-photo-r3";
 import { icon, logo } from "./icons.js";
-import { errorCopy } from "./api-client.js?v=20261012-report-photo-r3";
+import { errorCopy } from "./api-client.js?v=20261016-print-recovery-r1";
 
 export const escape = (value) =>
   String(value ?? "").replace(
@@ -45,6 +45,7 @@ export function renderCharacterPicker(s) {
 }
 const characterChoice = (s) => s.aiMode === "A" && !s.sessionId && !s.error
   ? btn("character-open", "다른 캐릭터 고르기", "secondary", "", s.busy) : "";
+const keepsake = `<p class="ticket-encouragement">오늘 하루도 고생 많으셨습니다.<br>눈에 띄는 결과가 없던 날에도,<br>여러분이 애쓴 시간은 소중합니다.<br>이 사진이 오늘의 여러분에게<br>작은 응원으로 남길 바랍니다.<br>저희의 처음에 함께해 주셔서 감사합니다.</p><div class="ticket-stamp"><strong>CarpeDM</strong><span>오늘의 당신을 응원합니다</span></div>`;
 const helper = (text, symbol = "shield") =>
   `<p class="helper">${icon(symbol)}${text}</p>`;
 const identity = (s) =>
@@ -65,12 +66,31 @@ const errorPanel = (error) => {
   const [title, copy] = errorCopy[error.code] || errorCopy.BACKEND_UNAVAILABLE;
   return `<div class="error-box" role="alert"><h3>${title}</h3><p>${copy}</p>${error.code === "UNKNOWN_OUTCOME" && error.operationId ? `<p class="operation-id">운영 확인용 작업 ID<br><code>${escape(error.operationId)}</code></p>` : ""}</div>`;
 };
-const errorActions = (s, retry) =>
-  s.error?.code === "UNKNOWN_OUTCOME"
+const errorActions = (s, retry) => {
+  const recovery = ["badge", "reportPrint"].includes(s.screen) || s.error?.code === "SOUVENIR_PRINT_PENDING"
+    ? btn("print-recovery-open", "미출력 건 한 번에 출력", "", "printer", s.busy) : "";
+  return recovery + (s.error?.code === "UNKNOWN_OUTCOME"
     ? btn("operation-check", s.reconciling ? "작업 상태 확인 중" : "작업 상태 다시 확인", "secondary", "info", s.reconciling, s.reconciling) + helper("결과가 불확실합니다. 현장 스태프가 실물을 확인할 때까지 재출력을 요청하지 마세요.", "info")
     : s.error?.code === "PROFILE_EXPIRED"
       ? btn("profile-retake", "프로필 다시 촬영하기", "", "camera")
-    : `${s.error?.retryable ? btn(retry, "다시 시도하기", "", "arrow") : ""}${btn("home", "처음으로", "secondary", "")}`;
+    : `${s.error?.retryable ? btn(retry, "다시 시도하기", "", "arrow") : ""}${btn("home", "처음으로", "secondary", "")}`);
+};
+
+export function renderPrintRecovery(data, demo = false) {
+  const labels = { badge_print: "사원증", report_print: "퇴근 리포트", souvenir_print: "기념사진" };
+  let content;
+  if (data.results) {
+    const count = status => data.results.filter(row => row.status === status).length;
+    const sent = count("submitted"), preview = count("preview"), confirmed = count("confirmed");
+    const missing = count("missing_image"), failed = count("unknown") + count("retryable_error") + count("error");
+    const remaining = data.operationIds.length - data.results.length;
+    content = `<div role="status"><p>${sent}건 전송 · ${preview}건 ${demo ? "샘플 시연" : "화면 미리보기"} · ${confirmed}건 실물 확인</p>${sent ? "<p>프린터로 전송했어요. 용지가 나온 것을 확인해주세요.</p>" : ""}${missing ? `<p>${missing}건은 출력 이미지가 남아 있지 않아 차단만 해제했어요. 현재 화면에서 재시도하거나 카드를 다시 태그하고 촬영해주세요.</p>` : ""}${failed || remaining ? `<p>${failed}건에서 오류가 나서 중단했어요. 남은 ${remaining}건은 대기 중이에요. 프린터를 확인한 뒤 대기 목록을 다시 열어주세요.</p>` : ""}${count("skipped") ? `<p>${count("skipped")}건은 진행 중이거나 이미 처리되어 건너뛰었어요.</p>` : ""}</div><div class="dialog-actions">${btn("print-recovery-done", "현재 화면으로 돌아가기", "", "")}</div>`;
+  } else {
+    const pending = data.pending || [];
+    content = `<p>용지 배출과 프린터 대기열을 확인한 뒤, 처리할 항목을 선택해주세요. 이미 나온 종이는 다시 출력하지 마세요.</p>${data.loadError ? '<p role="alert">대기 목록에 연결하지 못했어요. 창을 닫고 다시 열어주세요.</p>' : ""}${pending.length ? `<label class="print-recovery-row"><input type="checkbox" id="print-recovery-all">모두 선택</label><div class="print-recovery-list">${pending.slice(0, 100).map(row => `<label class="print-recovery-row"><input type="checkbox" data-print-operation value="${escape(row.operationId)}" ${row.recoverable ? "" : "disabled"}><span><strong>${labels[row.kind] || "출력 작업"}</strong><small>${row.status === "running" ? "처리 중 · 완료 후 다시 확인" : !row.recoverable ? "카드가 회수됨 · 재출력 불가" : row.hasImage ? "출력 이미지 보관 중" : "이전 이미지 없음 · 차단 해제 후 다시 촬영"}</small><code>${escape(row.operationId)}</code></span></label>`).join("")}</div>${pending.length > 100 ? "<p>앞의 100건을 처리한 뒤 목록을 다시 열어주세요.</p>" : ""}<p id="print-recovery-selection" aria-live="polite">0건 선택</p>` : "<p>처리할 미출력 작업이 없어요.</p>"}<div class="dialog-actions">${pending.length ? btn("print-recovery-submit", demo ? "선택한 미출력 건 복구 시연" : "미출력 확인 · 한 번에 출력", "", "printer", true) + btn("print-recovery-printed", "선택한 건 이미 출력됨", "secondary", "", true) : ""}${btn("modal-close", "닫기", "text", "")}</div>`;
+  }
+  return `<div class="overlay-backdrop"><section class="dialog print-recovery-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><span class="eyebrow">${demo ? "샘플 화면 · 실물 출력 없음" : "현장 스태프 확인"}</span><h2 id="dialog-title">${data.results ? "출력 요청 처리 결과" : "미출력 작업 복구"}</h2>${content}</section></div>`;
+}
 
 function home(demo, web) { return webHome(demo, web); }
 
@@ -215,14 +235,14 @@ function souvenirCamera(s, demo) {
   return `${step(souvenir ? 2 : 3, souvenir ? "기념사진 촬영" : "퇴근 기념사진", true, souvenir ? 3 : 5)}${heading("ONE LAST MEMORY", "오늘의 나를<br>한 장 남겨볼까요?", souvenir ? "카메라를 보고 웃어주세요. 사진과 소개 QR을 인화해드려요." : "사진은 선택이에요. 촬영하지 않아도 리포트를 확인할 수 있어요.")}<div class="camera-panel souvenir-camera${demo ? " ready" : ""}" id="camera-panel">${demo ? `<div class="camera-sample"><img src="${characters[0].image}" alt="기념사진 샘플"></div>` : '<video id="camera-video" autoplay muted playsinline aria-label="기념사진 카메라 미리보기"></video>'}${cameraOverlay(demo)}</div><p class="camera-state-note">${souvenir ? "사진은 감열 인화에만 사용해요. 외부 서버로 보내지 않아요." : "사진을 리포트에 함께 인쇄해요. 원본 사진은 파일로 보관하지 않아요."}</p><div id="camera-error"></div>${actions(btn("capture", demo ? "샘플 사진으로 계속" : "기념사진 촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "secondary", "").replace('data-action="camera-retry"', 'data-action="camera-retry" hidden') + btn("photo-skip", souvenir ? "촬영 취소하기" : "사진 없이 계속하기", "text", ""))}`;
 }
 function souvenirReview(s, demo) {
-  if (s.flow === "souvenir") return `${step(2, "인화할 사진 확인", true, 3)}${heading("KEEP THIS MOMENT", "오늘, 여기의 나.", demo ? "실제 촬영 결과가 아닌 샘플 사진이에요." : "이 사진을 흑백 감열 용지에 인화해요.")}<article class="souvenir-ticket"><div class="ticket-masthead"><strong>MIRRORTING</strong><span>PHOTO MEMORY</span></div><img class="ticket-photo" src="${escape(s.souvenirPhoto)}" alt="인화할 기념사진 미리보기"><div class="ticket-qr">${s.photoGrant?.qrPreviewUrl ? `<img src="${escape(s.photoGrant.qrPreviewUrl)}" alt="MirrorTing 소개 사이트 QR코드">` : '<span class="ticket-qr-placeholder">소개 QR<br>설정 후 포함</span>'}<div><strong>SCAN & MEET</strong><p>MirrorTing 더 알아보기</p><small>${demo ? "샘플 화면 · QR 설정 후 실물 인화" : "사진 다운로드가 아닌 소개 QR"}</small></div></div></article><p class="photo-print-note">인화 후 사진을 파일로 보관하지 않아요.</p>${actions(btn("photo-confirm", demo ? "기념사진 인화 시연" : "이 사진으로 인화하기", "", "printer") + btn("photo-retake", "다시 찍기", "secondary", "camera") + btn("photo-skip", "촬영 취소하기", "text", ""))}`;
+  if (s.flow === "souvenir") return `${step(2, "인화할 사진 확인", true, 3)}${heading("KEEP THIS MOMENT", "오늘, 여기의 나.", demo ? "실제 촬영 결과가 아닌 샘플 사진이에요." : "이 사진을 흑백 감열 용지에 인화해요.")}<article class="souvenir-ticket"><div class="ticket-masthead"><strong>MIRRORTING</strong><span>PHOTO MEMORY</span></div><div class="ticket-memory" tabindex="0" aria-label="기념사진과 응원 문구 미리보기"><img class="ticket-photo" src="${escape(s.souvenirPhoto)}" alt="인화할 기념사진 미리보기">${keepsake}</div><div class="ticket-qr">${s.photoGrant?.qrPreviewUrl ? `<img src="${escape(s.photoGrant.qrPreviewUrl)}" alt="MirrorTing 소개 사이트 QR코드">` : '<span class="ticket-qr-placeholder">소개 QR<br>설정 후 포함</span>'}<div><strong>SCAN & MEET</strong><p>MirrorTing 더 알아보기</p><small>${demo ? "샘플 화면 · QR 설정 후 실물 인화" : "사진 다운로드가 아닌 소개 QR"}</small></div></div></article><p class="photo-print-note">출력 대기 이미지는 이 기기에 잠시 보관하며, 전송 후 삭제해요.</p>${actions(btn("photo-confirm", demo ? "기념사진 인화 시연" : "이 사진으로 인화하기", "", "printer") + btn("photo-retake", "다시 찍기", "secondary", "camera") + btn("photo-skip", "촬영 취소하기", "text", ""))}`;
   return `${step(3, "기념사진 확인", false)}${heading("KEEP THIS MOMENT", "이 사진으로<br>기억할까요?", demo ? "실제 촬영 결과가 아닌 샘플 사진이에요." : "마음에 들지 않으면 다시 찍을 수 있어요.")}<figure class="souvenir-review"><img src="${escape(s.souvenirPhoto)}" alt="이번 방문자의 퇴근 기념사진"><figcaption>${escape(s.name)} · ${escape(s.team?.title)}</figcaption></figure><p class="photo-print-note">확인한 사진을 체험 리포트에 함께 인쇄해요. 사진 없이 진행해도 좋아요.</p>${actions(btn("photo-confirm", "사진과 함께 리포트 보기", "", "receipt") + btn("photo-retake", "다시 찍기", "secondary", "camera") + btn("photo-skip", "사진 없이 계속하기", "text", ""))}`;
 }
 function reportPhoto(s) {
-  return s.souvenirPhoto ? `<figure class="receipt-photo"><img src="${escape(s.souvenirPhoto)}" alt="퇴근 기념사진 미리보기"><figcaption>오늘의 기념사진</figcaption></figure>` : "";
+  return s.souvenirPhoto ? `<figure class="receipt-photo"><img src="${escape(s.souvenirPhoto)}" alt="퇴근 기념사진 미리보기">${keepsake}</figure>` : "";
 }
 function reportPhotoNotice(s, demo) {
-  return s.souvenirPhoto ? `<p class="photo-print-note">${demo ? "샘플 사진과 기록을 보여드려요. 실제 촬영·인쇄는 하지 않아요." : "사진과 체험 기록을 함께 인쇄해요. 원본 사진은 파일로 보관하지 않아요."}</p>` : "";
+  return s.souvenirPhoto ? `<p class="photo-print-note">${demo ? "샘플 사진과 기록을 보여드려요. 실제 촬영·인쇄는 하지 않아요." : "사진과 체험 기록을 함께 인쇄해요. 출력 대기 이미지는 이 기기에 임시 보관하고 전송 후 삭제해요."}</p>` : "";
 }
 function reportCareerTip(r) {
   const tip = r?.careerTip;
