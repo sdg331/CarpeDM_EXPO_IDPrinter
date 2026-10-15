@@ -48,6 +48,7 @@ async function postJson(path, payload, context, sideEffect = true, fetcher = fet
     const error = new Error(code);
     error.code = code;
     error.retryable = Boolean(backend.retryable);
+    if (typeof backend.operationId === "string") error.operationId = backend.operationId;
     throw error;
   }
   return data;
@@ -167,6 +168,12 @@ export function createLiveIntegrations(fetcher = fetch) {
     const form = new FormData();
     form.append("frame", frame, "souvenir.jpg");
     return postJson(`/api/souvenirs/${encodeURIComponent(photoPass)}/print`, form, context, true, fetcher);
+  },
+  recoverPrints(selection, outcome, context) {
+    return postJson("/api/print/recovery", {
+      operationId: context.operationId, operationIds: selection.map(row => row.operationId), outcome, confirmed: true,
+      revisions: Object.fromEntries(selection.map(row => [row.operationId, row.revision])),
+    }, context, true, fetcher);
   },
   });
 }

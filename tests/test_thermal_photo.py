@@ -94,7 +94,8 @@ def test_souvenir_changes_only_photo_and_keeps_qr_decodable(monkeypatch):
         receipt.paste(1, box)
     assert neutral.tobytes() == darker.tobytes()
     qr = souvenir.qr_image(url)
-    qr_y = 152 + expected.height + 32 + 224
+    from backend.reports import KEEPSAKE_HEIGHT
+    qr_y = 152 + expected.height + 36 + KEEPSAKE_HEIGHT + 40
     encoded = darker.crop((24, qr_y, 24 + qr.width, qr_y + qr.height))
     assert encoded.tobytes() == qr.tobytes()
     assert cv2.QRCodeDetector().detectAndDecode(np.array(encoded.convert("L")))[0] == url

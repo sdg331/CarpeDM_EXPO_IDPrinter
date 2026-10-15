@@ -7,7 +7,7 @@ import cv2
 from PIL import Image, ImageDraw
 
 from backend.badge import _font
-from backend.reports import REPORT_WIDTH, thermal_photo
+from backend.reports import KEEPSAKE_HEIGHT, REPORT_WIDTH, draw_keepsake, thermal_photo
 
 
 def introduction_url(value: str) -> str:
@@ -47,8 +47,8 @@ def render_souvenir(photo: Image.Image, url: str = "") -> Image.Image:
     qr = qr_image(url) if url else None
     photo = thermal_photo(photo, (512, 640))
     photo_y = 152
-    info_y = photo_y + photo.height + 32
-    qr_y = info_y + 224
+    message_y = photo_y + photo.height + 36
+    qr_y = message_y + KEEPSAKE_HEIGHT + 40
     image = Image.new("1", (REPORT_WIDTH, qr_y + (qr.height + 24 if qr else 0) + 74), 1)
     draw = ImageDraw.Draw(image)
     draw.rectangle((24, 16, 551, 126), outline=0, width=4)
@@ -57,22 +57,15 @@ def render_souvenir(photo: Image.Image, url: str = "") -> Image.Image:
     x = (REPORT_WIDTH - photo.width) // 2
     image.paste(photo, (x, photo_y))
     draw.rectangle((x - 3, photo_y - 3, x + photo.width + 2, photo_y + photo.height + 2), outline=0, width=3)
-    draw.line((24, info_y - 16, 552, info_y - 16), fill=0, width=4)
-    draw.text((32, info_y), "4-Fit MirrorTing", font=_font(30), fill=0)
-    for i, line in enumerate([
-        "가상의 회사에서 만나는 새로운 나.",
-        "AI 캐릭터 사원증과 NFC 카드로 시작해",
-        "스마트미러에서 대화를 체험하고,",
-        "오늘의 기록을 한 장의 리포트로 남겨요.",
-        "동양미래대학교 · 전공동아리 CarpeDM",
-    ]):
-        draw.text((32, info_y + 48 + i * 30), line, font=_font(22), fill=0)
+    draw_keepsake(draw, message_y)
+    draw.line((24, qr_y - 16, 552, qr_y - 16), fill=0, width=4)
     if qr:
         image.paste(qr, (24, qr_y))
         draw.text((346, qr_y + 50), "SCAN & MEET", font=_font(20), fill=0)
         draw.text((346, qr_y + 89), "MirrorTing", font=_font(24), fill=0)
         draw.text((346, qr_y + 124), "더 알아보기", font=_font(22), fill=0)
-        draw.text((346, qr_y + 172), "프로그램 소개 QR", font=_font(18), fill=0)
+        draw.text((346, qr_y + 172), "사진 다운로드가", font=_font(18), fill=0)
+        draw.text((346, qr_y + 198), "아닌 소개 QR", font=_font(18), fill=0)
     draw.line((24, image.height - 54, 552, image.height - 54), fill=0, width=4)
-    draw.text((32, image.height - 43), datetime.now().strftime("%Y.%m.%d") + " / CarpeDM · KEEP THIS MOMENT", font=_font(17), fill=0)
+    draw.text((32, image.height - 43), datetime.now().strftime("%Y.%m.%d") + " / KEEP THIS MOMENT", font=_font(17), fill=0)
     return image

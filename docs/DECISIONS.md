@@ -471,3 +471,11 @@ Status: IMPLEMENTED software / booth camera and Pi acceptance pending
 - 비교의 두 엔진과 상세 맵은 같은 YuNet 선택 박스를 사용한다. 상세 대상이 검출되지 않으면 다른 사람으로 대체하지 않는다.
 - 분석 중앙의 고정 장식 좌표를 제거하고 실제5점 또는478점을 사진에 맞춰 표시한다. 특징점 토글, 좌우 반전/여백 처리, 늦은 응답 폐기와 세션 종료 해제를 유지한다.
 - MediaPipe 실패/미설치는 기본 매칭을 막지 않고 실제 YuNet5점을 표시한다. 기존 B 프로필 및 offline 단일 얼굴 검증은 유지한다. [검증](qa/PRIMARY_FACE_MAP_2026-10-14.md).
+
+## D-056 Encouragement photo and local batch recovery · 2026-10-16
+Status: IMPLEMENTED software / physical printer acceptance pending
+
+- 소유자가 제공한 6줄 응원 문구와 큰 CarpeDM 검정 사각 도장을 사진 전용 인화 및 사진 포함 리포트에 공통 적용한다. 질감/가는 장식 선을 추가하지 않는다.
+- 소유자 요청으로 오류 화면에 선택적 일괄 복구를 추가한다. 실물 미출력 확인 후 같은 출력물을 재전송하거나 이미 출력됨으로 해소한다. 결과 불명 자동 재출력은 금지한다.
+- 재시작 후 복구를 위해 원본이 아닌 완성 감열 PNG만 로컬 비공개 DB에 임시 보관한다. 제출/확인 성공 또는 기본 24시간 만료 정리 때 제거한다. 사진 데이터가 없는 이전 작업은 차단 해제와 재촬영 안내만 가능하다.
+- 배치 작업 ID와 목록 revision으로 중복 요청/오래된 다른 창의 재출력을 막는다. 실제 용지 배출·명암·절단은 별도 현장 확인 항목이다.

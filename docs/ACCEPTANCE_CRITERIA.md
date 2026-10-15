@@ -151,3 +151,12 @@ Release blocked if:
 ## 2026-10-14 exhibition face selection update
 
 SCR-08 multi-person is ready when a face is selected; SCR-09 uses actual coordinates on the selected person and hides missing data. Validate primary-face agreement across detect/match/face-map/comparison, feature toggle while busy, mirrored contain positioning, and late-response cleanup. Booth/Pi acceptance remains separate.
+
+## 응원 인화·일괄 복구 추가 기준 · 2026-10-16
+
+- [ ] 사진 → 요청한 응원 문구 → 여백 → 굵은 사각 CarpeDM 도장, 기존 QR 가독성
+- [ ] 출력 오류 화면에서 작업 선택 후 일괄 출력, 이미 출력됨 처리
+- [ ] 연속 클릭/같은 배치 재요청/실행 중/기존 성공 건의 중복 출력 차단
+- [ ] 장치 실패 시 남은 건 유지, 재시작 후 같은 감열 이미지 복구
+- [ ] 이미지 없는 과거 작업은 재촬영 안내, 성공으로 표시하지 않음
+- [ ] 800×1280 터치 및 키보드 초점 확인, 실물 용지·절단 별도 확인

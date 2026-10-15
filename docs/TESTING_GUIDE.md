@@ -156,3 +156,7 @@ Record:
 ## 사진 포함 리포트·센터 팁
 
 `npm test`, `.venv/bin/python -m pytest tests -q`와 사진 포함/생략·중복 JSON 요청·안전 재시도·결과 불명 잠금·7개 팁 줄바꿈을 확인한다. 실제 프린터에서는 사진 명암과 긴 용지 배출·절단을 점검한다. [최신 QA](qa/REPORT_PHOTO_TIPS_2026-10-12.md).
+
+## 일괄 복구·응원 인화 · 2026-10-16
+
+`npm test`와 `python -m pytest tests integrations/mirrorting/test_bridge_client.py -q`를 실행한다. `test_print_recovery.py`는 세 출력 종류·같은 배치/동시 요청·첫 오류 중단·재시작·기존 이미지 누락·이미 출력됨·회수 카드·동작 중·만료·출처 차단을 검증한다. `print-recovery.test.mjs`는 오류 화면 진입, 항목 선택 전 비활성, 실제 작업 ID 유지, 초기화 후 늦은 목록 응답 폐기, 샘플 경계를 검증한다. 800×1280에서 기념사진 확인·출력 오류·확인 창을 확인한다. 실제 Pi에서는 USB 연결 복구 후 대기열을 확인하고 미출력 2건과 이미 출력된 1건을 구분해 처리하며 용지/절단/사진 명암을 별도 확인한다.

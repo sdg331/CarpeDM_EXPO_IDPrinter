@@ -5,6 +5,7 @@ Port 8002 is used because 8000/8001 are reserved by other EXPO services.
 Privacy:
 - captured frames are processed in memory only;
 - raw face images and embeddings are never written to the local session DB;
+- pending thermal print images stay in the private DB until submission or expiry;
 - card UID/session mappings stay on the kiosk.
 
 Run:
@@ -20,6 +21,7 @@ import json
 import os
 import re
 import secrets
+import sqlite3
 import threading
 from contextlib import suppress
 from io import BytesIO
@@ -27,7 +29,7 @@ from urllib.parse import urlsplit
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import cv2
 import numpy as np
@@ -97,7 +99,7 @@ def _read_current_card(generation: int) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """One model instance and bounded, memory-only image retention per kiosk."""
+    """One model instance; raw frames in memory and pending receipts in private storage."""
     STORE.init()
     STORE.recover_interrupted_operations()
     retention_hours = float(os.getenv("KIOSK_SESSION_RETENTION_HOURS", "24"))
@@ -186,6 +188,7 @@ def _error(
     retryable: bool,
     status_code: int,
     detail: str | None = None,
+    operation_id: str | None = None,
 ) -> JSONResponse:
     payload: dict = {
         "ok": False,
@@ -194,6 +197,8 @@ def _error(
             "retryable": retryable,
         },
     }
+    if operation_id:
+        payload["error"]["operationId"] = operation_id
     return JSONResponse(status_code=status_code, content=payload)
 
 
@@ -598,7 +603,7 @@ def _previous_operation(op):
     if op["status"] == "success" and op["result"]:
         return {"ok": True, **op["result"]}
     code = "OPERATION_IN_PROGRESS" if op["status"] == "running" else op["error_code"] or "UNKNOWN_OUTCOME"
-    return _error(code, retryable=bool(op["retryable"]), status_code=409)
+    return _error(code, retryable=bool(op["retryable"]), status_code=409, operation_id=op["operation_id"])
 
 
 @app.post("/api/nfc/register")
@@ -752,15 +757,7 @@ def _print_souvenir(photo_pass: str, raw: bytes):
             op = STORE.claim_operation(operation_id, kind="souvenir_print", session_id=None)
             if not op["claimed"]:
                 return _previous_operation(op)
-            try:
-                printed = print_badge(image)
-            except PrintError as exc:
-                code = "PRINT_UNAVAILABLE" if exc.retryable else "UNKNOWN_OUTCOME"
-                STORE.finish_operation(operation_id, kind="souvenir_print", status="retryable_error" if exc.retryable else "unknown", error_code=code, retryable=exc.retryable)
-                return _error(code, retryable=exc.retryable, status_code=503)
-            result = _print_result(printed, operation_id)
-            STORE.finish_operation(operation_id, kind="souvenir_print", status="success", result=result)
-            return {"ok": True, **result}
+            return _submit_print(operation_id, "souvenir_print", image)
     except OperationConflict:
         return _error("OPERATION_CONFLICT", retryable=False, status_code=409)
 
@@ -813,15 +810,27 @@ def _submit_session_print(session_id: str, operation_id: str, kind: str, image, 
         if not STORE.active_card(session_id):
             STORE.finish_operation(operation_id, kind=kind, status='error', error_code='SESSION_REPLACED')
             return _error('SESSION_REPLACED', retryable=False, status_code=409)
-        try:
-            printed = print_badge(image)
-        except PrintError as exc:
-            code = 'PRINT_UNAVAILABLE' if exc.retryable else 'UNKNOWN_OUTCOME'
-            STORE.finish_operation(operation_id, kind=kind, status='retryable_error' if exc.retryable else 'unknown', error_code=code, retryable=exc.retryable)
-            return _error(code, retryable=exc.retryable, status_code=503)
-        result = {**_print_result(printed, operation_id), **(extra or {})}
-        STORE.finish_operation(operation_id, kind=kind, status='success', result=result)
-        return {'ok': True, **result}
+        return _submit_print(operation_id, kind, image, extra=extra)
+
+
+def _submit_print(operation_id: str, kind: str, image, *, extra: dict | None = None):
+    """Save the exact receipt before touching the device, including photo and QR."""
+    try:
+        data = BytesIO()
+        image.save(data, format="PNG")
+        STORE.save_print_payload(operation_id, data.getvalue(), extra)
+    except (sqlite3.Error, OSError):
+        STORE.finish_operation(operation_id, kind=kind, status="retryable_error", error_code="PRINT_QUEUE_UNAVAILABLE", retryable=True)
+        return _error("PRINT_QUEUE_UNAVAILABLE", retryable=True, status_code=503)
+    try:
+        printed = print_badge(image)
+    except PrintError as exc:
+        code = "PRINT_UNAVAILABLE" if exc.retryable else "UNKNOWN_OUTCOME"
+        STORE.finish_operation(operation_id, kind=kind, status="retryable_error" if exc.retryable else "unknown", error_code=code, retryable=exc.retryable)
+        return _error(code, retryable=exc.retryable, status_code=503)
+    result = {**_print_result(printed, operation_id), **(extra or {})}
+    STORE.finish_operation(operation_id, kind=kind, status="success", result=result)
+    return {"ok": True, **result}
 
 
 @app.post("/api/badge/print")
@@ -1006,6 +1015,91 @@ def _print_session_report(req: ReportPrintRequest, raw_photo: bytes | None = Non
         return _previous_operation(op)
     operation_id = op['operation_id']
     return _submit_session_print(req.sessionId, operation_id, 'report_print', image, extra={'reportId': req.reportId})
+
+
+@app.get("/api/print/recovery")
+def pending_print_recovery():
+    pending = []
+    for row in STORE.pending_prints():
+        active = row["kind"] == "souvenir_print" or bool(STORE.active_card(row["session_id"]))
+        pending.append({"operationId": row["operation_id"], "kind": row["kind"], "status": row["status"],
+                        "hasImage": bool(row["has_image"]), "recoverable": active and row["status"] != "running",
+                        "revision": _print_revision(row)})
+    return {"ok": True, "pending": pending}
+
+
+def _print_revision(row: dict) -> str:
+    value = f"{row['status']}:{row['updated_at']}:{row['resolution_count']}"
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+class PrintRecoveryRequest(BaseModel):
+    operationId: str = Field(min_length=8, max_length=128)
+    operationIds: list[Annotated[str, Field(min_length=8, max_length=128)]] = Field(min_length=1, max_length=100)
+    outcome: Literal["not_printed", "printed"]
+    confirmed: Literal[True]
+    revisions: dict[str, str]
+
+
+@app.post("/api/print/recovery")
+def recover_pending_prints(req: PrintRecoveryRequest):
+    """Explicit local operator confirmation; one batch ID never submits twice."""
+    if (len(set(req.operationIds)) != len(req.operationIds) or req.operationId in req.operationIds
+            or set(req.revisions) != set(req.operationIds)):
+        return _error("INVALID_PRINT_RECOVERY", retryable=False, status_code=400)
+    with STORE.card_access():
+        try:
+            batch = STORE.claim_operation(req.operationId, kind="print_recovery", session_id=None)
+        except OperationConflict:
+            return _error("OPERATION_CONFLICT", retryable=False, status_code=409)
+        if not batch["claimed"]:
+            if batch["result"] and (batch["result"]["operationIds"] != req.operationIds or batch["result"]["outcome"] != req.outcome):
+                return _error("OPERATION_CONFLICT", retryable=False, status_code=409)
+            return _previous_operation(batch)
+        pending = {row["operation_id"]: row for row in STORE.pending_prints()}
+        results = []
+        for operation_id in req.operationIds:
+            op = STORE.get_operation(operation_id)
+            if (not op or op["kind"] not in {"badge_print", "report_print", "souvenir_print"}
+                    or op["status"] not in {"unknown", "retryable_error"}
+                    or operation_id not in pending or req.revisions[operation_id] != _print_revision(pending[operation_id])
+                    or (op["kind"] != "souvenir_print" and not STORE.active_card(op["session_id"]))):
+                results.append({"operationId": operation_id, "status": "skipped"})
+                continue
+            if op["status"] == "unknown":
+                STORE.resolve_unknown_operation(operation_id, outcome=req.outcome)
+                if req.outcome == "printed":
+                    results.append({"operationId": operation_id, "status": "confirmed"})
+                    continue
+            elif req.outcome == "printed":
+                results.append({"operationId": operation_id, "status": "skipped"})
+                continue
+            payload = STORE.print_payload(operation_id)
+            if payload is None:
+                results.append({"operationId": operation_id, "status": "missing_image"})
+                continue
+            png, extra = payload
+            try:
+                with Image.open(BytesIO(png)) as source:
+                    image = source.copy()
+            except (OSError, ValueError):
+                results.append({"operationId": operation_id, "status": "missing_image"})
+                continue
+            claimed = STORE.claim_operation(operation_id, kind=op["kind"], session_id=op["session_id"])
+            if not claimed["claimed"]:
+                results.append({"operationId": operation_id, "status": "skipped"})
+                continue
+            if op["kind"] == "souvenir_print":
+                response = _submit_print(operation_id, op["kind"], image, extra=extra)
+            else:
+                response = _submit_session_print(op["session_id"], operation_id, op["kind"], image, extra=extra)
+            current = STORE.get_operation(operation_id)
+            results.append({"operationId": operation_id, "status": response["status"] if isinstance(response, dict) else current["status"]})
+            if not isinstance(response, dict):
+                break  # A device failure stops this batch; the remaining jobs keep their original state.
+        result = {"operationIds": req.operationIds, "outcome": req.outcome, "results": results}
+        STORE.finish_operation(req.operationId, kind="print_recovery", status="success", result=result)
+        return {"ok": True, **result}
 
 
 @app.get("/api/operations/{operation_id}")
