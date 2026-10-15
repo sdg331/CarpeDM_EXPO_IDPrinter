@@ -154,6 +154,41 @@ def test_print_wrapping_keeps_short_words_together_without_losing_text():
     assert all(draw.textlength(line, font=font) <= width for line in lines)
 
 
+def test_thermal_photo_keeps_subtle_midtones_distinct_without_losing_black_or_white(monkeypatch):
+    from PIL import Image, ImageStat
+    from backend.reports import thermal_photo
+
+    photo = Image.new("L", (1024, 768), 0)
+    photo.paste(150, (128, 0, 512, 768))
+    photo.paste(180, (512, 0, 896, 768))
+    photo.paste(255, (896, 0, 1024, 768))
+    original = photo.tobytes()
+    monkeypatch.delenv("KIOSK_PHOTO_GAMMA", raising=False)
+    result = thermal_photo(photo, (512, 640))
+    darker = ImageStat.Stat(result.crop((80, 32, 240, 352))).mean[0]
+    lighter = ImageStat.Stat(result.crop((272, 32, 432, 352))).mean[0]
+    assert 0 < darker < lighter < 255
+    assert darker < 150 and lighter < 180
+    assert result.crop((0, 0, 48, 384)).getextrema() == (0, 0)
+    assert result.crop((464, 0, 512, 384)).getextrema() == (255, 255)
+    assert result.mode == "1" and result.size == (512, 384)
+    assert photo.tobytes() == original
+
+
+def test_thermal_photo_respects_camera_orientation_and_preserves_the_whole_frame():
+    from PIL import Image
+    from backend.reports import thermal_photo
+
+    photo = Image.new("RGB", (800, 400), "white")
+    photo.paste("black", (0, 0, 80, 400))
+    photo.getexif()[274] = 6
+    result = thermal_photo(photo, (512, 640))
+    assert result.mode == "1" and result.size == (320, 640)
+    assert result.crop((0, 0, 320, 48)).getextrema() == (0, 0)
+    assert result.crop((0, 592, 320, 640)).getextrema() == (255, 255)
+    assert photo.size == (800, 400) and photo.getexif()[274] == 6
+
+
 @pytest.mark.parametrize("size", [(400, 800), (800, 400)])
 def test_report_keeps_entire_photo_and_prints_one_separate_teacher_tip(monkeypatch, size):
     from PIL import Image, ImageDraw, ImageFont
