@@ -1,9 +1,9 @@
-import { characters } from "./content.js?v=20261013-character-gender-r1";
-import { request, createLiveApi } from "./api-client.js?v=20261016-landmark-match-r1";
+import { characters } from "./content.js?v=20261016-final-kiosk-r1";
+import { request, createLiveApi } from "./api-client.js?v=20261016-final-kiosk-r1";
 import { validatePhoto } from "./photo-lab-core.js";
-import { Camera } from "./camera.js?v=20261014-face-map-r1";
-import { drawFaceOverlay } from "./face-overlay.js?v=20261016-landmark-match-r1";
-import { validateComparison, recommendationMarkup } from "./matching-lab-core.js?v=20261014-face-map-r1";
+import { Camera } from "./camera.js?v=20261016-final-kiosk-r1";
+import { drawFaceOverlay } from "./face-overlay.js?v=20261016-final-kiosk-r1";
+import { validateComparison, recommendationMarkup } from "./matching-lab-core.js?v=20261016-final-kiosk-r1";
 
 const $ = id => document.getElementById(id);
 const camera = new Camera(), liveApi = createLiveApi();

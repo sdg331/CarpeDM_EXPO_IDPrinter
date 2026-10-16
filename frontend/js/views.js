@@ -1,6 +1,6 @@
-import { characters, teams, modes, characterGenderOptions, matchingCharacters } from "./content.js?v=20261013-character-gender-r1";
+import { characters, teams, modes, characterGenderOptions, matchingCharacters } from "./content.js?v=20261016-final-kiosk-r1";
 import { icon, logo } from "./icons.js";
-import { errorCopy } from "./api-client.js?v=20261013-character-gender-r1";
+import { errorCopy } from "./api-client.js?v=20261016-final-kiosk-r1";
 
 export const escape = (value) =>
   String(value ?? "").replace(

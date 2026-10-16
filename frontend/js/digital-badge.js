@@ -1,5 +1,5 @@
-import { isSameOriginImage, KioskError } from "./api-client.js?v=20261014-face-map-r1";
-import { validateName } from "./state.js?v=20261014-face-map-r1";
+import { isSameOriginImage, KioskError } from "./api-client.js?v=20261016-final-kiosk-r1";
+import { validateName } from "./state.js?v=20261016-final-kiosk-r1";
 
 // Produces a real PNG in browser memory; it never sends a print or NFC command.
 export async function createDigitalBadge({ name, team, result }, { signal } = {}) {

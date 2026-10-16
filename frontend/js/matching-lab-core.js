@@ -1,5 +1,5 @@
-import { characters, matchingCharacters } from "./content.js?v=20261013-character-gender-r1";
-import { validateFace } from "./face-overlay.js?v=20261014-face-map-r1";
+import { characters, matchingCharacters } from "./content.js?v=20261016-final-kiosk-r1";
+import { validateFace } from "./face-overlay.js?v=20261016-final-kiosk-r1";
 
 export function validateComparison(data, gender) {
   const allowed = new Set(matchingCharacters(gender).map(c => c.id));

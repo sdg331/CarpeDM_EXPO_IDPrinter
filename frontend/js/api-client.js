@@ -1,6 +1,6 @@
-import { liveIntegrations } from "./live-integrations.js?v=20261016-landmark-match-r1";
-import { characters, sampleCareerTip, matchingCharacters } from "./content.js?v=20261013-character-gender-r1";
-import { validateFace } from "./face-overlay.js?v=20261016-landmark-match-r1";
+import { liveIntegrations } from "./live-integrations.js?v=20261016-final-kiosk-r1";
+import { characters, sampleCareerTip, matchingCharacters } from "./content.js?v=20261016-final-kiosk-r1";
+import { validateFace } from "./face-overlay.js?v=20261016-final-kiosk-r1";
 
 export class KioskError extends Error {
   constructor(code, retryable = true) {

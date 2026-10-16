@@ -1,9 +1,9 @@
-import { characters, teams, screenIds, sampleCareerTip, characterGenderOptions } from "./content.js?v=20261013-character-gender-r1";
-import { createState } from "./state.js?v=20261014-face-map-r1";
-import { createDigitalBadge } from "./digital-badge.js";
-import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261016-analysis-pair-r1";
-import { createLiveApi } from "./api-client.js?v=20261016-landmark-match-r1";
-import { drawFaceOverlay } from "./face-overlay.js?v=20261016-analysis-pair-r1";
+import { characters, teams, screenIds, sampleCareerTip, characterGenderOptions } from "./content.js?v=20261016-final-kiosk-r1";
+import { createState } from "./state.js?v=20261016-final-kiosk-r1";
+import { createDigitalBadge } from "./digital-badge.js?v=20261016-final-kiosk-r1";
+import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261016-final-kiosk-r1";
+import { createLiveApi } from "./api-client.js?v=20261016-final-kiosk-r1";
+import { drawFaceOverlay } from "./face-overlay.js?v=20261016-final-kiosk-r1";
 
 // Only implemented views: retired modes/detailB/resultB are not kiosk pages.
 export const previewScreens = [

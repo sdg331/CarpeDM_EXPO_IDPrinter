@@ -1,19 +1,19 @@
-import { createState, validateName } from "./state.js?v=20261014-face-map-r1";
-import { characters, teams, scenarios, screenIds, characterGenderOptions } from "./content.js?v=20261013-character-gender-r1";
+import { createState, validateName } from "./state.js?v=20261016-final-kiosk-r1";
+import { characters, teams, scenarios, screenIds, characterGenderOptions } from "./content.js?v=20261016-final-kiosk-r1";
 import {
   createDemoApi,
   createLiveApi,
   isSameOriginImage,
   KioskError,
   errorCopy,
-} from "./api-client.js?v=20261016-landmark-match-r1";
-import { Camera } from "./camera.js?v=20261014-face-map-r1";
-import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, renderPrintRecovery, escape } from "./views.js?v=20261016-analysis-pair-r1";
+} from "./api-client.js?v=20261016-final-kiosk-r1";
+import { Camera } from "./camera.js?v=20261016-final-kiosk-r1";
+import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, renderPrintRecovery, escape } from "./views.js?v=20261016-final-kiosk-r1";
 import { icon } from "./icons.js";
 import { createMotion } from "./motion.js?v=20261008-touch-ui-r3";
 import { resolveRuntime } from "./runtime.js";
-import { createDigitalBadge } from "./digital-badge.js";
-import { drawFaceOverlay, validateFace } from "./face-overlay.js?v=20261016-analysis-pair-r1";
+import { createDigitalBadge } from "./digital-badge.js?v=20261016-final-kiosk-r1";
+import { drawFaceOverlay, validateFace } from "./face-overlay.js?v=20261016-final-kiosk-r1";
 
 const query = new URLSearchParams(location.search);
 let checkoutRehearsal = query.get("rehearsal") === "checkout";
