@@ -2,6 +2,8 @@
 .kiosk-artwork { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .kiosk-entry .entry-symbol { display: grid; place-items: center; width: 88px; height: 88px; flex-shrink: 0; }
 .kiosk-entry .entry-content { flex: 1; min-width: 0; }
+.souvenir-entry > .kiosk-artwork { width: 96px; height: 96px; flex-shrink: 0; }
+.mirror-next > .kiosk-artwork { width: 176px; height: 176px; flex-shrink: 0; }
 .view:has(.kiosk-welcome) .kiosk-entry { gap: 20px; }
 .status-visual.status-art { width: 220px; height: 220px; background: transparent; box-shadow: none; }
 .view:has(.error-box) .status-visual.status-art { width: 112px; height: 112px; }
@@ -11,4 +13,5 @@
   body[data-runtime="web"] .kiosk-entry .entry-symbol { width: 64px; height: 64px; }
   body[data-runtime="web"] .view:has(.kiosk-welcome) .kiosk-entry { gap: 12px; }
   body[data-runtime="web"] .reader-visual:has(.kiosk-artwork) { width: 144px; height: 144px; align-self: center; }
+  body[data-runtime="web"] .mirror-next > .kiosk-artwork { align-self: center; }
 }

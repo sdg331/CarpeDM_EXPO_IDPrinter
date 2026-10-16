@@ -18,8 +18,13 @@ test("Merged glass icons retain current entry labels and hardware error recovery
   const home = renderScreen({ screen: "home" }, false);
   assert.match(home, /입사를 진심으로<br>축하합니다\./);
   assert.match(home, /aria-label="출근하기"/);
-  const screens = [[home, ["checkin-badge", "checkout-report"]]];
+  const screens = [[home, ["checkin-badge", "checkout-report", "photo-camera"]]];
   const state = { name: "김미래", team: { title: "디자인팀" }, aiMode: "A" };
+  const cameraError = renderScreen({ ...state, screen: "processing", error: { code: "AI_ERROR", retryable: true } }, true);
+  assert.match(cameraError, /다시 시도하기/);
+  screens.push([cameraError, ["photo-camera"]]);
+  screens.push([renderScreen({ screen: "fatal" }, false), ["service-alert"]]);
+  screens.push([renderScreen({ screen: "webComplete" }, false, true), ["smart-mirror"]]);
   for (const screen of ["nfc", "checkout", "badge", "reportPrint"]) {
     const html = renderScreen({ ...state, screen, error: { code: "BACKEND_UNAVAILABLE", retryable: true } }, false);
     screens.push([html, [screen === "nfc" || screen === "checkout" ? "nfc-register" : "thermal-printer"]]);

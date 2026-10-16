@@ -42,3 +42,30 @@ test("Report loading hides stale report actions and summary", () => {
   assert.doesNotMatch(html, /data-action="(?:report-open|photo-skip)"/);
   assert.ok(!html.includes(state.report.summary));
 });
+
+test("Preview failures describe the operation on screen", () => {
+  for (const [id, code] of [["checkoutResult", "REPORT_UNAVAILABLE"], ["webIssue", "DOWNLOAD_FAILED"]]) {
+    const { state, web } = previewState(id, "development", "error");
+    assert.equal(state.error.code, code);
+    assert.doesNotMatch(renderScreen(state, true, web), /분석하지 못했어요|다시 촬영해주세요/);
+  }
+});
+
+test("Report errors remain distinct from missing records and respect retryability", () => {
+  const { state } = previewState("checkoutResult", "development");
+  for (const retryable of [true, false]) {
+    const html = renderScreen({ ...state, error: { code: "REPORT_UNAVAILABLE", retryable } }, true);
+    assert.match(html, /체험 기록을<br>확인하지 못했어요/);
+    assert.match(html, /role="alert"/);
+    assert.match(html, /김미래/);
+    assert.match(html, /data-action="home"/);
+    assert.equal(/data-action="report-fetch"/.test(html), retryable);
+    assert.doesNotMatch(html, /class="record-card"|아직 체험 기록을 찾지 못했어요|data-action="(?:report-open|photo-skip)"/);
+    assert.ok(!html.includes(state.report.summary));
+  }
+  const { state: empty } = previewState("checkoutResult", "development", "empty");
+  const html = renderScreen(empty, true);
+  assert.match(html, /아직 체험 기록을 찾지 못했어요/);
+  assert.match(html, /data-action="report-fetch"/);
+  assert.doesNotMatch(html, /role="alert"/);
+});

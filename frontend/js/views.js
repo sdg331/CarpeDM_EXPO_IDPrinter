@@ -50,13 +50,14 @@ const helper = (text, symbol = "shield") =>
 const identity = (s) =>
   `<div class="identity-strip">${s.result?.image ? `<img src="${escape(s.result.image)}" alt="현재 프로필">` : icon("badge")}<div><strong>${escape(s.name)}</strong><p>${escape(s.team?.title)} · ${s.aiMode ? escape(modes[s.aiMode].title) : "MIRRORTING WORKS"}</p></div><span class="pill">${escape(s.sessionId || "입사 등록 중")}</span></div>`;
 const statusVisual = (symbol, working = false, nfc = false) => {
-  const artwork = nfc ? "nfc-register" : symbol === "printer" ? "thermal-printer" : null;
+  const artwork = nfc ? "nfc-register" : { printer: "thermal-printer", camera: "photo-camera", alert: "service-alert" }[symbol];
   return `<div class="status-visual ${artwork ? "status-art" : ""} ${working ? "working" : ""}" aria-hidden="true">${artwork ? kioskArtwork(artwork) : icon(symbol)}</div>`;
 };
 const analysisPhoto = (s, demo = false) => {
   if (!s.capturePreview) return statusVisual("camera", true);
-  const candidates = s.aiMode === "A" ? `<div class="analysis-candidates" aria-hidden="true"><span>${matchingCharacters(s.characterGender).length}명의 캐릭터와 비교 중</span><div class="analysis-candidate-row">${matchingCharacters(s.characterGender).map((character, i) => `<img src="${character.thumbnail}" alt="" width="48" height="64" style="--delay:${i * 400}ms">`).join("")}</div></div>` : "";
-  return `<div class="analysis-photo ${demo ? "sample" : "captured"}"><img src="${escape(s.capturePreview)}" alt="${demo ? "분석 화면용 샘플 사진" : "방금 촬영한 사진"}"><canvas class="face-overlay" id="analysis-face-map" aria-label="선택한 얼굴의 실제 특징점" hidden></canvas><span class="analysis-photo-label">${icon("spark")} ${demo ? "샘플 분석 화면" : "얼굴 특징 비교 중"}</span>${candidates}</div><div class="face-feature-controls"><p class="analysis-visual-note" id="face-feature-note">${demo ? "샘플 사진 · 실제 촬영이 아니에요." : "촬영한 얼굴의 실제 위치를 확인하고 있어요."}</p><button type="button" class="button secondary face-feature-toggle" data-action="face-points" aria-pressed="${s.facePointsVisible !== false}">특징점 ${s.facePointsVisible === false ? "보기" : "숨기기"}</button></div>`;
+  const photo = `<div class="analysis-photo ${demo ? "sample" : "captured"}"><img src="${escape(s.capturePreview)}" alt="${demo ? "분석 화면용 샘플 사진" : "방금 촬영한 사진"}"><canvas class="face-overlay" id="analysis-face-map" aria-label="선택한 얼굴의 실제 특징점" hidden></canvas>${s.aiMode === "A" ? "" : `<span class="analysis-photo-label">${icon("spark")} ${demo ? "샘플 분석 화면" : "얼굴 특징 비교 중"}</span>`}</div>`;
+  const comparison = s.aiMode === "A" ? `<div class="analysis-comparison"><figure class="analysis-character"><figcaption>캐릭터 미리보기</figcaption><div class="analysis-character-frames" aria-hidden="true">${matchingCharacters(s.characterGender).slice(0, 4).map((character, i) => `<img src="${character.thumbnail}" alt="" width="288" height="384" decoding="async" style="--delay:${i * 500 - 2000}ms">`).join("")}</div></figure><figure class="analysis-self"><figcaption>${demo ? "샘플 분석 화면" : "내 사진"}</figcaption>${photo}</figure></div><p class="analysis-preview-note">${matchingCharacters(s.characterGender).length}명을 비교해요. 왼쪽 4장은 추천 순서와 무관한 미리보기예요.</p>` : photo;
+  return `${comparison}<div class="face-feature-controls"><p class="analysis-visual-note" id="face-feature-note">${demo ? "샘플 사진 · 실제 촬영이 아니에요." : "촬영한 얼굴의 실제 특징점을 확인하고 있어요."}</p><button type="button" class="button secondary face-feature-toggle" data-action="face-points" aria-pressed="${s.facePointsVisible !== false}">특징점 ${s.facePointsVisible === false ? "보기" : "숨기기"}</button></div>`;
 };
 const errorPanel = (error) => {
   if (!error) return "";
@@ -74,7 +75,7 @@ function home(demo, web) { return webHome(demo, web); }
 
 function webHome(demo = false, web = false) {
   return `<div class="kiosk-welcome"><div class="welcome-copy"><h1>입사를 진심으로<br>축하합니다.</h1><p class="subtitle">당신과 함께할 오늘을 기대합니다.</p></div></div>
-  <div class="kiosk-entry-actions"><button class="kiosk-entry checkin-entry" data-action="checkin" aria-label="출근하기"><span class="entry-symbol">${kioskArtwork("checkin-badge")}</span><span class="entry-content"><strong>출근하기</strong><span>나의 사원증 만들기</span></span>${icon("arrow")}</button><button class="kiosk-entry checkout-entry" data-action="checkout" aria-label="퇴근하기"><span class="entry-symbol">${kioskArtwork("checkout-report")}</span><span class="entry-content"><strong>퇴근하기</strong><span>오늘의 기록 보기</span></span>${icon("arrow")}</button></div>${web ? "" : `<button class="souvenir-entry" data-action="souvenir">${icon("camera")}<span><strong>기념사진만 남기기</strong><small>체험 없이, 전용 카드로 사진 한 장</small></span>${icon("arrow")}</button>`}`;
+  <div class="kiosk-entry-actions"><button class="kiosk-entry checkin-entry" data-action="checkin" aria-label="출근하기"><span class="entry-symbol">${kioskArtwork("checkin-badge")}</span><span class="entry-content"><strong>출근하기</strong><span>나의 사원증 만들기</span></span>${icon("arrow")}</button><button class="kiosk-entry checkout-entry" data-action="checkout" aria-label="퇴근하기"><span class="entry-symbol">${kioskArtwork("checkout-report")}</span><span class="entry-content"><strong>퇴근하기</strong><span>오늘의 기록 보기</span></span>${icon("arrow")}</button></div>${web ? "" : `<button class="souvenir-entry" data-action="souvenir">${kioskArtwork("photo-camera")}<span><strong>기념사진만 남기기</strong><small>체험 없이, 전용 카드로 사진 한 장</small></span>${icon("arrow")}</button>`}`;
 }
 
 const cameraOverlay = (demo = false) =>
@@ -87,10 +88,18 @@ function webCamera(s) {
   ${actions(btn("capture", "이 모습으로 촬영하기", "", "camera", true) + btn("camera-retry", "카메라 다시 연결하기", "", "").replace('data-action="camera-retry"', 'data-action="camera-retry" hidden'))}`;
 }
 
+function recommendationEvidence(s) {
+  const analysis = s.result?.analysis;
+  if (s.characterChosen || s.error || !analysis) return "";
+  const rows = analysis.comparisons;
+  return `<section class="match-reason" aria-label="캐릭터 추천 근거"><h2>이렇게 추천했어요.</h2><p>${s.result.sample ? "샘플 사진의 실제 측정값으로" : "촬영한 얼굴의 실제 측정값으로"} ${analysis.candidateCount}명의 캐릭터와 9개 비율을 비교했어요.</p><span class="match-reason-label">9개 항목 중 비교 차이가 작았던 특징</span><ul class="match-features">${rows.slice(0, 3).map(row => `<li>${escape(row.label)}</li>`).join("")}</ul><details><summary>측정 비율 자세히 보기</summary><p>사진 크기와 그림체의 차이를 보정해 추천해요. 아래는 보정 전 측정 비율입니다. 눈 모양은 눈 높이/너비, 나머지는 얼굴 폭을 기준으로 해요.</p><table><thead><tr><th scope="col">비교 항목</th><th scope="col">${s.result.sample ? "샘플" : "내 사진"}</th><th scope="col">캐릭터</th></tr></thead><tbody>${rows.map(row => `<tr><th scope="row">${escape(row.label)}</th><td>${row.measuredRatio.toFixed(3)}</td><td>${row.characterRatio.toFixed(3)}</td></tr>`).join("")}</tbody></table><p>얼굴 비율 기준의 추천이라 사람이 느끼는 닮음과 다를 수 있어요.</p></details></section>`;
+}
+
 function webResult(s) {
   return `${step(3, "AI 프로필 확인")}${heading("", s.aiMode === "A" ? (s.characterChosen ? "내가 고른 캐릭터예요." : "오늘 함께할 캐릭터예요.") : "내 프로필이 완성됐어요.", "이 프로필로 나만의 사원증을 만들 수 있어요.")}
   <div class="result-pass"><div class="pass-header">MIRRORTING WORKS ${logo()}</div><div class="pass-photo"><img src="${escape(s.result.image)}" alt="이번 사진으로 처리한 AI 프로필 결과"></div><div class="pass-info"><div><h2>${escape(s.name)}</h2><p>${escape(s.team.title)}</p></div></div><div class="pass-number">2026 EXPO · 입사 프로필</div></div>
   <p class="result-explanation">${s.aiMode === "A" ? `${s.characterChosen ? "직접 고른 캐릭터로 사원증을 만들어요." : "얼굴 특징을 참고해 추천했어요. 다른 캐릭터를 골라도 좋아요."}` : "얼굴과 옷은 그대로, 얼굴이 잘 보이도록 구도를 잡았어요. 머리카락 경계는 촬영 상태에 따라 달라질 수 있어요."}</p>
+  ${recommendationEvidence(s)}
   ${errorPanel(s.error)}${actions(btn("card-connect", "이 프로필로 입사하기", "", "badge", s.busy) + characterChoice(s) + btn("retake", "다시 촬영하기", "text", "", s.busy))}`;
 }
 
@@ -110,7 +119,7 @@ function webCard(s) {
 
 function webComplete() {
   return `${heading("", "다음은,<br>MirrorTing에서 만나요.", "스마트미러 체험을 마친 뒤 이 키오스크에서 퇴근해주세요.")}
-  <div class="mirror-next">${icon("mirror")}<div><span class="kiosk-kicker">02 · 스마트미러 체험</span><h2>나를 비추는 새로운 경험</h2><p>사원증 확인 → MirrorTing 체험 → 퇴근 리포트</p></div></div>
+  <div class="mirror-next">${kioskArtwork("smart-mirror")}<div><span class="kiosk-kicker">02 · 스마트미러 체험</span><h2>나를 비추는 새로운 경험</h2><p>사원증 확인 → MirrorTing 체험 → 퇴근 리포트</p></div></div>
   <div class="kiosk-notice"><strong>오늘의 브라우저 시연은 여기까지예요.</strong><p>프로필과 출력 이미지는 실제로 만들었어요. 카드 등록·실물 출력·스마트미러 연결은 현장 장치가 필요해요.</p></div>
   ${actions(btn("home", "처음 화면으로", "", "arrow"))}`;
 }
@@ -161,7 +170,7 @@ function processing(s, demo) {
   return `${step(3, "캐릭터 분석", false)}${heading("A LITTLE MOMENT OF DISCOVERY", s.error ? "사진을 다시<br>확인해주세요." : "닮은 캐릭터를<br>찾고 있어요.")}${s.error ? statusVisual("camera") : `${analysisPhoto(s, demo)}<div class="status-copy loading-state" role="status"><h2>${s.aiMode === "A" ? "얼굴 특징을 읽고 캐릭터와 비교해요." : "얼굴 위치를 읽고 프로필 구도를 만들어요."}</h2><p>${demo ? "준비된 샘플 데이터로 결과 화면을 보여드려요." : "외부 전송 없이 이 기기 안에서 분석하고 있어요."}</p></div>`}${errorPanel(s.error)}${s.error ? actions(errorActions(s, "ai-retry")) : ""}`;
 }
 function result(s, demo) {
-  return `${step(3, "나의 AI 프로필", false)}${heading("YOUR NEW IDENTITY", s.aiMode === "A" ? (s.characterChosen ? "내가 고른 캐릭터예요." : "오늘 함께할 캐릭터예요.") : "나만의 프로필이 완성됐어요.", s.aiMode === "A" ? "마음에 드는 캐릭터로 사원증을 만들 수 있어요." : "사원증에 들어갈 프로필을 확인해주세요.")}<div class="result-pass"><div class="pass-header">MIRRORTING WORKS ${logo()}</div><div class="pass-photo"><img src="${escape(s.result.image)}" alt="${demo ? "데모용 프로필 예시" : "나의 AI 프로필"}"></div><div class="pass-info"><div><h2>${escape(s.name)}</h2><p>${escape(s.team.title)}</p></div></div><div class="pass-number">MIRRORTING WORKS 사원 프로필</div></div><p class="result-explanation">${demo ? '<span class="demo-chip">샘플</span> 준비된 이미지로 보여드리는 결과예요.' : s.aiMode === "A" ? (s.characterChosen ? "직접 고른 캐릭터로 사원증을 만들어요." : "얼굴 특징을 참고해 추천했어요. 다른 캐릭터를 골라도 좋아요.") : "촬영한 얼굴과 옷을 유지하고, 얼굴이 잘 보이도록 배경과 구도를 정리했어요."}</p>${errorPanel(s.error)}${actions(s.error ? errorActions(s, "nfc-open") : btn("nfc-open", s.replacingProfile ? "새 프로필로 출력 다시 준비" : (s.aiMode === "A" ? "이 캐릭터로 사원증 만들기" : "이 프로필로 사원증 만들기"), "", "badge", s.busy) + characterChoice(s) + btn("retake", "다시 촬영하기", "text", "", s.busy))}`;
+  return `${step(3, "나의 AI 프로필", false)}${heading("YOUR NEW IDENTITY", s.aiMode === "A" ? (s.characterChosen ? "내가 고른 캐릭터예요." : "오늘 함께할 캐릭터예요.") : "나만의 프로필이 완성됐어요.", s.aiMode === "A" ? "마음에 드는 캐릭터로 사원증을 만들 수 있어요." : "사원증에 들어갈 프로필을 확인해주세요.")}<div class="result-pass"><div class="pass-header">MIRRORTING WORKS ${logo()}</div><div class="pass-photo"><img src="${escape(s.result.image)}" alt="${demo ? "데모용 프로필 예시" : "나의 AI 프로필"}"></div><div class="pass-info"><div><h2>${escape(s.name)}</h2><p>${escape(s.team.title)}</p></div></div><div class="pass-number">MIRRORTING WORKS 사원 프로필</div></div><p class="result-explanation">${demo ? '<span class="demo-chip">샘플</span> 준비된 이미지로 보여드리는 결과예요.' : s.aiMode === "A" ? (s.characterChosen ? "직접 고른 캐릭터로 사원증을 만들어요." : "얼굴 특징을 참고해 추천했어요. 다른 캐릭터를 골라도 좋아요.") : "촬영한 얼굴과 옷을 유지하고, 얼굴이 잘 보이도록 배경과 구도를 정리했어요."}</p>${recommendationEvidence(s)}${errorPanel(s.error)}${actions(s.error ? errorActions(s, "nfc-open") : btn("nfc-open", s.replacingProfile ? "새 프로필로 출력 다시 준비" : (s.aiMode === "A" ? "이 캐릭터로 사원증 만들기" : "이 프로필로 사원증 만들기"), "", "badge", s.busy) + characterChoice(s) + btn("retake", "다시 촬영하기", "text", "", s.busy))}`;
 }
 function nfc(s, demo, checkout = false) {
   const busy = s.busy;
@@ -209,7 +218,8 @@ function checkoutResult(s, demo) {
   const available = !s.busy && !s.error && s.report?.status === "available";
   const headline = demo ? s.report?.scenario : s.report?.headline?.sentence;
   const summary = demo ? s.report?.summary : s.report?.headline?.context;
-  return `${step(2, "오늘의 체험 확인", !s.busy)}${heading("LOOK BACK ON YOUR DAY", `${escape(s.name)}님,<br>어떤 하루였나요?`, available ? "사진은 선택이에요. 바로 리포트를 확인해도 좋아요." : "MirrorTing에서 함께한 경험을 확인해보세요.")}${identity(s)}<div class="record-card"><span class="pill">${demo ? "체험용 예시 데이터" : "MirrorTing에서 받은 기록"}</span><h2>${s.busy ? "체험 기록을 불러오고 있어요." : available ? escape(headline || "체험 기록을 받았어요.") : "아직 체험 기록을 찾지 못했어요."}</h2><p>${available ? escape(summary || "아래에서 실제 리포트 항목을 확인할 수 있어요.") : s.busy ? "잠시만 기다려주세요." : "스마트미러 체험을 마쳤다면 잠시 후 다시 확인해주세요."}</p></div>${errorPanel(s.error)}${actions(available ? btn("report-open", "기념사진 남기기", "", "camera") + btn("photo-skip", "사진 없이 리포트 보기", "text", "") : btn("report-fetch", s.busy ? "기록을 확인하고 있어요" : "다시 확인", "", "arrow", s.busy, s.busy))}`;
+  const record = s.error ? errorPanel(s.error) : `<div class="record-card"><span class="pill">${demo ? "체험용 예시 데이터" : "MirrorTing에서 받은 기록"}</span><h2>${s.busy ? "체험 기록을 불러오고 있어요." : available ? escape(headline || "체험 기록을 받았어요.") : "아직 체험 기록을 찾지 못했어요."}</h2><p>${available ? escape(summary || "아래에서 실제 리포트 항목을 확인할 수 있어요.") : s.busy ? "잠시만 기다려주세요." : "스마트미러 체험을 마쳤다면 잠시 후 다시 확인해주세요."}</p></div>`;
+  return `${step(2, "오늘의 체험 확인", !s.busy)}${heading("LOOK BACK ON YOUR DAY", s.error ? "체험 기록을<br>확인하지 못했어요." : `${escape(s.name)}님,<br>어떤 하루였나요?`, s.error ? "아래 안내를 확인해주세요." : available ? "사진은 선택이에요. 바로 리포트를 확인해도 좋아요." : "MirrorTing에서 함께한 경험을 확인해보세요.")}${identity(s)}${record}${actions(s.error ? errorActions(s, "report-fetch") : available ? btn("report-open", "기념사진 남기기", "", "camera") + btn("photo-skip", "사진 없이 리포트 보기", "text", "") : btn("report-fetch", s.busy ? "기록을 확인하고 있어요" : "다시 확인", "", "arrow", s.busy, s.busy))}`;
 }
 function souvenirCamera(s, demo) {
   const souvenir = s.flow === "souvenir";

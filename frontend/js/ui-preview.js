@@ -1,9 +1,9 @@
 import { characters, teams, screenIds, sampleCareerTip, characterGenderOptions } from "./content.js?v=20261013-character-gender-r1";
 import { createState } from "./state.js?v=20261014-face-map-r1";
 import { createDigitalBadge } from "./digital-badge.js";
-import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261014-face-map-r1";
-import { createLiveApi } from "./api-client.js?v=20261014-face-map-r1";
-import { drawFaceOverlay } from "./face-overlay.js?v=20261014-face-map-r1";
+import { renderScreen, renderHeader, renderTeamPreview, escape } from "./views.js?v=20261016-analysis-pair-r1";
+import { createLiveApi } from "./api-client.js?v=20261016-landmark-match-r1";
+import { drawFaceOverlay } from "./face-overlay.js?v=20261016-analysis-pair-r1";
 
 // Only implemented views: retired modes/detailB/resultB are not kiosk pages.
 export const previewScreens = [
@@ -52,7 +52,9 @@ export function previewState(id, teamId, variant = "default", characterGender = 
   if (variant === "empty") state.report = { status: "not_found" };
   if (variant === "error") {
     const code = ["nfc", "checkout"].includes(screen) ? "NFC_ERROR"
-      : ["badge", "reportPrint"].includes(screen) ? "PRINTER_ERROR" : "AI_ERROR";
+      : ["badge", "reportPrint"].includes(screen) ? "PRINTER_ERROR"
+      : screen === "checkoutResult" ? "REPORT_UNAVAILABLE"
+      : screen === "webIssue" ? "DOWNLOAD_FAILED" : "AI_ERROR";
     state.error = { code, retryable: true };
   }
   if (variant === "unknown") state.error = { code: "UNKNOWN_OUTCOME", retryable: false };
@@ -85,9 +87,18 @@ if (typeof document !== "undefined") {
         .then(data => {
           if (revision !== currentRevision || !data.ok) return;
           state.captureFace = data.face;
-          drawFaceOverlay(main.querySelector("#analysis-face-map"), data.face);
+          drawFaceOverlay(main.querySelector("#analysis-face-map"), data.face, { allPoints: true });
           const note = main.querySelector("#face-feature-note");
           if (note) note.textContent = `샘플 사진에서 실제 추출한 특징점 ${data.face.landmarks.length}개`;
+        }).catch(() => {});
+    }
+    if (state.screen === "resultA" && !state.error) {
+      fetch(state.capturePreview).then(response => response.blob())
+        .then(frame => createLiveApi().matchCharacter(frame, { characterGender }))
+        .then(result => {
+          if (revision !== currentRevision) return;
+          state.result = { ...result, sample: true };
+          main.innerHTML = renderScreen(state, true, web);
         }).catch(() => {});
     }
     if (state.screen === "webCard") {

@@ -6,6 +6,8 @@
 
 # Screen Definition
 
+2026-10-16 SCR-09/10: 실제 입사 추천은 MediaPipe9개 얼굴 비율을 사용한다. 분석 맵은 얇은 윤곽과 주요12점으로 표시하며, 결과에는 비교 차이가 작은3개 항목과 펼쳐 볼 수 있는 실제9개 측정 비율을 제공한다. 추천은 실사/그림체 차이와 후보별 고정 보정을 사용하며 사람이 느끼는 닮음과 다를 수 있음을 설명한다. 직접 선택 시 기존 추천 근거를 숨긴다. 고정 결과 미리보기는 공개 캐릭터 샘플을 실제 API로 분석하고 샘플이라고 표시한다.
+
 2026-10-08 공통 시각 갱신: 기존 화면 ID·상태·API 흐름을 유지하며 HOME의 블루/네이비/회색을 모든 화면에 적용했다. 카드 그림자와 중복 표면을 줄이고 입력·사진·상태·리포트의 목적에 맞게 구성한다. SCR-06은 큰 캐릭터 사진을 표시하고 과정 토글은 제거했다. SCR-12는 340px 리더 아이콘과 작은 방문자 정보 카드로 구성한다. SCR-15는 400px 리더 아이콘을 중앙 정렬한다. 장식 애니메이션을 제거하고 분석·카드·출력 작업은 안내 문구 위 단일 로딩 표시로 알린다. 샘플 화면도 동일한 키오스크 크기 규칙을 사용한다. 웹 풋터도 동일한 제작 표기를 사용한다. 검증 범위는 [TOUCH_UI_2026-10-08.md](qa/TOUCH_UI_2026-10-08.md)를 따른다.
 
 ## Naming Rule
@@ -39,6 +41,7 @@ Example:
 - 버튼 설명은 `나의 사원증 만들기`·`오늘의 기록 보기`로 짧게 표시한다.
 - 환영 문구 아래에 `출근하기`·`퇴근하기` 선택 카드를 좌우로 배치한다. 왼쪽 출근 카드는 파란색, 오른쪽 퇴근 카드는 밝은 회색으로 표시한다.
 - 800×1280 기준 환영 제목 52px, 부제 24px, 카드 제목 40px, 카드 설명 24px, 선택 카드 높이 최소 416px, 이미지 220px를 사용한다. 이미지는 상단 패딩 뒤 8px 여백을 두어 배치하고, 글은 하단에 배치한다. 웹 화면 폭이 640px 이하이면 카드를 세로로 배치하고 높이를 최소 128px로 줄이며 이미지 위 여백을 없앤다. 화면 목록 미리보기도 장치와 동일한 키오스크 스타일을 사용한다.
+- 키오스크의 `기념사진만 남기기`는 두 선택 카드 아래의 보조 행동이다. 공통 회색 배경·22px 둥근 모서리, 최소 높이 120px, 96px 투명 3D 카메라 그림, 제목 28px·설명 24px를 사용한다. 추가 위 여백 없이 홈의 32px 간격을 따르며, 전용 카드 확인으로 이어지는 기존 동작을 유지한다. 웹 전용 화면에는 표시하지 않는다.
 - 제작 표기 `동양미래대학교 컴퓨터공학부 전공동아리 CarpeDM`는 하단에 표시한다.
 - 상단 장치 상태 버튼은 표시하지 않는다. 서버 연결 실패 안내는 화면에 유지한다.
 - 샘플/웹 미리보기는 상단에서 모드를 명시한다.
@@ -268,15 +271,16 @@ Example:
 
 **UI**:
 - mode-aware title
-- stationary captured photo with a scanning line, connected point graphic and corner markers (shared by kiosk/web, modes A/B)
-- mode A additionally shows all 8 character thumbnails with a repeating comparison highlight; it is not a ranking or result
+- mode A: left four eligible character previews cycle every 500ms; right captured photo stays fixed with all 478 real landmarks when the matching response arrives (shared kiosk/web)
+- the four previews are not ranking/results; the actual matching pool remains eight for any, four for male/female
+- mode B keeps its single captured photo; the real-map overlay and toggle remain available
 - sample mode explicitly uses a labeled fixture photo
-- scan/network graphics are explicitly labelled as visual effects, not detected landmarks or progress
-- reduced-motion disables the animation
+- missing coordinates never produce a decorative face map
+- reduced-motion freezes the first character; the canvas is redrawn only for new coordinates, visibility or size
 - indeterminate/progress only if truthful
 
 **Mode A steps**:
-face detect → align → SFace 128D → compare 8 → validate result
+select primary face → MediaPipe 478 points → compare nine ratios across eligible candidates → validate result
 
 **Mode B steps**:
 detect → pose/landmark → segmentation → suit composite → final quality
@@ -285,6 +289,7 @@ detect → pose/landmark → segmentation → suit composite → final quality
 - fake numeric percentage forbidden
 - duplicate job forbidden
 - random fallback forbidden
+- no minimum display time or landmark hold; validated AI responses transition immediately, as do errors/cancellation
 
 **Success**:
 - A → SCR-10
@@ -308,6 +313,7 @@ detect → pose/landmark → segmentation → suit composite → final quality
 - `다른 캐릭터 고르기`: 8명 선택 팝업. 선택 즉시 결과 이미지 갱신, 취소 시 현재 결과 유지.
 - NFC 등록 전, A 결과 화면에서만 선택 가능. 작업 중·오류·이미 등록된 세션에서는 변경 금지.
 - continue CTA
+- 2026-10-16: 추천 근거가 표시되는 키오스크 결과는 작은 가로 프로필과 내부 스크롤 근거 영역을 사용한다. 상세 측정 표를 펼쳐도 사원증 만들기·캐릭터 변경·재촬영 행동이 화면 밖으로 밀리지 않는다. 웹에서는 전체 페이지 스크롤을 유지한다.
 
 **Do not say**: `82% 닮았습니다` unless metric semantics are explicitly proven.
 
@@ -424,6 +430,7 @@ detect → pose/landmark → segmentation → suit composite → final quality
 **Branches**:
 - result exists → next
 - no result → retry fetch / approved fallback report path
+- 2026-10-16: 조회 실패는 기록 없음 카드와 함께 표시하지 않는다. 현재 방문자 정보와 오류 안내를 유지하며, 재시도 가능한 오류에만 재조회 버튼을 표시하고 처음 화면으로 돌아갈 수 있게 한다. 기록이 없는 정상 응답은 기존 재조회 화면을 유지한다.
 
 **Do not invent** MirrorTing scores or feedback.
 
