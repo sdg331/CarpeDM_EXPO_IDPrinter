@@ -16,6 +16,7 @@ import { createDigitalBadge } from "./digital-badge.js";
 import { drawFaceOverlay, validateFace } from "./face-overlay.js?v=20261016-analysis-pair-r1";
 
 const query = new URLSearchParams(location.search);
+let checkoutRehearsal = query.get("rehearsal") === "checkout";
 const runtime = resolveRuntime(query);
 const demo = runtime === "sample";
 const web = runtime === "web";
@@ -146,6 +147,7 @@ function reset() {
   clearCapturePreview();
   state.reset();
   api.reset();
+  api.resetNfc?.();
   if (badgeUrl) URL.revokeObjectURL(badgeUrl);
   badgeUrl = null;
   operationIds.clear();
@@ -265,7 +267,7 @@ function updateCamera(status, detail) {
   const panel = screen.querySelector("#camera-panel");
   panel.className = `camera-panel ${status}`;
   screen.querySelector("#camera-instruction").textContent =
-    code && errorCopy[code] ? errorCopy[code][0] : face?.count > 1 ? `${face.count}명 중 가장 크게 보이는 얼굴을 선택했어요. 선택된 분이 정면을 봐주세요.` : cameraCopy[status];
+    code && errorCopy[code] ? errorCopy[code][0] : status === "ready" && state.data.flow === "souvenir" ? "카메라가 준비됐어요. 원하는 순간을 촬영해주세요." : face?.count > 1 ? `${face.count}명 중 가장 크게 보이는 얼굴을 선택했어요. 선택된 분이 정면을 봐주세요.` : cameraCopy[status];
   screen.querySelector("#camera-detection").textContent = face?.count > 1 ? "가까운 얼굴 선택" : cameraLabels[status];
   drawFaceOverlay(screen.querySelector("#camera-face-map"), face, { fit: "contain", mirrored: true });
   const captureButton = screen.querySelector('[data-action="capture"]');
@@ -297,7 +299,8 @@ function initializeCamera() {
     );
     return;
   }
-  camera.start(screen.querySelector("#camera-video"), api, updateCamera);
+  camera.start(screen.querySelector("#camera-video"), api, updateCamera,
+    { requireFace: state.data.flow !== "souvenir" });
 }
 function clearCapturePreview() {
   const preview = state.data.capturePreview;
@@ -381,9 +384,9 @@ function chooseCharacter(id) {
   const s = state.data;
   if (modal !== "characters" || s.screen !== "resultA" || s.aiMode !== "A" || !s.result || s.busy || s.error || s.sessionId) return;
   const character = characters.find((item) => item.id === id);
-  if (!character) return;
+  if (!character || (s.result.eligibleCharacterIds && !s.result.eligibleCharacterIds.includes(id))) return;
   closeModal();
-  state.patch({ result: { kind: "A", characterId: character.id, image: character.image }, characterChosen: true });
+  state.patch({ result: { ...s.result, kind: "A", characterId: character.id, image: character.image }, characterChosen: true });
   render();
   screen.querySelector('[data-action="nfc-open"], [data-action="card-connect"]')?.focus({ preventScroll: true });
 }
@@ -473,10 +476,24 @@ function print(report) {
   const souvenir = s.flow === "souvenir";
   run(
     souvenir ? "souvenirPrint" : report ? "reportPrint" : "badge",
-    (ctx) =>
-      souvenir ? api.printSouvenir(s.photoGrant.photoPass, s.souvenirFrame, ctx) : report
-        ? api.printReport(s.report, ctx, s.souvenirFrame)
-        : api.issueBadge(s.sessionId, ctx),
+    async (ctx) => {
+      if (souvenir) {
+        if (!s.photoGrant) {
+          if (s.checkoutRehearsal) ctx.purpose = "rehearsal";
+          const grant = await api.startSouvenir(ctx);
+          if (grant?.kind !== "souvenir" || (!demo &&
+              (!/^p_[A-Za-z0-9_-]{24}$/.test(grant.photoPass) ||
+               grant.printJobId !== `souvenir-${grant.photoPass}`)))
+            throw new KioskError("INVALID_RESPONSE", false);
+          state.patch({ photoGrant: grant });
+          operationIds.set("souvenirPrint", grant.printJobId);
+        }
+        ctx.operationId = s.photoGrant.printJobId;
+        return api.printSouvenir(s.photoGrant.photoPass, s.souvenirFrame, ctx);
+      }
+      return report ? api.printReport(s.report, ctx, s.souvenirFrame)
+        : api.issueBadge(s.sessionId, ctx);
+    },
     (result) => finishPrint(report, result),
     { sideEffect: true, statusField: "printer" },
   );
@@ -558,7 +575,11 @@ function fetchReport() {
           (report.sessionId !== s.sessionId ||
             typeof report.reportId !== "string" ||
             !report.reportId ||
-            (!demo && (report.source !== "mirrorting" || !Number.isInteger(report.mirrorSessionId)))))
+            (!demo && !(
+              (report.source === "mirrorting" && Number.isInteger(report.mirrorSessionId)) ||
+              (report.source === "local_test" && report.sample === true &&
+                report.reportId === `TEST-${s.sessionId}` && report.mirrorSessionId === null)
+            ))))
       )
         throw new KioskError("INVALID_RESPONSE", false);
       state.patch({ report });
@@ -676,12 +697,19 @@ const handlers = {
   },
   checkout: () => {
     reset();
+    if (checkoutRehearsal) {
+      checkoutRehearsal = false;
+      const url = new URL(location.href);
+      url.searchParams.delete("rehearsal");
+      history.replaceState(null, "", url);
+      go("photoCamera", { flow: "souvenir", checkoutRehearsal: true });
+      return;
+    }
     go(web ? "webCheckout" : "checkout", { flow: "checkout" });
   },
   souvenir: () => {
     reset();
-    go("checkout", { flow: "souvenir" });
-    readCheckout();
+    go("photoCamera", { flow: "souvenir" });
   },
   "team-select": (el) => {
     const team = teams.find((t) => t.id === el.dataset.id);

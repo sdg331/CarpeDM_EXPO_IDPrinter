@@ -35,6 +35,27 @@ test("Click demo supplies a name without changing live input or an edited sample
   }
 });
 
+test("NFC reads wait for menu reset before reading a new visitor card", async () => {
+  let release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const calls = [];
+  const api = createLiveApi({
+    resolveCheckout: async () => { calls.push("read"); return { sessionId: "current-card" }; },
+  }, async path => {
+    assert.equal(path, "/api/nfc/reset");
+    calls.push("reset");
+    await waiting;
+    return { ok: true, json: async () => ({ ok: true }) };
+  });
+  api.resetNfc();
+  const read = api.resolveCheckout({ operationId: "new-visitor" });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, ["reset"]);
+  release();
+  assert.deepEqual(await read, { sessionId: "current-card" });
+  assert.deepEqual(calls, ["reset", "read"]);
+});
+
 test("Default uses the device flow; web preview and fixtures require explicit URLs", () => {
   for (const query of ["", "scenario=success", "controls=1"])
     assert.equal(resolveRuntime(new URLSearchParams(query)), "kiosk");
@@ -931,6 +952,37 @@ test("Live report renders source fields without inventing a scenario", () => {
   assert.doesNotMatch(html, /<ul>|<li>/);
   assert.doesNotMatch(html, />true<|오늘의 시나리오|새로운 팀원과 첫 미팅/);
   assert.doesNotMatch(html, /출처:/);
+});
+
+test("A per-card local test record is labeled and offers no print action", () => {
+  const report = { status: "available", source: "local_test", sample: true,
+    sessionId: "MW2610070001", reportId: "TEST-MW2610070001", mirrorSessionId: null,
+    headline: { sentence: "테스트 대화", context: "실제 분석 결과가 아닙니다." }, fitScores: {} };
+  const state = { name: "검토자", team: { title: "AI팀" }, sessionId: report.sessionId, report };
+  assert.match(renderScreen({ ...state, screen: "checkoutResult" }, false), /테스트용 예시 기록/);
+  const html = renderScreen({ ...state, screen: "report" }, false);
+  assert.match(html, /테스트용 예시 · 화면 미리보기/);
+  assert.match(html, /로컬 테스트 기록/);
+  assert.match(html, /data-action="home"/);
+  assert.doesNotMatch(html, /data-action="report-print"|MirrorTing 세션 null/);
+});
+
+test("Report validation accepts explicit per-session fixtures but rejects unmarked or mismatched ones", () => {
+  const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
+  const state = createState();
+  state.patch({ sessionId: "MW2610070001" });
+  let accept;
+  const context = { state, demo: false, KioskError, render() {}, run: (_, task, success) => { accept = success; } };
+  runInNewContext(source.slice(source.indexOf("function fetchReport()"), source.indexOf("function updateName()")), context);
+  context.fetchReport();
+  const valid = { status: "available", source: "local_test", sample: true,
+    sessionId: state.data.sessionId, reportId: `TEST-${state.data.sessionId}`, mirrorSessionId: null };
+  accept(valid);
+  assert.equal(state.data.report, valid);
+  for (const invalid of [{ ...valid, sample: false }, { ...valid, reportId: "42" },
+    { ...valid, sessionId: "MW2610070002" }, { ...valid, source: "unknown" }]) {
+    assert.throws(() => accept(invalid), { code: "INVALID_RESPONSE" });
+  }
 });
 
 test("A profile attached to a backend session is not deleted by visitor reset", async () => {

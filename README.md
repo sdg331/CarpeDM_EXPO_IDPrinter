@@ -119,7 +119,7 @@ sudo systemctl enable --now pcscd
 
 기본 `KIOSK_NFC=disabled`는 카드 연결을 거절합니다. 개발용 `KIOSK_NFC=mock`은 고정 UID를 반환하므로 실제 NFC 검증으로 취급하지 않습니다.
 
-기본 `KIOSK_PRINT=screen`은 메모리 출력 미리보기입니다. ESC/POS/CUPS의 `submitted`는 장치나 대기열로 전송되었다는 뜻입니다. 장치가 알려주지 않는 물리적 출력 완료를 추정하지 않습니다. 결과가 불명확하면 자동 재출력을 차단하고 [운영 절차](docs/OPERATIONS.md)에 따라 확인합니다.
+`KIOSK_PRINT=disabled`는 출력을 끄며 미리보기도 생성하지 않습니다. 상태 API는 비활성화를 표시하고 출력 요청은 장치 접근 전 재시도 가능한 `PRINT_UNAVAILABLE`로 거절합니다. 기본 `KIOSK_PRINT=screen`은 메모리 출력 미리보기입니다. ESC/POS/CUPS의 `submitted`는 장치나 대기열로 전송되었다는 뜻입니다. 장치가 알려주지 않는 물리적 출력 완료를 추정하지 않습니다. 결과가 불명확하면 자동 재출력을 차단하고 [운영 절차](docs/OPERATIONS.md)에 따라 확인합니다.
 
 ## MirrorTing 연결
 

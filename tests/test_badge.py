@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from backend.badge import BadgeError, render_badge
-from backend.printing import PREVIEWS, backend_name, print_badge, printer_status
+from backend.printing import PREVIEWS, PrintError, backend_name, print_badge, printer_status
 
 ROOT = Path(__file__).resolve().parent.parent
 NEEDS_ASSETS = not (ROOT / "assets" / "characters" / "print" / "char_01_print.png").exists()
@@ -44,6 +44,25 @@ def test_스크린_백엔드_왕복(tmp_path, monkeypatch):
     assert PREVIEWS.get(result["previewUrl"].rsplit("/", 1)[1]) is not None
     st = printer_status()
     assert st["ready"] is True
+
+
+def test_disabled_printing_never_creates_preview_or_submits_to_device(monkeypatch):
+    from backend import printing
+    from PIL import Image
+
+    monkeypatch.setenv("KIOSK_PRINT", "disabled")
+    def unexpected_output(_):
+        pytest.fail("disabled printing accessed an output backend")
+    for name in ("_screen", "_escpos", "_cups"):
+        monkeypatch.setattr(printing, name, unexpected_output)
+
+    status = printer_status()
+    assert status["backend"] == "disabled" and status["ready"] is False
+    assert status["physicalOutput"] is False
+    assert status["completionConfirmed"] is False
+    with pytest.raises(PrintError, match="비활성화") as failure:
+        print_badge(Image.new("1", (10, 10)))
+    assert failure.value.retryable is True
 
 
 def test_발급_엔드포인트_직접호출(monkeypatch):

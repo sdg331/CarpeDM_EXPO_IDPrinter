@@ -84,6 +84,7 @@ export const errorCopy = {
     "카드를 리더에 가까이 대고 다시 태그해주세요.",
   ],
   NFC_TIMEOUT: ["카드를 확인하지 못했어요.", "카드를 다시 한 번 태그해주세요."],
+  NFC_READ_CANCELLED: ["카드 확인을 새로 시작해주세요.", "출근·퇴근을 다시 선택하고 카드를 올려주세요."],
   PRINTER_ERROR: [
     "프린터를 사용할 수 없어요.",
     "준비한 내용은 그대로예요. 스태프의 안내에 따라 다시 시도해주세요.",
@@ -363,6 +364,7 @@ export function createDemoApi(scenario = "success") {
         { status: "success", demo: true },
         scenario === "printer_error" ? "PRINTER_ERROR" : null,
       ),
+    startSouvenir: async () => ({ kind: "souvenir", photoPass: "SAMPLE-PHOTO", printJobId: "sample-souvenir", sample: true }),
     printSouvenir: (_, __, ctx) => operation("souvenirPrint", ctx,
       { status: "success", demo: true }, scenario === "printer_error" ? "PRINTER_ERROR" : null),
   };
@@ -374,6 +376,7 @@ export function createLiveApi(
 ) {
   const profileIds = new Set();
   const photoPasses = new Set();
+  let nfcReset = Promise.resolve();
   const call = async (name, sideEffect, ...args) => {
     if (typeof integrations[name] !== "function")
       throw new KioskError("INTEGRATION_PENDING", false);
@@ -390,6 +393,11 @@ export function createLiveApi(
   };
   return {
     demo: false,
+    resetNfc() {
+      nfcReset = nfcReset.catch(() => {}).then(() =>
+        request("/api/nfc/reset", { method: "POST", timeout: 4000 }, fetcher));
+      nfcReset.catch(() => {});
+    },
     reset() {
       for (const photoPass of photoPasses)
         Promise.resolve(fetcher(`/api/souvenirs/${encodeURIComponent(photoPass)}`, { method: "DELETE", keepalive: true })).catch(() => {});
@@ -454,15 +462,24 @@ export function createLiveApi(
       profileIds.add(result.profileId);
       return result;
     },
-    registerNfc: (...args) => call("registerNfc", true, ...args),
+    registerNfc: async (...args) => {
+      await nfcReset;
+      return call("registerNfc", true, ...args);
+    },
     issueBadge: (...args) => call("issueBadge", true, ...args),
     resolveCheckout: async (...args) => {
+      await nfcReset;
       const result = await call("resolveCheckout", false, ...args);
       if (result?.kind === "souvenir" && /^p_[A-Za-z0-9_-]{24}$/.test(result.photoPass)) photoPasses.add(result.photoPass);
       return result;
     },
     getMirrorTingReport: (...args) => call("getMirrorTingReport", false, ...args),
     printReport: (...args) => call("printReport", true, ...args),
+    startSouvenir: async (ctx) => {
+      const result = await call("startSouvenir", false, ctx);
+      if (result?.kind === "souvenir" && /^p_[A-Za-z0-9_-]{24}$/.test(result.photoPass)) photoPasses.add(result.photoPass);
+      return result;
+    },
     printSouvenir: (...args) => call("printSouvenir", true, ...args),
     updateSessionProfile: (...args) => call("updateSessionProfile", true, ...args),
     getOperation: (operationId, { signal } = {}) =>

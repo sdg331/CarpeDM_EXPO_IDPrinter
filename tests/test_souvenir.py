@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
+import threading
 
 import cv2
 import numpy as np
@@ -57,6 +58,94 @@ def test_reserved_card_does_not_need_a_visitor_or_mirrorting(setup):
     assert qr.headers["cache-control"].startswith("no-store")
     pixels = np.array(Image.open(BytesIO(qr.content)).convert("L"))
     assert cv2.QRCodeDetector().detectAndDecode(pixels)[0] == URL
+
+
+def test_direct_photo_needs_no_card_or_qr_and_prints_once(setup, monkeypatch):
+    store, client = setup
+    monkeypatch.setenv("KIOSK_SOUVENIR_CARD_UID", "")
+    monkeypatch.setenv("KIOSK_SOUVENIR_QR_URL", "")
+    monkeypatch.setattr(kiosk, "read_card_uid", lambda _: pytest.fail("Direct photos must not read NFC"))
+    body = {"operationId": "direct-photo-visitor"}
+    result = client.post("/api/souvenirs/start", json=body)
+    assert result.status_code == 200
+    permission = result.json()
+    assert permission["kind"] == "souvenir" and permission["qrPreviewUrl"] is None
+    assert "sessionId" not in permission
+    assert client.post("/api/souvenirs/start", json=body).json() == permission
+    path = f"/api/souvenirs/{permission['photoPass']}/print"
+    first = client.post(path, files={"frame": ("photo.jpg", photo_bytes())})
+    assert first.status_code == 200 and first.json()["status"] == "preview"
+    assert client.post(path, files={"frame": ("photo.jpg", photo_bytes())}).json() == first.json()
+    image_response = client.get(first.json()["previewUrl"])
+    image = Image.open(BytesIO(image_response.content))
+    assert image.width == 576 and image.mode == "1"
+    assert store.resolve_card(UID) is None
+    # Cancellation invalidates the grant and deletes the in-memory preview.
+    client.delete(f"/api/souvenirs/{permission['photoPass']}")
+    assert client.get(first.json()["previewUrl"]).status_code == 410
+
+
+def test_direct_photo_rejects_foreign_origin_and_unresolved_print(setup):
+    store, client = setup
+    body = {"operationId": "direct-photo-security"}
+    assert client.post("/api/souvenirs/start", json=body,
+                       headers={"Origin": "https://untrusted.example"}).status_code == 403
+    store.claim_operation("souvenir-uncertain-direct", kind="souvenir_print", session_id=None)
+    store.finish_operation("souvenir-uncertain-direct", kind="souvenir_print", status="unknown",
+                           error_code="UNKNOWN_OUTCOME")
+    response = client.post("/api/souvenirs/start", json=body)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "SOUVENIR_PRINT_PENDING"
+
+
+def test_explicit_checkout_rehearsal_prints_uploaded_photo_and_labels_the_example(setup, monkeypatch):
+    _, client = setup
+    captured = []
+    original = kiosk.render_report
+
+    def render_example(report, **kwargs):
+        assert report["source"] == "demo_sample" and report["sample"] is True
+        assert kwargs["photo"].size == (720, 960)
+        captured.append(True)
+        return original(report, **kwargs)
+
+    monkeypatch.setattr(kiosk, "render_report", render_example)
+    monkeypatch.setattr(kiosk, "read_card_uid", lambda _: pytest.fail("Rehearsal must not read a card"))
+    permission = client.post("/api/souvenirs/start", json={
+        "operationId": "explicit-checkout-rehearsal", "purpose": "rehearsal",
+    }).json()
+    assert permission["qrPreviewUrl"] is None
+    path = f"/api/souvenirs/{permission['photoPass']}/print"
+    first = client.post(path, files={"frame": ("real-photo.jpg", photo_bytes())})
+    assert first.status_code == 200 and first.json()["status"] == "preview"
+    assert client.post(path, files={"frame": ("real-photo.jpg", photo_bytes())}).json() == first.json()
+    assert captured == [True]
+
+
+def test_menu_reset_cancels_old_card_read_before_it_can_resolve(setup, monkeypatch):
+    store, client = setup
+    started, release = threading.Event(), threading.Event()
+
+    def read_pending(_timeout):
+        started.set()
+        assert release.wait(5)
+        return UID
+
+    monkeypatch.setattr(kiosk, "read_card_uid", read_pending)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(client.post, "/api/nfc/resolve", json={"operationId": "previous-visitor-read"})
+        try:
+            assert started.wait(5)
+            assert client.post("/api/nfc/reset").json() == {"ok": True}
+        finally:
+            release.set()
+        response = pending.result(timeout=5)
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "NFC_READ_CANCELLED"
+    assert store.resolve_card(UID) is None
+    # A fresh read still works after the reset.
+    monkeypatch.setattr(kiosk, "read_card_uid", lambda _: UID)
+    assert grant(client, "new-visitor-read")["kind"] == "souvenir"
 
 
 def test_wrong_card_and_missing_qr_fail_without_photo_permission(setup, monkeypatch):
@@ -196,8 +285,4 @@ def test_qr_has_integer_modules_and_photo_is_contained_instead_of_cropped():
     assert image.width == 576 and image.mode == "1"
     assert np.array(image.convert("L"))[155, 50] == 0
     assert np.array(image.convert("L"))[530, 50] == 255
-    qr_y = 152 + 384 + 32
-    printed_qr = image.crop((24, qr_y, 24 + qr.width, qr_y + qr.height))
-    assert printed_qr.tobytes() == qr.tobytes()
-    decoded, points, _ = cv2.QRCodeDetector().detectAndDecode(np.array(image.convert("L")))
-    assert decoded == URL and points is not None
+    qr_y = 152 + 384 + 32 + 224

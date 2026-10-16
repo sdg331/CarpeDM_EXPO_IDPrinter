@@ -1,5 +1,6 @@
-"""출력 계층 — screen / escpos / cups 세 백엔드를 환경변수 하나로 전환한다.
+"""출력 계층 — disabled / screen / escpos / cups를 환경변수로 전환한다.
 
+    KIOSK_PRINT=disabled 출력을 명시적으로 끈다 (미리보기도 생성하지 않음)
     KIOSK_PRINT=screen   기본. 메모리에 잠시 보관하는 미리보기 (실물 출력 아님)
     KIOSK_PRINT=escpos   ESC/POS USB 감열 프린터 (전시용, 파이)
     KIOSK_PRINT=cups     CUPS 대기열 (드라이버가 CUPS 로 잡히는 프린터)
@@ -19,6 +20,7 @@ from io import BytesIO
 import subprocess
 import shutil
 import tempfile
+import time
 from pathlib import Path
 
 from PIL import Image
@@ -48,6 +50,8 @@ def print_badge(img: Image.Image) -> dict:
     """배지 이미지를 현재 백엔드로 내보낸다. 실패는 전부 PrintError 로 승격."""
     b = backend_name()
     try:
+        if b == "disabled":
+            raise PrintError("프린터 출력이 비활성화되어 있습니다", retryable=True)
         if b == "screen":
             return _screen(img)
         if b == "escpos":
@@ -58,12 +62,16 @@ def print_badge(img: Image.Image) -> dict:
         raise
     except Exception as exc:                       # USB 단선·권한 등 무엇이든
         raise PrintError(f"{b} 출력 실패: {exc}") from exc
-    raise PrintError(f"모르는 출력 백엔드: {b} (screen/escpos/cups)", retryable=True)
+    raise PrintError(f"모르는 출력 백엔드: {b} (disabled/screen/escpos/cups)", retryable=True)
 
 
 def printer_status() -> dict:
     """운영 점검용 — /api/health 에 실린다. 무거운 검사는 하지 않는다."""
     b = backend_name()
+    if b == "disabled":
+        return {"backend": b, "ready": False,
+                "physicalOutput": False, "completionConfirmed": False,
+                "detail": "출력 비활성화 (KIOSK_PRINT=disabled)"}
     if b == "screen":
         return {"backend": b, "ready": True,
                 "physicalOutput": False, "completionConfirmed": False,
@@ -109,10 +117,21 @@ def _escpos(img: Image.Image) -> dict:
     if not vendor or not product:
         raise PrintError("KIOSK_ESCPOS_VENDOR / KIOSK_ESCPOS_PRODUCT 를 지정할 것 (lsusb 로 확인)", retryable=True)
 
-    p = Usb(int(vendor, 16), int(product, 16))
+    # USB endpoint addresses vary by printer (the ZTP-80USL2 uses OUT 0x02).
+    p = Usb(int(vendor, 16), int(product, 16),
+            in_ep=int(os.getenv("KIOSK_ESCPOS_IN_EP", "0x82"), 16),
+            out_ep=int(os.getenv("KIOSK_ESCPOS_OUT_EP", "0x01"), 16),
+            timeout=15000)
     try:
-        p.image(img)
-        p.cut()
+        # A full-width 960-row raster is over 69 KB. Small bands keep printer
+        # receive buffers from being flooded while retaining every native dot.
+        for top in range(0, img.height, 128):
+            band = img.crop((0, top, img.width, min(top + 128, img.height)))
+            p.image(band, impl="bitImageRaster", fragment_height=128,
+                    high_density_vertical=True, high_density_horizontal=True)
+            if top + 128 < img.height:
+                time.sleep(0.02)
+        p.cut(mode="FULL", feed=True)
     finally:
         p.close()
     return {"backend": "escpos", "status": "submitted", "physicalOutput": True, "completionConfirmed": False}
