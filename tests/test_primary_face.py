@@ -133,3 +133,27 @@ def test_geometry_rejects_busy_or_malformed_results(client, monkeypatch):
     monkeypatch.setattr(lab, "run_ratio_frame", lambda *_: result)
     assert post(client, "/api/match/landmarks").status_code == 503
     assert not lab.COMPARISON_LOCK.locked()
+
+
+def test_landmark_preference_defaults_to_any_and_rejects_unknown_values(client, monkeypatch):
+    calls = []
+    def geometry(raw, gender, selected):
+        calls.append(gender)
+        return measured_result(gender)
+    monkeypatch.setattr(lab, "run_ratio_frame", geometry)
+    data = post(client, "/api/match/landmarks").json()
+    assert data["characterGender"] == "any" and data["analysis"]["candidateCount"] == 8
+    raw = BytesIO(); Image.new("RGB", (640, 480)).save(raw, format="PNG")
+    response = client.post("/api/match/landmarks", data={"character_gender": "unknown"},
+                           files={"frame": ("test.png", raw.getvalue(), "image/png")})
+    assert response.status_code == 422 and calls == ["any"]
+
+
+@pytest.mark.parametrize("gender,other", [("male", "female"), ("female", "male")])
+def test_landmark_engine_cannot_return_candidates_outside_the_selected_preference(client, monkeypatch, gender, other):
+    monkeypatch.setattr(lab, "run_ratio_frame", lambda *_: measured_result(other))
+    raw = BytesIO(); Image.new("RGB", (640, 480)).save(raw, format="PNG")
+    response = client.post("/api/match/landmarks", data={"character_gender": gender},
+                           files={"frame": ("test.png", raw.getvalue(), "image/png")})
+    assert response.status_code == 503 and "top" not in response.json()
+    assert not lab.COMPARISON_LOCK.locked()

@@ -16,21 +16,22 @@
 
 ## 설치와 실행
 
-Intel macOS, Python3.12에서 검증했다. MediaPipe0.10.21은 NumPy1.x를 요구하므로 기존 키오스크 `.venv`에 설치하지 않는다.
+Intel macOS, Python3.12에서 검증했다. MediaPipe는 NumPy1.x를 요구하므로 기존 키오스크 `.venv`에 설치하지 않는다. `requirements-landmarks.txt`는 Linux ARM64에서 MediaPipe0.10.18, 나머지 환경에서0.10.21을 선택한다. [공식0.10.18 배포 파일](https://pypi.org/project/mediapipe/0.10.18/#files)에 Python3.12·manylinux aarch64 wheel이 있으며0.10.21에는 없다. Pi는64비트 OS와 Python3.12를 기준으로 설치하고 실제 추론을 확인해야 한다. 설치 파일의 존재는 Pi에서의 닮음·지연·장치 검증을 뜻하지 않는다.
 
 ```sh
 cd "/Users/do_not_delay/Desktop/CarpeDM_EXPO_ID Printer/CarpeDM_EXPO_IDPrinter-complete"
 .venv/bin/python -m venv .venv-landmarks
 .venv-landmarks/bin/python -m pip install -r requirements-landmarks.txt
 .venv/bin/python scripts/fetch_landmark_model.py
-.venv-landmarks/bin/python scripts/build_face_ratios.py
-.venv-landmarks/bin/python scripts/build_ratio_balance.py --faces /path/to/public/lfw --report ../output/ratio-balance/evaluation.json
+.venv/bin/python scripts/preflight.py
 KIOSK_MATCH_LAB=1 KIOSK_NFC=disabled KIOSK_PRINT=screen .venv/bin/python scripts/run_kiosk.py --host 127.0.0.1 --port 8002
 ```
 
 8002 서버가 실행 중이면 해당 서버를 정상 종료하고 마지막 명령을 실행한다. `.venv-landmarks`와 `models`는 Git에서 제외한다. Google 공식 버전1 모델의 SHA256을 확인한다. `assets/face_ratios.json`에는 공개 캐릭터의 비율과 원본/성별 설정/모델 해시만 저장한다. 캐릭터를 바꾸면 기준을 재생성하며, 불일치 시 이전 기준으로 추천하지 않는다.
 
-macOS에서는 CPU 설정에서도 그래픽 초기화가 필요했다. Codex 제한 환경에서는 실패했고 허용된 로컬 실행에서 확인했다. Pi/ARM 패키지 호환성·지연은 미검증이다. Windows는 `Scripts/python.exe`를 자동 선택하며, 인터프리터 경로는 서버 환경변수 `KIOSK_FACE_RATIO_PYTHON`으로 지정할 수 있다.
+배포에는 저장소에 포함한 `assets/face_ratios.json`과 `assets/face_ratio_balance.json`을 사용한다. 공개 실사 데이터셋을 다시 준비할 필요가 없다. 캐릭터나 모델을 바꿀 때만 `scripts/build_face_ratios.py`와 `scripts/build_ratio_balance.py`를 사용해 별도 공개 데이터셋으로 기준·보정을 다시 계산한다.
+
+macOS에서는 CPU 설정에서도 그래픽 초기화가 필요했다. Codex 제한 환경에서는 실패했고 허용된 로컬 실행에서 확인했다. Pi/ARM에서의 실제 설치·추론·지연은 미검증이다. Windows는 `Scripts/python.exe`를 자동 선택하며, 인터프리터 경로는 서버 환경변수 `KIOSK_FACE_RATIO_PYTHON`으로 지정할 수 있다.
 
 ## API와 실패 처리
 

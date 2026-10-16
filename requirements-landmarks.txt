@@ -1,6 +1,8 @@
 # Install in .venv-landmarks, never over the kiosk .venv (NumPy versions differ).
-# Verified on Intel macOS / Python 3.12. Pi installation and latency need testing.
-mediapipe==0.10.21
+# Python 3.12. 0.10.21 has no Linux ARM64 wheel; 0.10.18 supplies one for Pi 64-bit.
+# Pi installation, measured recommendations and latency still require device QA.
+mediapipe==0.10.18; sys_platform == "linux" and platform_machine == "aarch64"
+mediapipe==0.10.21; sys_platform != "linux" or platform_machine != "aarch64"
 numpy==1.26.4
 opencv-contrib-python==4.11.0.86
 jax==0.4.38

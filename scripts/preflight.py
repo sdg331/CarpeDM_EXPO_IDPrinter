@@ -35,6 +35,12 @@ def main() -> int:
     modules = ("fastapi", "uvicorn", "cv2", "numpy", "PIL", "httpx", "multipart")
     for module in modules:
         check(f"모듈 {module}", importlib.util.find_spec(module) is not None)
+    matching_ready = False
+    if all(importlib.util.find_spec(module) for module in ("fastapi", "cv2", "numpy")):
+        from backend.ratio_lab import status as matching_status
+        matching_ready = matching_status()["configured"]
+    check("MediaPipe 추천 환경·모델·비교 기준", matching_ready,
+          "docs/FACE_RATIO_EXPERIMENT.md의 별도 환경 설치와 KIOSK_FACE_RATIO_PYTHON 확인")
     for filename, minimum in (("face_detection_yunet_2023mar.onnx", 100_000),
                               ("face_recognition_sface_2021dec.onnx", 30_000_000)):
         path = ROOT / "models" / filename
