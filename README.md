@@ -1,8 +1,12 @@
 # MIRRORTING WORKS · EXPO ID Printer
 
+## 운영 얼굴 특징점 추천 · 2026-10-16
+
+입사 화면은 이제 **MediaPipe478점 → 9개 얼굴 비율 비교 → 캐릭터 추천**을 사용합니다. `/api/match/landmarks` 응답의 실제 비교 항목과 측정 비율을 결과 화면에 표시하며, 분석 화면은 얇은 윤곽선과 주요 지점만 표시합니다. 기존 `/api/match`는 SFace 비교 기준으로 남습니다. 별도 `.venv-landmarks` 설치와 모델·기준·보정 파일이 필요하며 운영 추천에는 `KIOSK_MATCH_LAB=1`이 필요하지 않습니다. [설치 방법](docs/FACE_RATIO_EXPERIMENT.md#설치와-실행), [API](docs/API_CONTRACT.md)를 참고하세요. 사람이 느끼는 닮음과 Pi에서의 처리 지연은 별도 검증 대상입니다.
+
 ## 얼굴 비율 비교 실험 · 2026-10-13
 
-`/static/matching-lab.html`에서 SFace·MediaPipe 비율 추천과 실제478개 좌표를 비교합니다. 2026-10-14 실사/그림 비율과 후보 분포 보정을 적용했습니다. 보정에 쓰지 않은 공개 실사100명에서07/08 집중93%→29%, 8종 각각9~20회로 분산됐습니다. 닮음 정확도 개선을 뜻하지 않으며 사원증 추천은 SFace를 유지합니다. 별도 `.venv-landmarks`와 `KIOSK_MATCH_LAB=1`로 실행합니다. [설치·계산·평가](docs/FACE_RATIO_EXPERIMENT.md).
+`/static/matching-lab.html`에서 SFace·MediaPipe 비율 추천과 실제478개 좌표를 비교합니다. 2026-10-14 실사/그림 비율과 후보 분포 보정을 적용했습니다. 보정에 쓰지 않은 공개 실사100명에서07/08 집중93%→29%, 8종 각각9~20회로 분산됐습니다. 이는 닮음 정확도 개선을 뜻하지 않습니다. 비교 화면은 별도 `.venv-landmarks`와 `KIOSK_MATCH_LAB=1`로 실행합니다. [설치·계산·평가](docs/FACE_RATIO_EXPERIMENT.md).
 
 리포트 화면·감열 출력에 브루탈리즘 디자인을 적용하고, **전용 NFC 카드 → 촬영 → 사진·소개 QR 감열 인화** 경로를 추가했습니다. 사진 파일 다운로드나 외부 업로드는 없습니다. 실제 소개 URL과 전용 카드 UID 설정 및 실물 검증은 아직 필요합니다. [기념사진 설정·운영](docs/SOUVENIR.md)을 따르세요.
 

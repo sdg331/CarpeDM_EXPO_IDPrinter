@@ -87,3 +87,49 @@ def test_dense_engine_follows_yunet_target_instead_of_a_different_face():
     assert selected[:,0].mean()>.7
     with pytest.raises(RatioError,match="LANDMARK_QUALITY_FAILED"):
         engine.extract(np.zeros((480,640,3),np.uint8),target_box=[.4,.0,.1,.1],landmarks_only=True)
+
+
+def measured_result(gender):
+    from backend.face_ratios import load_balance, load_references, rank_ratios
+    result = rank_ratios(np.array(load_balance()["realMean"]), load_references(), gender)
+    return {**result, "landmarks": [[.5, .5]] * 478, "elapsedMs": 30}
+
+
+@pytest.mark.parametrize("gender,count", [("any", 8), ("male", 4), ("female", 4)])
+def test_visitor_recommendation_uses_geometry_and_explains_the_same_selected_face(client, monkeypatch, gender, count):
+    expected = measured_result(gender)
+    def geometry(raw, preference, selected):
+        assert preference == gender and selected["count"] == 2
+        assert selected["box"] == pytest.approx([230/640, 70/480, 180/640, 260/480])
+        return expected
+    monkeypatch.setattr(lab, "run_ratio_frame", geometry)
+    monkeypatch.setattr(app.STATE["engine"], "embed", lambda *_: pytest.fail("SFace must not select the visitor result"))
+    raw = BytesIO(); Image.new("RGB", (640, 480)).save(raw, format="PNG")
+    response = client.post("/api/match/landmarks", data={"character_gender": gender},
+                           files={"frame": ("test.png", raw.getvalue(), "image/png")})
+    data = response.json()
+    assert response.status_code == 200 and data["engine"] == "mediapipe_ratios"
+    assert data["characters"][data["top"]]["id"] == expected["characterId"]
+    assert data["analysis"]["comparisons"] == expected["comparisons"]
+    assert data["analysis"]["candidateCount"] == count
+    assert len(data["face"]["landmarks"]) == 478 and data["face"]["source"] == "mediapipe"
+    assert data["externalUpload"] is False and data["analysis"]["likenessValidated"] is False
+    assert not lab.COMPARISON_LOCK.locked()
+
+
+@pytest.mark.parametrize("code,status", [("FACE_NOT_FRONTAL", 422), ("LANDMARK_ENGINE_UNAVAILABLE", 503)])
+def test_geometry_failure_never_returns_a_sface_or_random_recommendation(client, monkeypatch, code, status):
+    def fail(*_): raise RatioError(code)
+    monkeypatch.setattr(lab, "run_ratio_frame", fail)
+    response = post(client, "/api/match/landmarks")
+    assert response.status_code == status and response.json()["error"]["code"] == code
+    assert "top" not in response.json() and not lab.COMPARISON_LOCK.locked()
+
+
+def test_geometry_rejects_busy_or_malformed_results(client, monkeypatch):
+    with lab.COMPARISON_LOCK:
+        assert post(client, "/api/match/landmarks").status_code == 409
+    result = measured_result("any"); result["landmarks"] = [[.5, .5]] * 5
+    monkeypatch.setattr(lab, "run_ratio_frame", lambda *_: result)
+    assert post(client, "/api/match/landmarks").status_code == 503
+    assert not lab.COMPARISON_LOCK.locked()

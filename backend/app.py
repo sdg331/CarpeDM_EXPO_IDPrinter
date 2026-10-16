@@ -207,6 +207,7 @@ def char_meta() -> list[dict]:
 
 @app.get("/api/health")
 def health() -> dict:
+    from backend.ratio_lab import status as ratio_status
     p = STATE.get("proto")
     engine_ready = STATE.get("engine") is not None
     return {
@@ -221,6 +222,8 @@ def health() -> dict:
         "printer": printer_status(), "nfc": nfc_status(), "database": STORE.health(),
         "max_pair": float(_max_pair()) if p and len(p.ids) > 1 else None,
         "profile": {"engine": "local_cv", "changesClothes": False, "externalUpload": False},
+        "matching": {"engine": "mediapipe_ratios", "configurationReady": ratio_status()["configured"],
+                     "likenessValidated": False},
         "mirrorting": {"configured": bool(os.getenv('KIOSK_MIRRORTING_URL')) and len(os.getenv('KIOSK_BRIDGE_TOKEN', '')) >= 32},
         "souvenir": {"configured": _souvenir_configured(), "externalUpload": False},
     }
@@ -359,6 +362,62 @@ async def face_map(frame: UploadFile = File(...)) -> dict:
             COMPARISON_LOCK.release()
     return {"ok": True, "face": selected, "detailAvailable": selected["source"] == "mediapipe",
             "externalUpload": False}
+
+
+@app.post("/api/match/landmarks")
+async def match_landmarks(
+    frame: UploadFile = File(...),
+    character_gender: Literal["any", "male", "female"] = Form("any"),
+) -> dict:
+    """Visitor recommendation uses measured geometry; SFace stays a comparison baseline."""
+    from backend.ratio_lab import COMPARISON_LOCK, run_ratio_frame
+    from backend.face_ratios import FEATURE_NAMES, RatioError
+    raw = await _frame_bytes(frame)
+    _, selected, _ = await run_in_threadpool(_detect_frame, raw)
+    if selected is None:
+        return {"ok": False, "error": "no_face"}
+    if not COMPARISON_LOCK.acquire(blocking=False):
+        return _error("MATCH_COMPARISON_BUSY", retryable=True, status_code=409)
+    try:
+        try:
+            result = await run_in_threadpool(run_ratio_frame, raw, character_gender, selected)
+        except RatioError as exc:
+            code = str(exc)
+            correctable = code in {"NO_PERSON", "MULTIPLE_PEOPLE", "FACE_NOT_FRONTAL", "LANDMARK_QUALITY_FAILED"}
+            return _error(code, retryable=correctable or code == "LANDMARK_TIMEOUT",
+                          status_code=422 if correctable else 503)
+        characters = char_meta()
+        ids = [row["id"] for row in characters]
+        eligible = {cid for cid in ids if character_gender == "any" or CHARACTER_GENDERS.get(cid) == character_gender}
+        try:
+            ranked_ids = [row["characterId"] for row in result["ranking"]]
+            points = np.asarray(result["landmarks"], dtype=float)
+            if (not eligible or len(ranked_ids) != len(eligible) or set(ranked_ids) != eligible or
+                    result["characterId"] != ranked_ids[0] or points.shape != (478, 2) or
+                    not np.isfinite(points).all() or (np.abs(points) > 2).any() or
+                    result["candidateCount"] != len(eligible) or result["distributionCorrected"] is not True or
+                    len(result["comparisons"]) != 9 or
+                    {row["key"] for row in result["comparisons"]} != set(FEATURE_NAMES) or
+                    any(not np.isfinite([row["measuredRatio"], row["characterRatio"], row["comparisonDifference"]]).all()
+                        or min(row["measuredRatio"], row["characterRatio"]) <= 0 or row["comparisonDifference"] < 0
+                        for row in result["comparisons"])):
+                raise ValueError("Invalid geometry result")
+            top = ids.index(result["characterId"])
+        except (KeyError, TypeError, ValueError, IndexError):
+            return _error("LANDMARK_ENGINE_UNAVAILABLE", retryable=False, status_code=503)
+        return {
+            "ok": True, "top": top, "characters": characters,
+            "order": [ids.index(cid) for cid in ranked_ids],
+            "engine": "mediapipe_ratios", "characterGender": character_gender,
+            "face": {**selected, "source": "mediapipe", "landmarks": result["landmarks"]},
+            "analysis": {"engine": "mediapipe_ratios", "characterId": result["characterId"],
+                         "candidateCount": len(eligible), "featureCount": 9,
+                         "distributionCorrected": True, "likenessValidated": False,
+                         "comparisons": result["comparisons"]},
+            "elapsed_ms": result["elapsedMs"], "calibrated": False, "externalUpload": False,
+        }
+    finally:
+        COMPARISON_LOCK.release()
 
 
 def _profile_response(profile_id: str, elapsed_ms: float, *, reused: bool) -> dict:

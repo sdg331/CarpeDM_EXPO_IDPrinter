@@ -1,5 +1,14 @@
 # Decisions
 
+## D-055 MediaPipe visitor recommendation · 2026-10-16
+Status: IMPLEMENTED following owner request; human likeness and Pi acceptance pending
+
+- 입사 UI는 `/api/match/landmarks`를 호출해 실제 MediaPipe478점에서 계산한9개 비율로 추천한다. 이전 비교 실험의 실사/캐릭터 표준화와 고정 보정값을 재사용한다. `/api/match`는 SFace 비교·호환용으로 유지하며 방문자 UI에서 호출하지 않는다.
+- 선택된 같은 얼굴의 좌표·추천·비율 설명을 한 응답으로 받는다. 병렬 상세 맵 요청은 제거한다. 실패 시 SFace나 무작위 결과로 바꾸지 않고 재촬영/운영자 안내를 제공한다.
+- 결과는 실제 비교 차이가 작은 항목3개와 보정 전 측정 비율을 표시한다. 후보별 보정이 포함되므로 특정 항목만으로 추천이 결정됐다고 주장하지 않는다. 직접 선택 시 추천 근거를 숨긴다.
+- 상세 맵은 얇은 윤곽과 주요12점만 표시한다. 미리보기의 실제5점/박스는 유지한다. 사진·좌표·비율은 현재 방문자 메모리에만 보관하며 NFC 요청은 캐릭터ID만 전달한다.
+- 분포 보정과 닮음 정확도는 별개다. 실제 참가자 닮음 평가와 Pi 지연은 별도 확인한다. 이 결정은 아래 운영 SFace 유지에 관한 이전 기록보다 우선한다.
+
 ## D-052 Face ratio comparison experiment · 2026-10-13
 Status: IMPLEMENTED experiment following owner request; production replacement withheld
 

@@ -6,15 +6,14 @@ import {
   isSameOriginImage,
   KioskError,
   errorCopy,
-  wait,
-} from "./api-client.js?v=20261014-face-map-r1";
+} from "./api-client.js?v=20261016-landmark-match-r1";
 import { Camera } from "./camera.js?v=20261014-face-map-r1";
-import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, escape } from "./views.js?v=20261014-face-map-r1";
+import { renderScreen, renderHeader, renderTeamPreview, renderCharacterPicker, escape } from "./views.js?v=20261016-analysis-pair-r1";
 import { icon } from "./icons.js";
 import { createMotion } from "./motion.js?v=20261008-touch-ui-r3";
 import { resolveRuntime } from "./runtime.js";
 import { createDigitalBadge } from "./digital-badge.js";
-import { drawFaceOverlay, validateFace } from "./face-overlay.js?v=20261014-face-map-r1";
+import { drawFaceOverlay, validateFace } from "./face-overlay.js?v=20261016-analysis-pair-r1";
 
 const query = new URLSearchParams(location.search);
 const runtime = resolveRuntime(query);
@@ -47,7 +46,6 @@ let healthRequest = null;
 let returnFocus = null;
 let badgeUrl = null;
 const motion = createMotion();
-const MIN_AI_SCREEN_MS = 6000;
 
 function resize() {
   const kiosk = document.querySelector("#kiosk");
@@ -75,11 +73,11 @@ function render(direction = "forward") {
 }
 function drawAnalysisFace() {
   drawFaceOverlay(screen.querySelector("#analysis-face-map"), state.data.captureFace,
-    { mirrored: !demo, visible: state.data.facePointsVisible !== false });
+    { mirrored: !demo, visible: state.data.facePointsVisible !== false, allPoints: true });
   const note = screen.querySelector("#face-feature-note");
   if (note && state.data.captureFace) {
     const face = state.data.captureFace;
-    note.textContent = `${face.count > 1 ? `${face.count}명 중 가까운 얼굴 선택 · ` : ""}${face.source === "mediapipe" ? "윤곽·눈·코·입" : "눈·코·입"} 실제 특징점 ${face.landmarks.length}개`;
+    note.textContent = `${face.count > 1 ? `${face.count}명 중 선택한 얼굴 · ` : ""}${face.source === "mediapipe" ? "실제 얼굴 특징점 478개" : "눈·코·입 실제 특징점 5개"}`;
   }
 }
 function lockHeader() {
@@ -213,7 +211,7 @@ async function run(
               !sideEffect || demo,
             ),
           );
-        }, 25000);
+        }, name === "ai" ? 35000 : 25000);
       }),
     ]);
     if (!state.isCurrent(token)) return;
@@ -394,7 +392,6 @@ function analyze() {
   run(
     "ai",
     async (ctx) => {
-      const startedAt = performance.now();
       const frame = s.capture;
       const onFace = (face) => {
         if (ctx.signal.aborted || state.data.screen !== "processing" || state.data.capture !== frame || !state.data.busy) return;
@@ -402,14 +399,11 @@ function analyze() {
         if (!face || (state.data.captureFace?.source === "mediapipe" && face.source !== "mediapipe")) return;
         state.patch({ captureFace: face }); drawAnalysisFace();
       };
-      // Optional detail never blocks successful matching or invents a face map.
-      api.faceMap?.(frame, ctx).then(data => onFace(data.face)).catch(() => {});
-      const result = await (s.aiMode === "A"
+      // The recommendation returns the same measured landmarks used for ranking.
+      if (s.aiMode !== "A") api.faceMap?.(frame, ctx).then(data => onFace(data.face)).catch(() => {});
+      return s.aiMode === "A"
         ? api.matchCharacter(s.capture, { ...ctx, characterGender: s.characterGender, onFace })
-        : api.generateProfile(s.capture, ctx));
-      const remaining = MIN_AI_SCREEN_MS - (performance.now() - startedAt);
-      if (remaining > 0) await wait(remaining, ctx.signal);
-      return result;
+        : api.generateProfile(s.capture, ctx);
     },
     (result) => {
       if (

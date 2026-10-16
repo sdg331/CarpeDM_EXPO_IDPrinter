@@ -1,4 +1,4 @@
-import { KioskError } from "./api-client.js?v=20261014-face-map-r1";
+import { KioskError } from "./api-client.js?v=20261016-landmark-match-r1";
 
 export class Camera {
   stream = null;

@@ -27,7 +27,7 @@ const contours = [
   [168,6,197,195,5,4,1,2],
 ];
 
-export function drawFaceOverlay(canvas, face, { fit = "contain", mirrored = false, visible = true } = {}) {
+export function drawFaceOverlay(canvas, face, { fit = "contain", mirrored = false, visible = true, allPoints = false } = {}) {
   if (!canvas) return;
   try { validateFace(face); } catch { face = null; }
   canvas.hidden = !face || !visible;
@@ -39,23 +39,37 @@ export function drawFaceOverlay(canvas, face, { fit = "contain", mirrored = fals
   const ctx = canvas.getContext("2d"); ctx.scale(ratio, ratio);
   const transform = overlayTransform(...face.imageSize, width, height, fit, mirrored);
   const points = face.landmarks.map(transform);
+  const dense = points.length === 478;
+  if (dense && allPoints) {
+    ctx.fillStyle = "#9af6e4";
+    ctx.beginPath();
+    for (const [px, py] of points) {
+      ctx.moveTo(px + 1.3, py); ctx.arc(px, py, 1.3, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    return;
+  }
   const [x, y, w, h] = face.box;
   const [left, top] = transform([x, y]); const [right, bottom] = transform([x+w, y+h]);
-  ctx.strokeStyle = "#74ebde"; ctx.lineWidth = 1.8;
-  ctx.setLineDash([9, 5]); ctx.strokeRect(Math.min(left, right), top, Math.abs(right-left), bottom-top); ctx.setLineDash([]);
-  ctx.strokeStyle = "#76e7ff"; ctx.lineWidth = 1.1;
-  const paths = points.length === 478 ? contours : [[0,2,1],[3,2,4],[3,4]];
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  if (!dense) {
+    ctx.strokeStyle = "#74ebde"; ctx.lineWidth = 1.5;
+    ctx.setLineDash([7, 5]); ctx.strokeRect(Math.min(left, right), top, Math.abs(right-left), bottom-top); ctx.setLineDash([]);
+  }
+  ctx.strokeStyle = "#8be4d9"; ctx.lineWidth = 1.4;
+  const paths = dense ? contours : [[0,2,1],[3,2,4],[3,4]];
   for (const path of paths) {
     ctx.beginPath(); path.forEach((index, i) => i ? ctx.lineTo(...points[index]) : ctx.moveTo(...points[index])); ctx.stroke();
   }
   ctx.fillStyle = "#c8f8ff";
-  for (const [px, py] of points) {
-    ctx.beginPath(); ctx.arc(px, py, points.length === 478 ? 1.1 : 3, 0, Math.PI*2); ctx.fill();
-  }
-  if (points.length === 478) {
+  if (dense) {
     ctx.fillStyle = "#ffdc88";
     for (const index of [1,4,33,133,263,362,61,291,10,152,468,473]) {
-      ctx.beginPath(); ctx.arc(...points[index], 2.4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(...points[index], 2.2, 0, Math.PI*2); ctx.fill();
+    }
+  } else {
+    for (const [px, py] of points) {
+      ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI*2); ctx.fill();
     }
   }
 }

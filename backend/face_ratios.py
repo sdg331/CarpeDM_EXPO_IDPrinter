@@ -190,7 +190,15 @@ def rank_ratios(features: np.ndarray, references: dict, gender: str = "any", *, 
     order = sorted(eligible, key=lambda i: (distances[i], i))
     ranked = [{"characterId": rows[i]["id"], "distance": round(float(distances[i]), 4)} for i in order]
     closest_features = np.argsort(errors[order[0]], kind="stable")[:2]
+    comparisons = [
+        {"key": FEATURE_NAMES[i], "label": FEATURE_LABELS[i],
+         "measuredRatio": round(float(values[i]), 5),
+         "characterRatio": round(float(vectors[order[0], i]), 5),
+         "comparisonDifference": round(float(np.sqrt(errors[order[0], i])), 5)}
+        for i in np.argsort(errors[order[0]], kind="stable")
+    ]
     return {"characterId": rows[order[0]]["id"], "ranking": ranked,
             "margin": round(float(distances[order[1]] - distances[order[0]]), 4) if len(order) > 1 else 0,
             "closestFeatures": [FEATURE_LABELS[i] for i in closest_features],
+            "comparisons": comparisons, "candidateCount": len(eligible),
             "experimental": True, "calibrated": False, "distributionCorrected": balanced}

@@ -1,5 +1,13 @@
 # API Contract · 2026-10-03
 
+## 운영 MediaPipe 추천 · 2026-10-16
+
+방문자 UI의 `matchCharacter`는 `POST /api/match/landmarks`에 multipart `frame`, `character_gender:any|male|female`를 전달한다. `/api/match`는 기존 SFace 비교용 계약을 유지한다. 이 구분은 아래 이전 운영 SFace 설명보다 우선한다.
+
+새 응답은 `{ok,top,characters,order,engine:mediapipe_ratios,characterGender,face,analysis,elapsed_ms,calibrated:false,externalUpload:false}`다. face는 선택된 같은 얼굴의 실제478점이다. analysis는 `{engine,characterId,candidateCount,featureCount:9,distributionCorrected:true,likenessValidated:false,comparisons:[{key,label,measuredRatio,characterRatio,comparisonDifference}]}`이며9개 항목을 보정 후 비교 차이 오름차순으로 반환한다. 측정 비율은 보정 전 값, comparisonDifference는 보정된 특징별 차이이며 닮음 확률이 아니다. 기존 실사/캐릭터 표준화와 후보별 고정 보정을 그대로 사용한다.
+
+얼굴 없음은 기존 no_face, 비정면/좌표 불안정은422, 모델·환경·기준 오류는503, 분석 중복은409다. 기본 최대30초 워커 제한과 메모리/no-store/same-origin 규칙을 유지한다. 실패 시 SFace로 자동 전환하지 않는다. 입사 분석은 이 한 응답으로 맵과 추천을 갱신하며 `/api/face-map`을 병렬 호출하지 않는다. 측정값은 NFC/DB에 추가하지 않는다.
+
 ## 얼굴 비율 비교 실험 · 2026-10-13
 
 2026-10-14: 비율 추천에 고정된 실사/그림 표준화와 조건별 분포 보정을 적용한다. 상태 및 ratios 결과의 `distributionCorrected:true`는 분포 보정 적용 여부이며 `calibrated:false`는 사람이 평가한 닮음 검증이 없음을 유지한다. `ranking[].distance`는 보정된 비용의 제곱근으로 작을수록 우선이며 SFace 점수와 직접 비교하지 않는다. 보정 파일 누락/오래된 기준/잘못된 수치는503 또는 configured:false로 차단한다. 방문자 횟수·이전 결과는 사용하지 않는다.

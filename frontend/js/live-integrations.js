@@ -94,7 +94,9 @@ export function createLiveIntegrations(fetcher = fetch) {
         name: profile.name,
         teamId: profile.teamId,
         aiMode: profile.aiMode,
-        result: profile.result,
+        result: profile.result.kind === "A"
+          ? { kind: "A", characterId: profile.result.characterId }
+          : { kind: "B", profileId: profile.result.profileId },
       },
       context,
       true,

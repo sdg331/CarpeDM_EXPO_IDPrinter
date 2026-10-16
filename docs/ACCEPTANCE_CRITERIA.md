@@ -1,5 +1,7 @@
 # Acceptance Criteria
 
+2026-10-16 MediaPipe 추천: 실제 입사 API가478점에서 계산한9개 비율을 사용하고, 결과ID·추천 조건·근거가 같은 얼굴에 속해야 한다. 상세 실패는 명시적 오류이며 SFace/무작위 결과로 바꾸지 않는다. 결과의 비율 펼치기·접기, 직접 선택 시 근거 숨김, 메모리 초기화, NFC 요청에서 측정값 제외를 확인한다. 키오스크 결과가 길면 화면 내부 세로 스크롤로 푸터·버튼 겹침 없이 모든 항목에 접근한다.
+
 ## Global
 
 Every screen passes when:
@@ -59,7 +61,8 @@ Every screen passes when:
 
 ## SCR-09 AI_PROCESSING
 - [ ] no fake percentage
-- [ ] scan/network/comparison effects are labelled as illustrative, stop on error/result, and respect reduced motion
+- [ ] left four eligible previews cycle, right photo shows all actual478 points; previews are not ranking and reduced motion freezes the first
+- [ ] valid AI response transitions immediately without minimum display or landmark hold; no duplicate inference or animation timer
 - [ ] random fallback removed
 - [ ] duplicate processing prevented
 - [ ] A success → SCR-10

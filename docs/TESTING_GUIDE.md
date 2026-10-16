@@ -1,5 +1,7 @@
 # Testing Guide
 
+2026-10-16 운영 MediaPipe 경로: `npm test`, `.venv/bin/python -m pytest tests -q`, `git diff --check`를 실행한다. `/api/match/landmarks`에 동일 샘플을 반복 전송해 순위·근거 재현성, any/male/female 후보 수·필터, 실제478점과9개 비교값을 확인한다. 800×1280 결과의 근거·측정 표 펼치기/접기·터치 스크롤, 좁은 웹 결과와 특징점 토글도 확인한다. `/api/match`는 SFace 비교 기준이므로 운영 추천 확인에는 사용하지 않는다. 실제 참가자의 닮음·Pi 지연·실물 카드/출력은 별도 검증한다.
+
 ## Philosophy
 
 Test as a physical kiosk system, not just a webpage.
@@ -59,6 +61,8 @@ Check:
 | backend error | retry/human copy |
 
 ## AI Matrix
+
+2026-10-16 SCR-09: any/male/female에서 왼쪽 미리보기는4장, 실제 비교 후보는8/4/4인지 확인한다. 오른쪽 촬영 사진의 미러링·contain 좌표478개와 토글, reduced-motion의 첫 장 고정, 오류 시 사진·순환 제거를 확인한다. A/B 응답 전에는 결과가 없고, 응답 이후에는 최소 유지 시간·좌표 표시용 대기 없이 결과를 반환하는지 검증한다. 오류/취소·늦은 좌표 폐기를 유지한다. 좌표가 결과와 함께 도착하면 표시 확인을 위해 기다리지 않는다. 실제 Pi 성능은 별도 측정한다.
 
 | Scenario | Expected |
 |---|---|

@@ -1,6 +1,6 @@
-import { liveIntegrations } from "./live-integrations.js?v=20261012-report-photo-r3";
+import { liveIntegrations } from "./live-integrations.js?v=20261016-landmark-match-r1";
 import { characters, sampleCareerTip, matchingCharacters } from "./content.js?v=20261013-character-gender-r1";
-import { validateFace } from "./face-overlay.js?v=20261014-face-map-r1";
+import { validateFace } from "./face-overlay.js?v=20261016-landmark-match-r1";
 
 export class KioskError extends Error {
   constructor(code, retryable = true) {
@@ -10,6 +10,13 @@ export class KioskError extends Error {
   }
 }
 export const errorCopy = {
+  FACE_NOT_FRONTAL: ["얼굴을 정면으로 보여주세요.", "고개를 카메라 쪽으로 돌리고 다시 촬영해주세요."],
+  LANDMARK_QUALITY_FAILED: ["얼굴 특징을 읽기 어려워요.", "눈·코·입이 가려지지 않게 하고 조금 더 가까이서 다시 촬영해주세요."],
+  LANDMARK_ENGINE_UNAVAILABLE: ["얼굴 비율 분석을 준비하지 못했어요.", "분석 프로그램 연결을 현장 스태프에게 알려주세요."],
+  LANDMARK_MODEL_UNAVAILABLE: ["얼굴 분석 모델을 준비하지 못했어요.", "현장 스태프에게 알려주세요."],
+  RATIO_REFERENCES_UNAVAILABLE: ["캐릭터 비교 기준을 확인하지 못했어요.", "현장 스태프에게 알려주세요."],
+  LANDMARK_TIMEOUT: ["얼굴 분석이 지연되고 있어요.", "잠시 후 다시 촬영해주세요."],
+  MATCH_COMPARISON_BUSY: ["이전 얼굴 분석을 마무리하고 있어요.", "잠시 기다린 뒤 다시 촬영해주세요."],
   SOUVENIR_NOT_CONFIGURED: ["기념사진을 준비하고 있어요.", "소개 QR과 전용 카드 설정이 필요해요. 현장 스태프에게 알려주세요."],
   SOUVENIR_PRINT_PENDING: ["이전 인화 상태를 확인하고 있어요.", "중복 출력을 막기 위해 촬영을 잠시 멈췄어요. 현장 스태프에게 알려주세요."],
   SOUVENIR_CARD_REQUIRED: ["기념사진 전용 카드를 태그해주세요.", "현장 스태프에게 기념사진 카드를 받아 다시 태그해주세요."],
@@ -140,11 +147,32 @@ export function normalizeMatch(data) {
     !known
   )
     throw new KioskError("INVALID_RESPONSE", false);
-  return {
+  const result = {
     kind: "A",
     characterId: known.id,
     image: known.image,
   };
+  if (data.analysis) {
+    const labels = { face_aspect: "얼굴 길이", jaw_width: "턱 너비", eye_spacing: "눈 간격",
+      eye_width: "눈 너비", eye_aspect: "눈 모양", nose_width: "코 너비",
+      nose_length: "코 길이", mouth_width: "입 너비", lower_face: "하관 길이" };
+    const analysis = data.analysis;
+    if (analysis.engine !== "mediapipe_ratios" || analysis.characterId !== known.id ||
+        ![4, 8].includes(analysis.candidateCount) || analysis.featureCount !== 9 ||
+        analysis.distributionCorrected !== true || analysis.likenessValidated !== false ||
+        !Array.isArray(analysis.comparisons) || analysis.comparisons.length !== 9 ||
+        new Set(analysis.comparisons.map(row => row?.key)).size !== 9 ||
+        analysis.comparisons.some(row => !Object.hasOwn(labels, row?.key) ||
+          !Number.isFinite(row.measuredRatio) || row.measuredRatio <= 0 ||
+          !Number.isFinite(row.characterRatio) || row.characterRatio <= 0 ||
+          !Number.isFinite(row.comparisonDifference) || row.comparisonDifference < 0))
+      throw new KioskError("INVALID_RESPONSE", false);
+    result.analysis = { ...analysis, comparisons: analysis.comparisons.map(row => ({
+      key: row.key, label: labels[row.key], measuredRatio: row.measuredRatio,
+      characterRatio: row.characterRatio, comparisonDifference: row.comparisonDifference,
+    })) };
+  }
+  return result;
 }
 
 export function normalizeProfile(data) {
@@ -397,12 +425,17 @@ export function createLiveApi(
       const form = multipart(frame);
       form.append("character_gender", characterGender);
       const data = await request(
-          "/api/match",
-          { method: "POST", body: form, signal },
+          "/api/match/landmarks",
+          { method: "POST", body: form, signal, timeout: 35000 },
           fetcher,
         );
       const result = normalizeMatch(data);
-      if (data.face) { validateFace(data.face); onFace?.(data.face); }
+      if (data.engine !== "mediapipe_ratios" || !result.analysis || data.characterGender !== characterGender ||
+          result.analysis.candidateCount !== matchingCharacters(characterGender).length ||
+          !matchingCharacters(characterGender).some(row => row.id === result.characterId) ||
+          data.externalUpload !== false || data.face?.source !== "mediapipe")
+        throw new KioskError("INVALID_RESPONSE", false);
+      validateFace(data.face); onFace?.(data.face);
       return result;
     },
     generateProfile: async (frame, { signal, operationId } = {}) => {

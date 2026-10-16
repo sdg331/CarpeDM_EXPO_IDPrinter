@@ -41,16 +41,32 @@ test("Catalogue configuration agrees with backend and renders only eligible port
   }
 });
 
-test("Live recommendation transmits each preference with the captured frame", async () => {
+test("Live recommendation transmits each preference and rejects a legacy result", async () => {
   for (const gender of ["any", "male", "female"]) {
     let submitted;
     const api = createLiveApi({}, async (_, options) => {
       submitted = options.body;
       return { ok: true, json: async () => ({ ok: true, top: 0, characters: [{ id: "char_01" }] }) };
     });
-    await api.matchCharacter(new Blob(["frame"]), { characterGender: gender });
+    await assert.rejects(api.matchCharacter(new Blob(["frame"]), { characterGender: gender }), { code: "INVALID_RESPONSE" });
     assert.equal(submitted.get("character_gender"), gender);
     assert.equal(await submitted.get("frame").text(), "frame");
+  }
+});
+
+test("Processing previews exactly four eligible portraits without narrowing the matching pool", () => {
+  for (const gender of ["any", "male", "female"]) {
+    const eligible = characters.filter(character => gender === "any" || character.gender === gender);
+    for (const web of [false, true]) {
+      const html = renderScreen({ screen: "processing", aiMode: "A", characterGender: gender, capturePreview: "blob:photo" }, false, web);
+      const frames = html.match(/class="analysis-character-frames"[^>]*>(.*?)<\/div>/s)[1];
+      assert.equal((frames.match(/<img /g) || []).length, 4);
+      for (const character of characters) assert.equal(frames.includes(character.thumbnail), eligible.slice(0, 4).includes(character));
+      assert.ok(html.includes(`${eligible.length}명을 비교해요`));
+      assert.equal((html.match(/id="analysis-face-map"/g) || []).length, 1);
+      const error = renderScreen({ screen: "processing", aiMode: "A", capturePreview: "blob:photo", error: { code: "AI_ERROR", retryable: true } }, false, web);
+      assert.doesNotMatch(error, /analysis-character-frames|blob:photo/);
+    }
   }
 });
 

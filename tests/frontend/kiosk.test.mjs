@@ -12,7 +12,6 @@ import {
   request,
   KioskError,
   errorCopy,
-  wait,
 } from "../../frontend/js/api-client.js";
 import { Camera } from "../../frontend/js/camera.js";
 import { characters } from "../../frontend/js/content.js";
@@ -378,7 +377,11 @@ test("AI processing uses an indeterminate visual without invented progress stage
   assert.match(modeA, /선택한 얼굴의 실제 특징점/);
   assert.match(modeA, /특징점 숨기기/);
   assert.doesNotMatch(modeA, /analysis-point|analysis-scan|analysis-network|분석 과정을 표현한 연출/);
-  for (const { thumbnail } of characters) assert.ok(modeA.includes(thumbnail));
+  for (const { thumbnail } of characters.slice(0, 4)) assert.ok(modeA.includes(thumbnail));
+  for (const { thumbnail } of characters.slice(4)) assert.ok(!modeA.includes(thumbnail));
+  assert.match(modeA, /8명을 비교해요/);
+  assert.ok(modeA.indexOf('class="analysis-character"') < modeA.indexOf('class="analysis-self"'));
+  assert.match(modeA, /추천 순서와 무관한 미리보기/);
   assert.doesNotMatch(modeA, /facemap|FACE MAP/);
   assert.match(modeA, /role="status"/);
   assert.match(modeA, /얼굴 특징을 읽고 캐릭터와 비교/);
@@ -446,32 +449,35 @@ test("AI preview uses the captured Blob and releases it after success, failure o
   assert.equal(state.data.capturePreview, null);
 });
 
-test("AI success stays visible for six seconds, while slow requests, errors and cancellation stay immediate", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+test("AI finishes as soon as its response arrives, including measured faces, errors and cancellation", async () => {
   const source = readFileSync(new URL("../../frontend/js/app.js", import.meta.url), "utf8");
-  let now = 0, task;
+  let task, respond;
   const state = createState();
   state.patch({ aiMode: "A", capture: new Blob(["frame"]) });
   const result = { kind: "A", image: "/assets/characters/char_01.png" };
-  const api = { matchCharacter: async () => result, generateProfile: async () => ({ ...result, kind: "B" }) };
-  const context = { state, api, wait, performance: { now: () => now }, run: (_, callback) => { task = callback; } };
-  const minimum = source.match(/const MIN_AI_SCREEN_MS = \d+;/)[0];
-  runInNewContext(minimum + source.slice(source.indexOf("function analyze()"), source.indexOf("function finishNfc(")) + "analyze();", context);
+  const api = { matchCharacter: () => new Promise(resolve => { respond = resolve; }), generateProfile: async () => ({ ...result, kind: "B" }) };
+  const context = { state, api, run: (_, callback) => { task = callback; },
+    wait: () => assert.fail("AI results must not wait for presentation"),
+    setTimeout: () => assert.fail("AI results must not add a display timer") };
+  runInNewContext(source.slice(source.indexOf("function analyze()"), source.indexOf("function finishNfc(")) + "analyze();", context);
   let completed = false;
   const pending = task({}).then(value => { completed = true; return value; });
   await new Promise(setImmediate);
-  t.mock.timers.tick(5999);
-  await Promise.resolve();
   assert.equal(completed, false);
-  t.mock.timers.tick(1);
+  respond(result);
   assert.equal(await pending, result);
-
-  api.matchCharacter = async () => { now += 7000; return result; };
+  assert.equal(completed, true);
+  api.matchCharacter = async () => result;
+  state.patch({ captureFace: { source: "mediapipe" } });
   assert.equal(await task({}), result);
   api.matchCharacter = async () => { throw new KioskError("AI_ERROR"); };
   await assert.rejects(task({}), { code: "AI_ERROR" });
 
   state.patch({ aiMode: "B" });
+  assert.equal((await task({})).kind, "B");
+  api.generateProfile = (_, { signal }) => new Promise((_, reject) => {
+    signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+  });
   const controller = new AbortController();
   const canceled = task({ signal: controller.signal });
   await new Promise(setImmediate);
