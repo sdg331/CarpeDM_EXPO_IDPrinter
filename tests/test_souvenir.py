@@ -196,3 +196,8 @@ def test_qr_has_integer_modules_and_photo_is_contained_instead_of_cropped():
     assert image.width == 576 and image.mode == "1"
     assert np.array(image.convert("L"))[155, 50] == 0
     assert np.array(image.convert("L"))[530, 50] == 255
+    qr_y = 152 + 384 + 32
+    printed_qr = image.crop((24, qr_y, 24 + qr.width, qr_y + qr.height))
+    assert printed_qr.tobytes() == qr.tobytes()
+    decoded, points, _ = cv2.QRCodeDetector().detectAndDecode(np.array(image.convert("L")))
+    assert decoded == URL and points is not None

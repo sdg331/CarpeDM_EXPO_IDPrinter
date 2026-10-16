@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 import httpx
-from PIL import Image, ImageDraw, ImageEnhance, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 from backend.badge import BadgeError, _font
 from backend.career_tips import career_tip
@@ -240,8 +240,13 @@ def _wrapped(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list
 
 def thermal_photo(photo: Image.Image, size: tuple[int, int]) -> Image.Image:
     """Fit the whole frame and dither only the photograph, keeping text crisp."""
-    photo = ImageOps.contain(ImageOps.exif_transpose(photo).convert("L"), size)
+    photo = ImageOps.contain(
+        ImageOps.exif_transpose(photo).convert("L"), size, Image.Resampling.LANCZOS,
+    )
     photo = ImageEnhance.Brightness(ImageOps.autocontrast(photo, cutoff=1)).enhance(1.08)
+    photo = ImageEnhance.Contrast(photo).enhance(1.2)
+    # Reuse the character asset settings: restore edges at final size before dithering.
+    photo = photo.filter(ImageFilter.UnsharpMask(radius=1.2, percent=90, threshold=3))
     return photo.convert("1", dither=Image.Dither.FLOYDSTEINBERG)
 
 
